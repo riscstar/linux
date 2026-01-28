@@ -939,24 +939,6 @@ union tc956x_logstat_State_Log_Data {
 	unsigned int reg_val;
 };
 
-/* ===================================
- * Function Declaration
- * ===================================
- */
-int tc956x_pcie_ioctl_state_log_summary(const struct stmmac_priv *priv, void __user *data);
-int tc956x_pcie_ioctl_get_pcie_link_params(const struct stmmac_priv *priv, void __user *data);
-int tc956x_pcie_ioctl_state_log_enable(const struct stmmac_priv *priv, void __user *data);
-int tc956x_logstat_state_log_summary(void __iomem *pbase_addr, enum ports nport);
-int tc956x_logstat_get_state_log_stop_status(void __iomem *pbase_addr, enum ports nport, uint8_t *pstop_status);
-int tc956x_logstat_set_state_log_fifo_ptr(void __iomem *pbase_addr, enum ports nport, uint8_t fifo_pointer);
-int tc956x_logstat_get_state_log_data(void __iomem *pbase_addr, enum ports nport, uint32_t *pstate_log_data);
-int tc956x_logstat_state_log_analyze(unsigned int cur_state);
-int tc956x_logstat_get_pcie_cur_ltssm(void __iomem *pbase_addr, enum ports nport, uint8_t *pltssm);
-int tc956x_logstat_get_pcie_cur_dll(void __iomem *pbase_addr, enum ports nport, uint8_t *pdll);
-int tc956x_logstat_get_pcie_cur_speed(void __iomem *pbase_addr, enum ports nport, uint8_t *pspeed_val);
-int tc956x_logstat_get_pcie_cur_width(void __iomem *pbase_addr, enum ports nport, uint8_t *plane_width_val);
-int tc956x_logstat_set_state_log_enable(void __iomem *pbase_addr, enum ports nport, enum state_log_enable enable);
-
 //
 // Code from tc956x_main.c in vendor driver
 //
@@ -1977,140 +1959,231 @@ static uint8_t DlActive = LOGSTAT_DUMMY_VALUE, LinkSpeed = LOGSTAT_DUMMY_VALUE, 
  */
 
 /**
- * tc956x_pcie_ioctl_state_log_summary
+ * tc956x_logstat_set_state_log_enable
  *
- * \brief IOCTL Function to read and print State Log summary.
+ * \brief Function to Enable and Disable State Log.
  *
- * \details This function is called whenever IOCTL TC956X_PCIE_STATE_LOG_SUMMARY
- * is invoked by user. This function prints a summary of State Log for particular
- * port after PCIE State Transition, example PCIe Lane change, speed change, etc.
- * State Log will contain following:
- * 1. LTSSM Timeout Occured(or not).
- * 2. DLL Active(or not).
- * 3. Link Speed Transition.
- * 4. Link Width Transition.
- * 4. L1 PM Substate Transition.
- * 5. TxL0s State Transition.
- * 6. RxL0s State Transition.
- * 7. Equalization Phase.
- * 8. LTSSM State Transition.
+ * \details This function enable or disable State Logging based on mode passed.
+ *
+ * \param[in] pbase_addr - pointer to Bar4 base address.
+ * \param[in] nport - log start/stop for port passed.
+ * \param[in] mode - start or stop state logging.
+ *
+ * \return -EFAULT in case of bad address, otherwise 0
+ */
+static int tc956x_logstat_set_state_log_enable(void __iomem *pbase_addr, enum ports nport, enum state_log_enable enable)
+{
+	int ret = 0;
+	uint32_t port_offset; /* Port Address Register Offset */
+
+	if (pbase_addr == NULL) {
+		ret = -EFAULT;
+		pr_info("%s : Invalid Arguments\n", __func__);
+	}
+
+	if (ret == 0) {
+		port_offset = nport * STATE_LOG_REG_OFFSET;
+
+		if (enable == STATE_LOG_ENABLE) {
+			/* Stop State Log */
+			writel(STATE_LOG_DISABLE, pbase_addr + TC956X_CONF_REG_NPCIEUSPLOGCTRL + port_offset);
+			/* Start State Log */
+			writel(STATE_LOG_ENABLE, pbase_addr + TC956X_CONF_REG_NPCIEUSPLOGCTRL + port_offset);
+			/* Verify Sate Log Enable */
+			if (readl(pbase_addr + TC956X_CONF_REG_NPCIEUSPLOGCTRL + port_offset) == STATE_LOG_ENABLE)
+				pr_debug("%s : Enabling State Logging for port %s\n", __func__, pcie_port[nport]);
+		} else {
+			/* Stop State Log */
+			writel(STATE_LOG_DISABLE, pbase_addr + TC956X_CONF_REG_NPCIEUSPLOGCTRL + port_offset);
+		}
+		/* pr_debug("WR: Addr= 0x%08X, Val= 0x%08X\n", TC956X_CONF_REG_NPCIEUSPLOGCTRL + port_offset, enable); */
+	}
+
+	return ret;
+}
+
+
+
+/**
+ * tc956x_logstat_get_pcie_cur_ltssm
+ *
+ * \brief Function to read current PCIe Link LTSSM State.
+ *
+ * \details This function reads current Link Training and Status State Machine
+ * State from register.
+ *
+ * \param[in] pbase_addr - pointer to BAR4 base address.
+ * \param[in] nport - port for which to get current ltssm value.
+ * \param[out] pltssm - pointer to ltssm value from register.
+ *
+ * \return -EFAULT in case of bad address, otherwise 0
+ */
+static int tc956x_logstat_get_pcie_cur_ltssm(void __iomem *pbase_addr, enum ports nport, uint8_t *pltssm)
+{
+	int ret = 0;
+	uint32_t regval;
+	uint32_t reg_offset; /* Port Address Register Offset */
+
+	if ((pbase_addr == NULL) || (pltssm == NULL)) {
+		ret = -EFAULT;
+		pr_info("%s : NULL Pointer Arguments\n", __func__);
+	}
+
+	if (ret == 0) {
+		reg_offset = nport * GLUE_REG_LTSSM_OFFSET;
+		/* Read Current LTSSM State */
+		regval = readl(pbase_addr + TC956X_GLUE_SW_USP_TEST_OUT_127_096 + reg_offset);
+		*pltssm = (regval & TC956X_GLUE_LTSSM_STATE_MASK) >> TC956X_GLUE_LTSSM_STATE_SHIFT;
+		pr_debug("%s : LTSSM State %s for port %s\n", __func__, ltssm_states[(*pltssm)], pcie_port[nport]);
+		if ((*pltssm) > LTSSM_MAX_VALUE)
+			ret = -1;
+	}
+	return ret;
+}
+
+/**
+ * tc956x_logstat_get_pcie_cur_dll
+ *
+ * \brief Function to read current PCIe Link DLL Active State.
+ *
+ * \details This function reads current Data Link Layer Active State from register.
+ *
+ * \param[in] pbase_addr - pointer to BAR4 base address.
+ * \param[in] nport - port for which to get current ltssm value.
+ * \param[out] pdll - pointer to dll active state value from register.
+ *
+ * \return -EFAULT in case of bad address, otherwise 0
+ */
+static int tc956x_logstat_get_pcie_cur_dll(void __iomem *pbase_addr, enum ports nport, uint8_t *pdll)
+{
+	int ret = 0;
+	uint32_t regval;
+	uint32_t reg_offset; /* Port Address Register Offset */
+
+	if ((pbase_addr == NULL) || (pdll == NULL)) {
+		ret = -EFAULT;
+		pr_info("%s : NULL Pointer Arguments\n", __func__);
+	}
+
+	if (ret == 0) {
+		reg_offset = nport * GLUE_REG_LTSSM_OFFSET;
+		/* Read DLL State */
+		regval = readl(pbase_addr + TC956X_GLUE_SW_USP_TEST_OUT_127_096 + reg_offset);
+		*pdll = (regval & TC956X_GLUE_DLL_MASK) >> TC956X_GLUE_DLL_SHIFT;
+		pr_debug("%s : DLL State %s for port %s\n", __func__, dl_state[(*pdll)], pcie_port[nport]);
+	}
+	return ret;
+}
+
+/**
+ * tc956x_logstat_get_pcie_cur_speed
+ *
+ * \brief Function to read current PCIe Link Speed.
+ *
+ * \details This function reads current PCIe Link Speed from register.
+ *
+ * \param[in] pbase_addr - pointer to BAR4 base address.
+ * \param[in] nport - port for which to get current ltssm value.
+ * \param[out] pspeed_val - pointer to current link speed value from register.
+ *
+ * \return -EFAULT in case of bad address, otherwise 0
+ */
+static int tc956x_logstat_get_pcie_cur_speed(void __iomem *pbase_addr, enum ports nport, uint8_t *pspeed_val)
+{
+	int ret = 0;
+	uint32_t regval;
+
+	if ((pbase_addr == NULL) || (pspeed_val == NULL)) {
+		ret = -EFAULT;
+		pr_info("%s : NULL Pointer Arguments\n", __func__);
+	}
+
+	if (ret == 0) {
+		/* Read Speed */
+		regval = readl(pbase_addr + TC956X_GLUE_TL_LINK_SPEED_MON);
+		*pspeed_val = (regval & TC956X_GLUE_SPEED_MASK(nport)) >> TC956X_GLUE_SPEED_SHIFT(nport);
+		pr_debug("%s : Link Speed Gen%d for port %s\n", __func__, (*pspeed_val), pcie_port[nport]);
+	}
+	return ret;
+}
+
+/**
+ * tc956x_logstat_get_pcie_cur_width
+ *
+ * \brief Function to read current PCIe Link Width.
+ *
+ * \details This function reads current PCIe Link Width from register.
+ *
+ * \param[in] pbase_addr - pointer to BAR4 base address.
+ * \param[in] nport - port for which to get current ltssm value.
+ * \param[out] plane_width_val - pointer to current lane width value from register.
+ *
+ * \return -EFAULT in case of bad address, otherwise 0
+ */
+static int tc956x_logstat_get_pcie_cur_width(void __iomem *pbase_addr, enum ports nport, uint8_t *plane_width_val)
+{
+	int ret = 0;
+	uint32_t regval;
+
+	if ((pbase_addr == NULL) || (plane_width_val == NULL)) {
+		ret = -EFAULT;
+		pr_info("%s : NULL Pointer Arguments\n", __func__);
+	}
+
+	if (ret == 0) {
+		/* Read Lane Width */
+		regval = readl(pbase_addr + TC956X_GLUE_TL_NUM_LANES_MON);
+		*plane_width_val = (regval & TC956X_GLUE_LANE_WIDTH_MASK(nport)) >> TC956X_GLUE_LANE_WIDTH_SHIFT(nport);
+		pr_debug("%s : Lane Width x%d for port %s\n", __func__, (*plane_width_val), pcie_port[nport]);
+	}
+	return ret;
+}
+
+/**
+ * tc956x_pcie_ioctl_get_pcie_link_params
+ *
+ * \brief IOCTL Function to read PCIe Link LTSSM, DL State, Speed and Width.
+ *
+ * \details This function is called whenever IOCTL TC956X_PCIE_GET_PCIE_LINK_PARAMS
+ * is invoked by user. This function reads and print Current LTSSM State, DL Link State,
+ * Link Speed and Link Width.
  *
  * \param[in] priv - pointer to pcie private data.
  * \param[in] data - data passed from user space.
  *
  * \return -EFAULT in case of copy failure, otherwise 0
  */
-int tc956x_pcie_ioctl_state_log_summary(const struct stmmac_priv *priv, void __user *data)
+static int tc956x_pcie_ioctl_get_pcie_link_params(const struct stmmac_priv *priv, void __user *data)
 {
 	int ret = 0;
-	struct tc956x_ioctl_state_log_summary ioctl_data;
+	struct tc956x_ioctl_pcie_link_params ioctl_data;
+	struct tc956x_pcie_link_params link_param;
 
 	dev_dbg(priv->device, "--> %s\n", __func__);
 
 	if ((priv == NULL) || (data == NULL))
 		return -EFAULT;
 
+	memset(&link_param, 0, sizeof(link_param));
+
 	if (copy_from_user(&ioctl_data, data, sizeof(ioctl_data)))
 		ret = -EFAULT;
 
-	if (ret == 0)
-		ret = tc956x_logstat_state_log_summary(priv->ioaddr, ioctl_data.port);
-
-	return ret;
-}
-
-/**
- * tc956x_pcie_ioctl_state_log_summary
- *
- * \brief IOCTL Function to read and print State Log summary.
- *
- * \details This function performs following :
- * 1. Reads current PCIe Link Parameters
- * 2. Stop State Logging.
- * 3. Get current State Log Status.
- * 4. Set FIFO Pointer from 0 to 31 and Get Sate Log Data for each FIFO pointer.
- * 5. Analyze all 32 State Log Data.
- * 6. Print LTSSM state transition, if valid values are observed.
- *
- * NOTE: The function doesn't enable back the State Logging after Stop.
- *
- * \param[in] priv - pointer to pcie private data.
- * \param[in] data - data passed from user space.
- *
- * \return -EFAULT in case of copy failure, otherwise 0
- */
-int tc956x_logstat_state_log_summary(void __iomem *pbase_addr, enum ports nport)
-{
-	int ret = 0;
-	uint8_t state = 0, dll = 0, speed = 0, width = 0, status = 0;
-	uint8_t count = 0; /* count for invalid State Log Data */
-	int8_t fptr = 0; /* signed state log fifo pointer. can become negative. */
-	char cur_ltssm[25];
-	uint32_t val = 0, cur_state = 0;
-	uint32_t fifo_array[MAX_FIFO_READ_POINTER + 1]; /* Array of State Log Read Value for each FIFO Read Ptr */
-
-	if (pbase_addr == NULL) {
-		ret = -EFAULT;
-		pr_info("%s : NULL Pointer Arguments\n", __func__);
+	if (ret == 0) {
+		if ((tc956x_logstat_get_pcie_cur_ltssm(priv->ioaddr, ioctl_data.port, &(link_param.ltssm)) < 0)
+		|| (tc956x_logstat_get_pcie_cur_dll(priv->ioaddr, ioctl_data.port, &(link_param.dll)) < 0)
+		|| (tc956x_logstat_get_pcie_cur_speed(priv->ioaddr, ioctl_data.port, &(link_param.speed)) < 0)
+		|| (tc956x_logstat_get_pcie_cur_width(priv->ioaddr, ioctl_data.port, &(link_param.width)) < 0)) {
+			ret = -EFAULT;
+		}
 	}
 
 	if (ret == 0) {
-		pr_debug("State Transition Log Summary : %s\n", pcie_port[nport]);
-		/* Get PCIe LTSSM, DLL, Speed, Width, State Log Status & Disable Stop State Logging */
-		if ((tc956x_logstat_get_pcie_cur_ltssm(pbase_addr, nport, &state) < 0)
-		|| (tc956x_logstat_get_pcie_cur_dll(pbase_addr, nport, &dll) < 0)
-		|| (tc956x_logstat_get_pcie_cur_speed(pbase_addr, nport, &speed) < 0)
-		|| (tc956x_logstat_get_pcie_cur_width(pbase_addr, nport, &width) < 0)
-		|| (tc956x_logstat_set_state_log_enable(pbase_addr, nport, STATE_LOG_DISABLE) < 0)
-		|| (tc956x_logstat_get_state_log_stop_status(pbase_addr, nport, &status) < 0)) {
-			ret = -1;
-			goto end;
-		}
-
-		strcpy(cur_ltssm, ltssm_states[state]);
-		/* State Logging Should Stop after Disabling State Log */
-		/* Read State Log Data for each fifo pointer */
-		for (fptr = 0; fptr <= MAX_FIFO_READ_POINTER; fptr++) {
-			if ((tc956x_logstat_set_state_log_fifo_ptr(pbase_addr, nport, fptr) < 0)
-			|| (tc956x_logstat_get_state_log_data(pbase_addr, nport, &val) < 0)) {
-				ret = -1;
-				goto end;
-			}
-			fifo_array[fptr] = val;
-		}
-		/* Reset all values */
-		DlActive_Pre = LOGSTAT_DUMMY_VALUE;
-		LinkSpeed_Pre = LOGSTAT_DUMMY_VALUE;
-		LinkWidth_Pre = LOGSTAT_DUMMY_VALUE;
-		DlActive = LOGSTAT_DUMMY_VALUE;
-		LinkSpeed = LOGSTAT_DUMMY_VALUE;
-		LinkWidth = LOGSTAT_DUMMY_VALUE;
-
-		/* Analyze State Log Data using state log of each fifo pointer */
-		for (fptr = MAX_FIFO_READ_POINTER; fptr >= 0; fptr--) {
-			if (fifo_array[fptr] != INVALID_STATE_LOG) {
-				cur_state = fifo_array[fptr];
-				/* Start analyzing only after prev_state is set */
-				ret = tc956x_logstat_state_log_analyze(cur_state);
-				if (ret < 0)
-					goto end;
-
-				count++;
-			} else {
-				continue;
-			}
-		}
-
-		if (count == 0) {
-			pr_debug("==> LTSSM is not changed\n");
-			pr_debug("Speed:Gen%d, Width:x%d, LTSSM:%s, DLL:%d\n", speed, width, cur_ltssm, dll);
-			ret = 0;
-		}
-
-		if (status == STATE_LOG_STOP)
-			pr_debug("STATE LOGGING is stopped\n");
+		if (copy_to_user((void __user *)ioctl_data.link_param, &link_param, sizeof(link_param)))
+			ret = -EFAULT;
 	}
-end:
+
+	dev_dbg(priv->device, "<-- %s\n", __func__);
 	return ret;
 }
 
@@ -2129,7 +2202,7 @@ end:
  *
  * \return -EFAULT in case of copy failure, otherwise 0
  */
-int tc956x_logstat_get_state_log_stop_status(void __iomem *pbase_addr, enum ports nport, uint8_t *pstop_status)
+static int tc956x_logstat_get_state_log_stop_status(void __iomem *pbase_addr, enum ports nport, uint8_t *pstop_status)
 {
 	int ret = 0;
 	uint32_t regval = 0;
@@ -2150,7 +2223,6 @@ int tc956x_logstat_get_state_log_stop_status(void __iomem *pbase_addr, enum port
 	return ret;
 }
 
-
 /**
  * tc956x_logstat_set_state_log_fifo_ptr
  *
@@ -2165,7 +2237,7 @@ int tc956x_logstat_get_state_log_stop_status(void __iomem *pbase_addr, enum port
  *
  * \return -EFAULT in case of copy failure, otherwise 0
  */
-int tc956x_logstat_set_state_log_fifo_ptr(void __iomem *pbase_addr, enum ports nport, uint8_t fifo_pointer)
+static int tc956x_logstat_set_state_log_fifo_ptr(void __iomem *pbase_addr, enum ports nport, uint8_t fifo_pointer)
 {
 	int ret = 0;
 	uint32_t regval = 0;
@@ -2189,6 +2261,41 @@ int tc956x_logstat_set_state_log_fifo_ptr(void __iomem *pbase_addr, enum ports n
 }
 
 /**
+ * tc956x_pcie_ioctl_StateLogStop
+ *
+ * \brief IOCTL Function to Enable and Disable State Logging.
+ *
+ * \details This function is called whenever IOCTL TC956X_PCIE_STATE_LOG_ENABLE
+ * is invoked by user. This function set register to enable/disable state logging.
+ *
+ * \param[in] priv - pointer to pcie private data.
+ * \param[in] data - data passed from user space.
+ *
+ * \return -EFAULT in case of bad address, otherwise 0.
+ */
+static int tc956x_pcie_ioctl_state_log_enable(const struct stmmac_priv *priv, void __user *data)
+{
+	int ret = 0;
+	struct tc956x_ioctl_state_log_enable ioctl_data;
+
+	dev_dbg(priv->device, "--> %s\n", __func__);
+
+	if ((priv == NULL) || (data == NULL))
+		return -EFAULT;
+
+	if (copy_from_user(&ioctl_data, data, sizeof(ioctl_data)))
+		ret = -EFAULT;
+
+	if (ret == 0)
+		ret = tc956x_logstat_set_state_log_enable(priv->ioaddr, ioctl_data.port, ioctl_data.enable);
+
+	dev_dbg(priv->device, "<-- %s\n", __func__);
+
+	return ret;
+}
+
+
+/**
  * tc956x_logstat_get_state_log_data
  *
  * \brief Function to read State Log Data.
@@ -2201,7 +2308,7 @@ int tc956x_logstat_set_state_log_fifo_ptr(void __iomem *pbase_addr, enum ports n
  *
  * \return -EFAULT in case of copy failure, otherwise 0
  */
-int tc956x_logstat_get_state_log_data(void __iomem *pbase_addr, enum ports nport, uint32_t *pstate_log_data)
+static int tc956x_logstat_get_state_log_data(void __iomem *pbase_addr, enum ports nport, uint32_t *pstate_log_data)
 {
 	int ret = 0;
 	uint32_t port_offset; /* Port Address Register Offset */
@@ -2231,7 +2338,7 @@ int tc956x_logstat_get_state_log_data(void __iomem *pbase_addr, enum ports nport
  *
  * \return always 0.
  */
-int tc956x_logstat_state_log_analyze(uint32_t cur_state)
+static int tc956x_logstat_state_log_analyze(uint32_t cur_state)
 {
 	union tc956x_logstat_State_Log_Data curr_state_log_data;
 	uint8_t timeout = 0, activelane = 0, l1_substate = 0, tx_l0s = 0, rx_l0s = 0, eqphase = 0, ltssm = 0;
@@ -2335,206 +2442,129 @@ int tc956x_logstat_state_log_analyze(uint32_t cur_state)
 }
 
 /**
- * tc956x_pcie_ioctl_get_pcie_link_params
+ * tc956x_pcie_ioctl_state_log_summary
  *
- * \brief IOCTL Function to read PCIe Link LTSSM, DL State, Speed and Width.
+ * \brief IOCTL Function to read and print State Log summary.
  *
- * \details This function is called whenever IOCTL TC956X_PCIE_GET_PCIE_LINK_PARAMS
- * is invoked by user. This function reads and print Current LTSSM State, DL Link State,
- * Link Speed and Link Width.
+ * \details This function performs following :
+ * 1. Reads current PCIe Link Parameters
+ * 2. Stop State Logging.
+ * 3. Get current State Log Status.
+ * 4. Set FIFO Pointer from 0 to 31 and Get Sate Log Data for each FIFO pointer.
+ * 5. Analyze all 32 State Log Data.
+ * 6. Print LTSSM state transition, if valid values are observed.
+ *
+ * NOTE: The function doesn't enable back the State Logging after Stop.
  *
  * \param[in] priv - pointer to pcie private data.
  * \param[in] data - data passed from user space.
  *
  * \return -EFAULT in case of copy failure, otherwise 0
  */
-int tc956x_pcie_ioctl_get_pcie_link_params(const struct stmmac_priv *priv, void __user *data)
+static int tc956x_logstat_state_log_summary(void __iomem *pbase_addr, enum ports nport)
 {
 	int ret = 0;
-	struct tc956x_ioctl_pcie_link_params ioctl_data;
-	struct tc956x_pcie_link_params link_param;
+	uint8_t state = 0, dll = 0, speed = 0, width = 0, status = 0;
+	uint8_t count = 0; /* count for invalid State Log Data */
+	int8_t fptr = 0; /* signed state log fifo pointer. can become negative. */
+	char cur_ltssm[25];
+	uint32_t val = 0, cur_state = 0;
+	uint32_t fifo_array[MAX_FIFO_READ_POINTER + 1]; /* Array of State Log Read Value for each FIFO Read Ptr */
 
-	dev_dbg(priv->device, "--> %s\n", __func__);
-
-	if ((priv == NULL) || (data == NULL))
-		return -EFAULT;
-
-	memset(&link_param, 0, sizeof(link_param));
-
-	if (copy_from_user(&ioctl_data, data, sizeof(ioctl_data)))
-		ret = -EFAULT;
-
-	if (ret == 0) {
-		if ((tc956x_logstat_get_pcie_cur_ltssm(priv->ioaddr, ioctl_data.port, &(link_param.ltssm)) < 0)
-		|| (tc956x_logstat_get_pcie_cur_dll(priv->ioaddr, ioctl_data.port, &(link_param.dll)) < 0)
-		|| (tc956x_logstat_get_pcie_cur_speed(priv->ioaddr, ioctl_data.port, &(link_param.speed)) < 0)
-		|| (tc956x_logstat_get_pcie_cur_width(priv->ioaddr, ioctl_data.port, &(link_param.width)) < 0)) {
-			ret = -EFAULT;
-		}
-	}
-
-	if (ret == 0) {
-		if (copy_to_user((void __user *)ioctl_data.link_param, &link_param, sizeof(link_param)))
-			ret = -EFAULT;
-	}
-
-	dev_dbg(priv->device, "<-- %s\n", __func__);
-	return ret;
-}
-
-/**
- * tc956x_logstat_get_pcie_cur_ltssm
- *
- * \brief Function to read current PCIe Link LTSSM State.
- *
- * \details This function reads current Link Training and Status State Machine
- * State from register.
- *
- * \param[in] pbase_addr - pointer to BAR4 base address.
- * \param[in] nport - port for which to get current ltssm value.
- * \param[out] pltssm - pointer to ltssm value from register.
- *
- * \return -EFAULT in case of bad address, otherwise 0
- */
-int tc956x_logstat_get_pcie_cur_ltssm(void __iomem *pbase_addr, enum ports nport, uint8_t *pltssm)
-{
-	int ret = 0;
-	uint32_t regval;
-	uint32_t reg_offset; /* Port Address Register Offset */
-
-	if ((pbase_addr == NULL) || (pltssm == NULL)) {
+	if (pbase_addr == NULL) {
 		ret = -EFAULT;
 		pr_info("%s : NULL Pointer Arguments\n", __func__);
 	}
 
 	if (ret == 0) {
-		reg_offset = nport * GLUE_REG_LTSSM_OFFSET;
-		/* Read Current LTSSM State */
-		regval = readl(pbase_addr + TC956X_GLUE_SW_USP_TEST_OUT_127_096 + reg_offset);
-		*pltssm = (regval & TC956X_GLUE_LTSSM_STATE_MASK) >> TC956X_GLUE_LTSSM_STATE_SHIFT;
-		pr_debug("%s : LTSSM State %s for port %s\n", __func__, ltssm_states[(*pltssm)], pcie_port[nport]);
-		if ((*pltssm) > LTSSM_MAX_VALUE)
+		pr_debug("State Transition Log Summary : %s\n", pcie_port[nport]);
+		/* Get PCIe LTSSM, DLL, Speed, Width, State Log Status & Disable Stop State Logging */
+		if ((tc956x_logstat_get_pcie_cur_ltssm(pbase_addr, nport, &state) < 0)
+		|| (tc956x_logstat_get_pcie_cur_dll(pbase_addr, nport, &dll) < 0)
+		|| (tc956x_logstat_get_pcie_cur_speed(pbase_addr, nport, &speed) < 0)
+		|| (tc956x_logstat_get_pcie_cur_width(pbase_addr, nport, &width) < 0)
+		|| (tc956x_logstat_set_state_log_enable(pbase_addr, nport, STATE_LOG_DISABLE) < 0)
+		|| (tc956x_logstat_get_state_log_stop_status(pbase_addr, nport, &status) < 0)) {
 			ret = -1;
+			goto end;
+		}
+
+		strcpy(cur_ltssm, ltssm_states[state]);
+		/* State Logging Should Stop after Disabling State Log */
+		/* Read State Log Data for each fifo pointer */
+		for (fptr = 0; fptr <= MAX_FIFO_READ_POINTER; fptr++) {
+			if ((tc956x_logstat_set_state_log_fifo_ptr(pbase_addr, nport, fptr) < 0)
+			|| (tc956x_logstat_get_state_log_data(pbase_addr, nport, &val) < 0)) {
+				ret = -1;
+				goto end;
+			}
+			fifo_array[fptr] = val;
+		}
+		/* Reset all values */
+		DlActive_Pre = LOGSTAT_DUMMY_VALUE;
+		LinkSpeed_Pre = LOGSTAT_DUMMY_VALUE;
+		LinkWidth_Pre = LOGSTAT_DUMMY_VALUE;
+		DlActive = LOGSTAT_DUMMY_VALUE;
+		LinkSpeed = LOGSTAT_DUMMY_VALUE;
+		LinkWidth = LOGSTAT_DUMMY_VALUE;
+
+		/* Analyze State Log Data using state log of each fifo pointer */
+		for (fptr = MAX_FIFO_READ_POINTER; fptr >= 0; fptr--) {
+			if (fifo_array[fptr] != INVALID_STATE_LOG) {
+				cur_state = fifo_array[fptr];
+				/* Start analyzing only after prev_state is set */
+				ret = tc956x_logstat_state_log_analyze(cur_state);
+				if (ret < 0)
+					goto end;
+
+				count++;
+			} else {
+				continue;
+			}
+		}
+
+		if (count == 0) {
+			pr_debug("==> LTSSM is not changed\n");
+			pr_debug("Speed:Gen%d, Width:x%d, LTSSM:%s, DLL:%d\n", speed, width, cur_ltssm, dll);
+			ret = 0;
+		}
+
+		if (status == STATE_LOG_STOP)
+			pr_debug("STATE LOGGING is stopped\n");
 	}
-	return ret;
-}
-
-/**
- * tc956x_logstat_get_pcie_cur_dll
- *
- * \brief Function to read current PCIe Link DLL Active State.
- *
- * \details This function reads current Data Link Layer Active State from register.
- *
- * \param[in] pbase_addr - pointer to BAR4 base address.
- * \param[in] nport - port for which to get current ltssm value.
- * \param[out] pdll - pointer to dll active state value from register.
- *
- * \return -EFAULT in case of bad address, otherwise 0
- */
-int tc956x_logstat_get_pcie_cur_dll(void __iomem *pbase_addr, enum ports nport, uint8_t *pdll)
-{
-	int ret = 0;
-	uint32_t regval;
-	uint32_t reg_offset; /* Port Address Register Offset */
-
-	if ((pbase_addr == NULL) || (pdll == NULL)) {
-		ret = -EFAULT;
-		pr_info("%s : NULL Pointer Arguments\n", __func__);
-	}
-
-	if (ret == 0) {
-		reg_offset = nport * GLUE_REG_LTSSM_OFFSET;
-		/* Read DLL State */
-		regval = readl(pbase_addr + TC956X_GLUE_SW_USP_TEST_OUT_127_096 + reg_offset);
-		*pdll = (regval & TC956X_GLUE_DLL_MASK) >> TC956X_GLUE_DLL_SHIFT;
-		pr_debug("%s : DLL State %s for port %s\n", __func__, dl_state[(*pdll)], pcie_port[nport]);
-	}
-	return ret;
-}
-
-/**
- * tc956x_logstat_get_pcie_cur_speed
- *
- * \brief Function to read current PCIe Link Speed.
- *
- * \details This function reads current PCIe Link Speed from register.
- *
- * \param[in] pbase_addr - pointer to BAR4 base address.
- * \param[in] nport - port for which to get current ltssm value.
- * \param[out] pspeed_val - pointer to current link speed value from register.
- *
- * \return -EFAULT in case of bad address, otherwise 0
- */
-int tc956x_logstat_get_pcie_cur_speed(void __iomem *pbase_addr, enum ports nport, uint8_t *pspeed_val)
-{
-	int ret = 0;
-	uint32_t regval;
-
-	if ((pbase_addr == NULL) || (pspeed_val == NULL)) {
-		ret = -EFAULT;
-		pr_info("%s : NULL Pointer Arguments\n", __func__);
-	}
-
-	if (ret == 0) {
-		/* Read Speed */
-		regval = readl(pbase_addr + TC956X_GLUE_TL_LINK_SPEED_MON);
-		*pspeed_val = (regval & TC956X_GLUE_SPEED_MASK(nport)) >> TC956X_GLUE_SPEED_SHIFT(nport);
-		pr_debug("%s : Link Speed Gen%d for port %s\n", __func__, (*pspeed_val), pcie_port[nport]);
-	}
-	return ret;
-}
-
-/**
- * tc956x_logstat_get_pcie_cur_width
- *
- * \brief Function to read current PCIe Link Width.
- *
- * \details This function reads current PCIe Link Width from register.
- *
- * \param[in] pbase_addr - pointer to BAR4 base address.
- * \param[in] nport - port for which to get current ltssm value.
- * \param[out] plane_width_val - pointer to current lane width value from register.
- *
- * \return -EFAULT in case of bad address, otherwise 0
- */
-int tc956x_logstat_get_pcie_cur_width(void __iomem *pbase_addr, enum ports nport, uint8_t *plane_width_val)
-{
-	int ret = 0;
-	uint32_t regval;
-
-	if ((pbase_addr == NULL) || (plane_width_val == NULL)) {
-		ret = -EFAULT;
-		pr_info("%s : NULL Pointer Arguments\n", __func__);
-	}
-
-	if (ret == 0) {
-		/* Read Lane Width */
-		regval = readl(pbase_addr + TC956X_GLUE_TL_NUM_LANES_MON);
-		*plane_width_val = (regval & TC956X_GLUE_LANE_WIDTH_MASK(nport)) >> TC956X_GLUE_LANE_WIDTH_SHIFT(nport);
-		pr_debug("%s : Lane Width x%d for port %s\n", __func__, (*plane_width_val), pcie_port[nport]);
-	}
+end:
 	return ret;
 }
 
 
 /**
- * tc956x_pcie_ioctl_StateLogStop
+ * tc956x_pcie_ioctl_state_log_summary
  *
- * \brief IOCTL Function to Enable and Disable State Logging.
+ * \brief IOCTL Function to read and print State Log summary.
  *
- * \details This function is called whenever IOCTL TC956X_PCIE_STATE_LOG_ENABLE
- * is invoked by user. This function set register to enable/disable state logging.
+ * \details This function is called whenever IOCTL TC956X_PCIE_STATE_LOG_SUMMARY
+ * is invoked by user. This function prints a summary of State Log for particular
+ * port after PCIE State Transition, example PCIe Lane change, speed change, etc.
+ * State Log will contain following:
+ * 1. LTSSM Timeout Occured(or not).
+ * 2. DLL Active(or not).
+ * 3. Link Speed Transition.
+ * 4. Link Width Transition.
+ * 4. L1 PM Substate Transition.
+ * 5. TxL0s State Transition.
+ * 6. RxL0s State Transition.
+ * 7. Equalization Phase.
+ * 8. LTSSM State Transition.
  *
  * \param[in] priv - pointer to pcie private data.
  * \param[in] data - data passed from user space.
  *
- * \return -EFAULT in case of bad address, otherwise 0.
+ * \return -EFAULT in case of copy failure, otherwise 0
  */
-int tc956x_pcie_ioctl_state_log_enable(const struct stmmac_priv *priv, void __user *data)
+static int tc956x_pcie_ioctl_state_log_summary(const struct stmmac_priv *priv, void __user *data)
 {
 	int ret = 0;
-	struct tc956x_ioctl_state_log_enable ioctl_data;
+	struct tc956x_ioctl_state_log_summary ioctl_data;
 
 	dev_dbg(priv->device, "--> %s\n", __func__);
 
@@ -2545,53 +2575,7 @@ int tc956x_pcie_ioctl_state_log_enable(const struct stmmac_priv *priv, void __us
 		ret = -EFAULT;
 
 	if (ret == 0)
-		ret = tc956x_logstat_set_state_log_enable(priv->ioaddr, ioctl_data.port, ioctl_data.enable);
-
-	dev_dbg(priv->device, "<-- %s\n", __func__);
-
-	return ret;
-}
-
-/**
- * tc956x_logstat_set_state_log_enable
- *
- * \brief Function to Enable and Disable State Log.
- *
- * \details This function enable or disable State Logging based on mode passed.
- *
- * \param[in] pbase_addr - pointer to Bar4 base address.
- * \param[in] nport - log start/stop for port passed.
- * \param[in] mode - start or stop state logging.
- *
- * \return -EFAULT in case of bad address, otherwise 0
- */
-int tc956x_logstat_set_state_log_enable(void __iomem *pbase_addr, enum ports nport, enum state_log_enable enable)
-{
-	int ret = 0;
-	uint32_t port_offset; /* Port Address Register Offset */
-
-	if (pbase_addr == NULL) {
-		ret = -EFAULT;
-		pr_info("%s : Invalid Arguments\n", __func__);
-	}
-
-	if (ret == 0) {
-		port_offset = nport * STATE_LOG_REG_OFFSET;
-
-		if (enable == STATE_LOG_ENABLE) {
-			/* Stop State Log */
-			writel(STATE_LOG_DISABLE, pbase_addr + TC956X_CONF_REG_NPCIEUSPLOGCTRL + port_offset);
-			/* Start State Log */
-			writel(STATE_LOG_ENABLE, pbase_addr + TC956X_CONF_REG_NPCIEUSPLOGCTRL + port_offset);
-			/* Verify Sate Log Enable */
-			if (readl(pbase_addr + TC956X_CONF_REG_NPCIEUSPLOGCTRL + port_offset) == STATE_LOG_ENABLE)
-				pr_debug("%s : Enabling State Logging for port %s\n", __func__, pcie_port[nport]);
-		} else {
-			/* Stop State Log */
-			writel(STATE_LOG_DISABLE, pbase_addr + TC956X_CONF_REG_NPCIEUSPLOGCTRL + port_offset);
-		}
-		/* pr_debug("WR: Addr= 0x%08X, Val= 0x%08X\n", TC956X_CONF_REG_NPCIEUSPLOGCTRL + port_offset, enable); */
-	}
+		ret = tc956x_logstat_state_log_summary(priv->ioaddr, ioctl_data.port);
 
 	return ret;
 }
