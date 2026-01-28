@@ -4102,6 +4102,10 @@ static int __stmmac_open(struct net_device *dev,
 		goto init_error;
 	}
 
+#ifdef TC956X
+	tc956x_msi_init(priv, priv, dev);
+#endif
+
 	stmmac_setup_ptp(priv);
 
 	stmmac_init_coalesce(priv);
@@ -4114,8 +4118,14 @@ static int __stmmac_open(struct net_device *dev,
 	if (ret)
 		goto irq_error;
 
+#ifdef TC956X
+	tc956x_msi_intr_en(priv, priv, dev, true);
+#endif
 	stmmac_enable_all_queues(priv);
 	netif_tx_start_all_queues(priv->dev);
+#ifdef TC956X
+	tc956x_msi_intr_clr(priv, priv, dev, 0);
+#endif
 	stmmac_enable_all_dma_irq(priv);
 
 	return 0;
@@ -4186,6 +4196,11 @@ static void __stmmac_release(struct net_device *dev)
 {
 	struct stmmac_priv *priv = netdev_priv(dev);
 	u32 chan;
+
+#ifdef TC956X
+	tc956x_msi_intr_en(priv, priv, dev, false);
+#endif
+
 
 	/* Stop and disconnect the PHY */
 	phylink_stop(priv->phylink);
@@ -6206,6 +6221,10 @@ static irqreturn_t stmmac_interrupt(int irq, void *dev_id)
 	struct net_device *dev = (struct net_device *)dev_id;
 	struct stmmac_priv *priv = netdev_priv(dev);
 
+#ifdef TC956X
+	tc956x_msi_intr_sts(priv, priv, dev);
+#endif
+
 	/* Check if adapter is up */
 	if (test_bit(STMMAC_DOWN, &priv->state))
 		return IRQ_HANDLED;
@@ -6219,6 +6238,11 @@ static irqreturn_t stmmac_interrupt(int irq, void *dev_id)
 
 	/* To handle DMA interrupts */
 	stmmac_dma_interrupt(priv);
+
+#ifdef TC956X
+	tc956x_msi_intr_sts(priv, priv, dev);
+	tc956x_msi_intr_clr(priv, priv, dev, 0);
+#endif
 
 	return IRQ_HANDLED;
 }

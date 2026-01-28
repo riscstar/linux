@@ -49,4 +49,10 @@ obj-$(CONFIG_STMMAC_PCI)	+= stmmac-pci.o
 obj-$(CONFIG_DWMAC_INTEL)	+= dwmac-intel.o
 obj-$(CONFIG_DWMAC_LOONGSON)	+= dwmac-loongson.o
 obj-$(CONFIG_DWMAC_MOTORCOMM)	+= dwmac-motorcomm.o
+obj-$(CONFIG_DWMAC_TC956X)	+= dwmac-tc956x.o
 stmmac-pci-objs:= stmmac_pci.o
+
+# WARNING: Setting this flag enables some hacks needed to develop (but
+#          not release) drivers for TC9564/QPS615. It will cause *all*
+#          other stmmac drivers to break.
+ccflags-y += -DTC956X
