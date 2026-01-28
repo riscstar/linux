@@ -320,6 +320,10 @@
 /* DMA Registers */
 #define XGMAC_DMA_MODE			0x00003000
 #define XGMAC_SWR			BIT(0)
+#ifdef TC956X
+#define XGMAC_DSPW			BIT(8)
+#define XGMAC_DMA_MODE_INTM		BIT(12)
+#endif
 #define XGMAC_DMA_SYSBUS_MODE		0x00003004
 #define XGMAC_WR_OSR_LMT		GENMASK(29, 24)
 #define XGMAC_RD_OSR_LMT		GENMASK(21, 16)
@@ -457,6 +461,10 @@
 #define XGMAC_ET_LT_DVLAN_STAG_STAG	11
 #define XGMAC_ET_LT_DVLAN_CTAG_STAG	12
 #define XGMAC_ET_LT_DVLAN_STAG_CTAG	13
+
+#ifdef TC956X
+#define TC956X_HOST_PHYSICAL_ADRS_MASK (0x10) /* bit no 37: (1<<36) */
+#endif
 
 extern const struct stmmac_ops dwxgmac210_ops;
 extern const struct stmmac_ops dwxlgmac2_ops;

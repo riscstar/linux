@@ -31,6 +31,14 @@ static void dwxgmac2_dma_init(void __iomem *ioaddr,
 		value |= XGMAC_EAME;
 
 	writel(value, ioaddr + XGMAC_DMA_SYSBUS_MODE);
+
+#ifdef TC956X
+	value = readl(ioaddr + XGMAC_DMA_MODE);
+	/* Due to the erratum in XGMAC 3.01a,  DSPW=0, OWRQ=3 needs to be set */
+	value &= ~XGMAC_DSPW;
+	value |= XGMAC_DMA_MODE_INTM;
+	writel(value, ioaddr + XGMAC_DMA_MODE);
+#endif
 }
 
 static void dwxgmac2_dma_init_chan(struct stmmac_priv *priv,
@@ -58,7 +66,11 @@ static void dwxgmac2_dma_init_rx_chan(struct stmmac_priv *priv,
 	value = u32_replace_bits(value, rxpbl, XGMAC_RxPBL);
 	writel(value, ioaddr + XGMAC_DMA_CH_RX_CONTROL(chan));
 
+#ifdef TC956X
+	writel(TC956X_HOST_PHYSICAL_ADRS_MASK | upper_32_bits(phy), ioaddr + XGMAC_DMA_CH_RxDESC_HADDR(chan));
+#else
 	writel(upper_32_bits(phy), ioaddr + XGMAC_DMA_CH_RxDESC_HADDR(chan));
+#endif
 	writel(lower_32_bits(phy), ioaddr + XGMAC_DMA_CH_RxDESC_LADDR(chan));
 }
 
@@ -74,7 +86,11 @@ static void dwxgmac2_dma_init_tx_chan(struct stmmac_priv *priv,
 	value = u32_replace_bits(value, txpbl, XGMAC_TxPBL);
 	writel(value, ioaddr + XGMAC_DMA_CH_TX_CONTROL(chan));
 
+#ifdef TC956X
+	writel(TC956X_HOST_PHYSICAL_ADRS_MASK | upper_32_bits(phy), ioaddr + XGMAC_DMA_CH_TxDESC_HADDR(chan));
+#else
 	writel(upper_32_bits(phy), ioaddr + XGMAC_DMA_CH_TxDESC_HADDR(chan));
+#endif
 	writel(lower_32_bits(phy), ioaddr + XGMAC_DMA_CH_TxDESC_LADDR(chan));
 }
 

@@ -383,6 +383,19 @@ config DWMAC_MOTORCOMM
 	  This enables glue driver for Motorcomm DWMAC-based PCI Ethernet
 	  controllers. Currently only YT6801 is supported.
 
+config DWMAC_TC956X
+	tristate "Toshiba TC956x DWMAC support"
+	default ARCH_QCOM
+	depends on PCI
+	depends on COMMON_CLK
+	select STMMAC_LIBPCI
+	help
+	  This selects the Toshiba TC956x (and Qualcomm QPS615) support for the
+	  stmmac driver.
+
+	  This provides support for the ethernet controllers found on these
+	  devices.
+
 config STMMAC_PCI
 	tristate "STMMAC PCI bus support"
 	depends on PCI
