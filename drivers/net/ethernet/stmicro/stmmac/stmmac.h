@@ -38,6 +38,24 @@ struct stmmac_resources {
 	int sfty_ue_irq;
 	int rx_irq[MTL_MAX_RX_QUEUES];
 	int tx_irq[MTL_MAX_TX_QUEUES];
+
+#ifndef DISABLE_TC9563
+	u32 sriov_enabled;
+	void __iomem *tc956x_BRIDGE_CFG_pci_base_addr;
+	void __iomem *tc956x_SRAM_pci_base_addr;
+	void __iomem *tc956x_SFR_pci_base_addr;
+	unsigned int port_num;
+	u8  device_num;
+	unsigned int port_interface; /* Kernel module parameter variable for interface */
+	unsigned int eee_enabled; /* Parameter to store kernel module parameter to enable/disable EEE */
+	unsigned int tx_lpi_timer; /* Parameter to store kernel module parameter for LPI Auto Entry Timer */
+	uint16_t pci_bd; /* PCI bus and device ID of self */
+	unsigned int mdc_clk;
+	unsigned int c45_state;
+	unsigned int link_down_macrst;
+	uint16_t pci_bdf; /* PCI bus, device ID and Fun ID of self */
+	uint16_t probe_seq_no;
+#endif // DISABLE_TC9563
 };
 
 enum stmmac_txbuf_type {
@@ -245,6 +263,13 @@ struct stmmac_est {
 	u32 max_sdu[MTL_MAX_TX_QUEUES];
 };
 
+#ifndef DISABLE_TC9563
+struct tc956x_gpio_config {
+	u8 config; /* 1: configured, 0: not configured*/
+	u8 out_val; /* 0 or 1 */
+};
+#endif // DISABLE_TC9563
+
 struct stmmac_priv {
 	/* Frequently used values are kept adjacent for cache effect */
 	u32 tx_coal_frames[MTL_MAX_TX_QUEUES];
@@ -372,6 +397,31 @@ struct stmmac_priv {
 	struct bpf_prog *xdp_prog;
 
 	struct devlink *devlink;
+
+#ifndef DISABLE_TC9563
+	s32 sriov_enabled;
+	void __iomem *tc956x_BRIDGE_CFG_pci_base_addr;
+	void __iomem *tc956x_SRAM_pci_base_addr;
+	void __iomem *tc956x_SFR_pci_base_addr;
+	void __iomem *xpcsaddr;
+	void __iomem *pmaaddr;
+	u32 port_num;
+	bool is_sgmii_2p5g; /* For 2.5G SGMI, XPCS doesn't support AN. This flag is to identify 2.5G Speed for SGMII interface. */
+	u32 port_interface; /* Kernel module parameter variable for interface */
+	bool tc956x_port_pm_suspend; /* Port Suspend Status; True : port suspended, False : port resume */
+	bool tc956xmac_pm_wol_interrupt; /* Port-wise flag for clearing interrupt after resume. */
+	void *plat_priv;
+	/* Work struct for handling phy interrupt */
+	struct work_struct emac_phy_work;
+	u32 pm_saved_emac_rst; /* Save and restore EMAC Resets during suspend-resume sequence */
+	u32 pm_saved_emac_clk; /* Save and restore EMAC Clocks during suspend-resume sequence */
+	struct tc956x_gpio_config saved_gpio_config[13 + 1]; /* Only GPIO0- GPIO06, GPI010-GPIO13 are used */
+	uint16_t pci_bd; /* PCI bus and device ID of self */
+	unsigned int mdc_clk;
+	unsigned int c45_state;
+	uint16_t pci_bdf; /* PCI bus, device ID and Fun ID of self */
+	uint16_t probe_seq_no;
+#endif
 };
 
 enum stmmac_state {

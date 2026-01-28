@@ -374,6 +374,17 @@ config DWMAC_LOONGSON
 	  This selects the LOONGSON PCI bus support for the stmmac driver,
 	  Support for ethernet controller on Loongson-2K1000 SoC and LS7A1000 bridge.
 
+config DWMAC_TOSHIBA
+	tristate "Toshiba PCI DWMAC support"
+	default ARCH_QCOM
+	depends on PCI
+	depends on COMMON_CLK
+	select STMMAC_LIBPCI
+	help
+	  This selects the Toshiba PCI bus support for the stmmac driver.
+	  Includes support for the ethernet controllers on the Toshiba TC9563
+	  PCIe switch.
+
 config STMMAC_PCI
 	tristate "STMMAC PCI bus support"
 	depends on PCI

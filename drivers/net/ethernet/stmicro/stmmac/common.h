@@ -349,6 +349,10 @@ enum packets_types {
 	PACKET_DCBCPQ = 0x3, /* DCB Control Packets */
 	PACKET_UPQ = 0x4, /* Untagged Packets */
 	PACKET_MCBCQ = 0x5, /* Multicast & Broadcast Packets */
+#ifndef DISABLE_TC9563
+	PACKET_FPE_RESIDUE = 0x6, /* Frame Pre-emption residue packets */
+	PACKET_FILTER_FAIL = 0x7, /* Filter Fail packets */
+#endif // DISABLE_TC9563
 };
 
 /* Rx IPC status */
@@ -642,6 +646,10 @@ struct mac_device_info {
 	 * mask/enable registers.
 	 */
 	spinlock_t irq_ctrl_lock;
+
+#ifndef DISABLE_TC9563
+        const struct tc956xmac_pma_ops *pma;
+#endif // DISABLE_TC9563
 };
 
 struct stmmac_rx_routing {
