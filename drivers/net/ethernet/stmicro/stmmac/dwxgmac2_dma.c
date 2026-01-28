@@ -4,6 +4,7 @@
  * stmmac XGMAC support.
  */
 
+#include "common.h"
 #include <linux/iopoll.h>
 #include "stmmac.h"
 #include "dwxgmac2.h"
@@ -59,7 +60,11 @@ static void dwxgmac2_dma_init_rx_chan(struct stmmac_priv *priv,
 	value |= (rxpbl << XGMAC_RxPBL_SHIFT) & XGMAC_RxPBL;
 	writel(value, ioaddr + XGMAC_DMA_CH_RX_CONTROL(chan));
 
+#ifdef DISABLE_TC9563
 	writel(upper_32_bits(phy), ioaddr + XGMAC_DMA_CH_RxDESC_HADDR(chan));
+#else
+	writel(TC956X_HOST_PHYSICAL_ADRS_MASK | upper_32_bits(phy), ioaddr + XGMAC_DMA_CH_RxDESC_HADDR(chan));
+#endif
 	writel(lower_32_bits(phy), ioaddr + XGMAC_DMA_CH_RxDESC_LADDR(chan));
 }
 
@@ -77,7 +82,11 @@ static void dwxgmac2_dma_init_tx_chan(struct stmmac_priv *priv,
 	value |= XGMAC_OSP;
 	writel(value, ioaddr + XGMAC_DMA_CH_TX_CONTROL(chan));
 
+#ifdef DISABLE_TC9563
 	writel(upper_32_bits(phy), ioaddr + XGMAC_DMA_CH_TxDESC_HADDR(chan));
+#else
+	writel(TC956X_HOST_PHYSICAL_ADRS_MASK | upper_32_bits(phy), ioaddr + XGMAC_DMA_CH_TxDESC_HADDR(chan));
+#endif
 	writel(lower_32_bits(phy), ioaddr + XGMAC_DMA_CH_TxDESC_LADDR(chan));
 }
 

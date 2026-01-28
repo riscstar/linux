@@ -677,4 +677,8 @@ void stmmac_dwmac4_set_mac(void __iomem *ioaddr, bool enable);
 
 void dwmac_dma_flush_tx_fifo(void __iomem *ioaddr);
 
+#ifndef DISABLE_TC9563
+#define TC956X_HOST_PHYSICAL_ADRS_MASK (0x10) /* bit no 37: (1<<36) */
+#endif // DISABLE_TC9563
+
 #endif /* __COMMON_H__ */

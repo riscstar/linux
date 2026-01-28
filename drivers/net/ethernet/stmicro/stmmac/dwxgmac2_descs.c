@@ -260,7 +260,13 @@ static void dwxgmac2_set_mss(struct dma_desc *p, unsigned int mss)
 static void dwxgmac2_set_addr(struct dma_desc *p, dma_addr_t addr)
 {
 	p->des0 = cpu_to_le32(lower_32_bits(addr));
+#ifdef DISABLE_TC9563
 	p->des1 = cpu_to_le32(upper_32_bits(addr));
+#else
+	/* Set the mask for physical address access  */
+	p->des1 = cpu_to_le32(TC956X_HOST_PHYSICAL_ADRS_MASK |
+		  (upper_32_bits(addr) & 0xF));
+#endif
 }
 
 static void dwxgmac2_clear(struct dma_desc *p)
@@ -308,7 +314,13 @@ static void dwxgmac2_get_rx_header_len(struct dma_desc *p, unsigned int *len)
 static void dwxgmac2_set_sec_addr(struct dma_desc *p, dma_addr_t addr, bool is_valid)
 {
 	p->des2 = cpu_to_le32(lower_32_bits(addr));
+#ifdef DISABLE_TC9563
 	p->des3 = cpu_to_le32(upper_32_bits(addr));
+#else
+	/* Set the mask for physical address access  */
+	p->des1 = cpu_to_le32(TC956X_HOST_PHYSICAL_ADRS_MASK |
+		  (upper_32_bits(addr) & 0xF));
+#endif
 }
 
 static void dwxgmac2_set_sarc(struct dma_desc *p, u32 sarc_type)
