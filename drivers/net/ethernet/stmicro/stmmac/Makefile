@@ -50,5 +50,3 @@ obj-$(CONFIG_DWMAC_INTEL)	+= dwmac-intel.o
 obj-$(CONFIG_DWMAC_LOONGSON)	+= dwmac-loongson.o
 obj-$(CONFIG_DWMAC_TOSHIBA)	+= dwmac-toshiba.o
 stmmac-pci-objs:= stmmac_pci.o
-
-ccflags-y += -Wno-unused-function -Wno-unused-variable
