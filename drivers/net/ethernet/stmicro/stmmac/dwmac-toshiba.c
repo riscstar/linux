@@ -1,30 +1,10 @@
-/*
- * TC956X ethernet driver.
- *
- * tc956x_pci.c
- *
- * Copyright (C) 2011-2012  Vayavya Labs Pvt Ltd
+// SPDX-License-Identifier: GPL-2.0
+/* Copyright (C) 2011-2012  Vayavya Labs Pvt Ltd
  * Copyright (C) 2025 Toshiba Electronic Devices & Storage Corporation
- *
- * This file has been derived from the STMicro and Synopsys Linux driver,
- * and developed or modified for TC956X.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
 #define pr_fmt(fmt) "dwmac-toshiba: " fmt
+
 #include <linux/stmmac.h>
 #include <linux/clk-provider.h>
 #include <linux/pci.h>
@@ -40,11 +20,7 @@
 #include <linux/delay.h>
 #include "stmmac.h"
 #include "dwxgmac2.h"
-//#include "tc956xmac.h"
-//#include "tc956xmac_config.h"
-//#include "tc956xmac_inc.h"
 #include "common.h"
-//#include "tc956x_pcie_logstat.h"
 
 #define DRIVER_NAME "dwmac-toshiba-pci"
 
