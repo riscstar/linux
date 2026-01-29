@@ -3647,6 +3647,12 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 		goto err_out_msi_failed;
 	}
 
+	ret = tc956x_platform_probe(td, &res);
+	if (ret) {
+		dev_err(&pdev->dev, "Platform (DT) code failed\n");
+		goto err_platform_probe;
+	}
+
 	ret = stmmac_dvr_probe(&pdev->dev, plat, &res);
 	if (ret) {
 		if (ret == -ENODEV) {
@@ -3717,6 +3723,8 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 
 
 err_dvr_probe:
+	(void) tc956x_platform_remove(td);
+err_platform_probe:
 err_out_msi_failed:
 	pci_free_irq_vectors(pdev);
 	if (td->sfr_addr)
@@ -3789,10 +3797,13 @@ static void tc956xmac_pci_remove(struct pci_dev *pdev)
 	 * ethernet device related uninitialization
 	 */
 	if (priv->dma_cap.sma_mdio == 1) {
-		if (priv->plat->phy_addr != -1)
+		if (priv->plat->phy_addr != -1) {
 			stmmac_dvr_remove(&pdev->dev);
+			tc956x_platform_remove(td);
+		}
 	} else {
 		stmmac_dvr_remove(&pdev->dev);
+		tc956x_platform_remove(td);
 	}
 
 	/* Set reset value for CLK control and RESET Control registers */
