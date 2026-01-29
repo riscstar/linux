@@ -25,8 +25,6 @@
  */
 
 #define pr_fmt(fmt) "dwmac-toshiba: " fmt
-#define DEBUG
-
 #include <linux/stmmac.h>
 #include <linux/clk-provider.h>
 #include <linux/pci.h>
