@@ -25,6 +25,37 @@
 #define DRIVER_NAME "dwmac-toshiba-pci"
 
 //
+// Newly developed code.
+//
+// This code is intended to be cleanly separated from the core but may not
+// (yet) use appropriate reset, clock and gpio drivers to setup the
+// QPS615.
+//
+
+/**
+ * Used to store toshiba-specific context.
+ *
+ * It is stored in the bsp_priv field of struct plat_stmmacenet_data.
+ *
+ * Can be accessed as either plat->bsp_priv or priv->plat->bsp_priv depending
+ * on which pointer you have in any particular part of the code.
+ */
+struct toshiba_data {
+	/** @dev: Device pointer */
+	struct device *device;
+
+	/**
+	 * @base_addr: SFR PCIe Base Address Register (BAR4)
+	 *
+	 * Provides access to the whole bus (reset, clock, gpio, MACs, etc).
+	 */
+	void __iomem *sfr_addr;
+
+	/** @port_num: Indicates which eMAC is assigned to this driver */
+	int port_num;
+};
+
+//
 // Definitions taken from tc956xmac.h in vendor driver
 //
 
@@ -428,6 +459,9 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 
 
 /************************* TC956X_SRIOV_PF Ends *************************/
+
+#define MAC0_BASE_OFFSET 0x40000 /* eMAC0 Base Offset */
+#define MAC1_BASE_OFFSET 0x48000 /* eMAC1 Base Offset */
 
 /* Default LPI timers */
 #define TC956XMAC_DEFAULT_LIT_LS	0x3E8
@@ -926,75 +960,76 @@ union tc956x_logstat_State_Log_Data {
  */
 static int tc956x_GPIO_OutputConfigPin(struct stmmac_priv *priv, u32 gpio_pin, u8 out_value)
 {
+	struct toshiba_data *td = priv->plat->bsp_priv;
 	u32 config, val;
 
 	/* Only GPIO0- GPIO06, GPI010-GPIO12 are allowed */
 	switch (gpio_pin) {
 	case GPIO_00:
-		val = readl(priv->ioaddr + NFUNCEN4_OFFSET);
+		val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
 		val &= ~NFUNCEN4_GPIO_00;
 		val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_00_SHIFT);
-		writel(val, priv->ioaddr + NFUNCEN4_OFFSET);
+		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 		break;
 	case GPIO_01:
-		val = readl(priv->ioaddr + NFUNCEN4_OFFSET);
+		val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
 		val &= ~NFUNCEN4_GPIO_01;
 		val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_01_SHIFT);
-		writel(val, priv->ioaddr + NFUNCEN4_OFFSET);
+		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 		break;
 	case GPIO_02:
-		val = readl(priv->ioaddr + NFUNCEN4_OFFSET);
+		val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
 		val &= ~NFUNCEN4_GPIO_02;
 		val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_02_SHIFT);
-		writel(val, priv->ioaddr + NFUNCEN4_OFFSET);
+		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 		break;
 	case GPIO_03:
-		val = readl(priv->ioaddr + NFUNCEN4_OFFSET);
+		val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
 		val &= ~NFUNCEN4_GPIO_03;
 		val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_03_SHIFT);
-		writel(val, priv->ioaddr + NFUNCEN4_OFFSET);
+		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 		break;
 	case GPIO_04:
-		val = readl(priv->ioaddr + NFUNCEN4_OFFSET);
+		val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
 		val &= ~NFUNCEN4_GPIO_04;
 		val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_04_SHIFT);
-		writel(val, priv->ioaddr + NFUNCEN4_OFFSET);
+		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 		break;
 	case GPIO_05:
-		val = readl(priv->ioaddr + NFUNCEN4_OFFSET);
+		val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
 		val &= ~NFUNCEN4_GPIO_05;
 		val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_05_SHIFT);
-		writel(val, priv->ioaddr + NFUNCEN4_OFFSET);
+		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 		break;
 	case GPIO_06:
-		val = readl(priv->ioaddr + NFUNCEN4_OFFSET);
+		val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
 		val &= ~NFUNCEN4_GPIO_06;
 		val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_06_SHIFT);
-		writel(val, priv->ioaddr + NFUNCEN4_OFFSET);
+		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 		break;
 	case GPIO_10:
-		val = readl(priv->ioaddr + NFUNCEN5_OFFSET);
+		val = readl(td->sfr_addr + NFUNCEN5_OFFSET);
 		val &= ~NFUNCEN5_GPIO_10;
 		val |= (NFUNCEN_FUNC0 << NFUNCEN5_GPIO_10_SHIFT);
-		writel(val, priv->ioaddr + NFUNCEN5_OFFSET);
+		writel(val, td->sfr_addr + NFUNCEN5_OFFSET);
 		break;
 	case GPIO_11:
-		val = readl(priv->ioaddr + NFUNCEN5_OFFSET);
+		val = readl(td->sfr_addr + NFUNCEN5_OFFSET);
 		val &= ~NFUNCEN5_GPIO_11;
 		val |= (NFUNCEN_FUNC0 << NFUNCEN5_GPIO_11_SHIFT);
-		writel(val, priv->ioaddr + NFUNCEN5_OFFSET);
+		writel(val, td->sfr_addr + NFUNCEN5_OFFSET);
 		break;
 	case GPIO_12:
-		val = readl(priv->ioaddr + NFUNCEN6_OFFSET);
+		val = readl(td->sfr_addr + NFUNCEN6_OFFSET);
 		val &= ~NFUNCEN6_GPIO_12;
 		val |= (NFUNCEN_FUNC0 << NFUNCEN6_GPIO_12_SHIFT);
-		writel(val, priv->ioaddr + NFUNCEN6_OFFSET);
+		writel(val, td->sfr_addr + NFUNCEN6_OFFSET);
 		break;
 	case GPIO_13:
-		val = readl(priv->ioaddr + NFUNCEN7_OFFSET);
+		val = readl(td->sfr_addr + NFUNCEN7_OFFSET);
 		val &= ~NFUNCEN7_GPIO_13;
 		val |= (NFUNCEN_FUNC2 << NFUNCEN7_GPIO_13_SHIFT);
-		writel(val, priv->ioaddr + NFUNCEN7_OFFSET);
+		writel(val, td->sfr_addr + NFUNCEN7_OFFSET);
 		break;
 	default:
 		netdev_err(priv->dev, "Invalid GPIO pin - %d\n", gpio_pin);
@@ -1006,20 +1041,20 @@ static int tc956x_GPIO_OutputConfigPin(struct stmmac_priv *priv, u32 gpio_pin, u
 	/* Write data to GPIO pin */
 	if (gpio_pin < GPIO_32) {
 		config = 1 << gpio_pin;
-		val = readl(priv->ioaddr + GPIOO0_OFFSET);
+		val = readl(td->sfr_addr + GPIOO0_OFFSET);
 		val &= ~config;
 		if (out_value)
 			val |= config;
 
-		writel(val, priv->ioaddr + GPIOO0_OFFSET);
+		writel(val, td->sfr_addr + GPIOO0_OFFSET);
 	}  else {
 		config = 1 << (gpio_pin - GPIO_32);
-		val = readl(priv->ioaddr + GPIOO1_OFFSET);
+		val = readl(td->sfr_addr + GPIOO1_OFFSET);
 		val &= ~config;
 		if (out_value)
 			val |= config;
 
-		writel(val, priv->ioaddr + GPIOO1_OFFSET);
+		writel(val, td->sfr_addr + GPIOO1_OFFSET);
 	}
 
 	priv->saved_gpio_config[gpio_pin].out_val = out_value;
@@ -1027,12 +1062,12 @@ static int tc956x_GPIO_OutputConfigPin(struct stmmac_priv *priv, u32 gpio_pin, u
 	/* Configure the GPIO pin in output direction */
 	if (gpio_pin < GPIO_32) {
 		config = ~(1 << gpio_pin);
-		val = readl(priv->ioaddr + GPIOE0_OFFSET);
-		writel(val & config, priv->ioaddr + GPIOE0_OFFSET);
+		val = readl(td->sfr_addr + GPIOE0_OFFSET);
+		writel(val & config, td->sfr_addr + GPIOE0_OFFSET);
 	} else {
 		config = ~(1 << (gpio_pin - GPIO_32));
-		val = readl(priv->ioaddr + GPIOE1_OFFSET);
-		writel(val & config, priv->ioaddr + GPIOE1_OFFSET);
+		val = readl(td->sfr_addr + GPIOE1_OFFSET);
+		writel(val & config, td->sfr_addr + GPIOE1_OFFSET);
 	}
 
 	return 0;
@@ -1045,6 +1080,7 @@ static int tc956x_GPIO_OutputConfigPin(struct stmmac_priv *priv, u32 gpio_pin, u
  */
 static int tc956x_gpio_restore_configuration(struct stmmac_priv *priv)
 {
+	struct toshiba_data *td = priv->plat->bsp_priv;
 	u32 config, val, gpio_pin, out_value;
 
 	dev_dbg(priv->device, "-->%s", __func__);
@@ -1061,70 +1097,70 @@ static int tc956x_gpio_restore_configuration(struct stmmac_priv *priv)
 		/* Only GPIO0- GPIO06, GPI010-GPIO12 are allowed */
 		switch (gpio_pin) {
 		case GPIO_00:
-			val = readl(priv->ioaddr + NFUNCEN4_OFFSET);
+			val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
 			val &= ~NFUNCEN4_GPIO_00;
 			val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_00_SHIFT);
-			writel(val, priv->ioaddr + NFUNCEN4_OFFSET);
+			writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 			break;
 		case GPIO_01:
-			val = readl(priv->ioaddr + NFUNCEN4_OFFSET);
+			val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
 			val &= ~NFUNCEN4_GPIO_01;
 			val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_01_SHIFT);
-			writel(val, priv->ioaddr + NFUNCEN4_OFFSET);
+			writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 			break;
 		case GPIO_02:
-			val = readl(priv->ioaddr + NFUNCEN4_OFFSET);
+			val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
 			val &= ~NFUNCEN4_GPIO_02;
 			val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_02_SHIFT);
-			writel(val, priv->ioaddr + NFUNCEN4_OFFSET);
+			writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 			break;
 		case GPIO_03:
-			val = readl(priv->ioaddr + NFUNCEN4_OFFSET);
+			val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
 			val &= ~NFUNCEN4_GPIO_03;
 			val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_03_SHIFT);
-			writel(val, priv->ioaddr + NFUNCEN4_OFFSET);
+			writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 			break;
 		case GPIO_04:
-			val = readl(priv->ioaddr + NFUNCEN4_OFFSET);
+			val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
 			val &= ~NFUNCEN4_GPIO_04;
 			val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_04_SHIFT);
-			writel(val, priv->ioaddr + NFUNCEN4_OFFSET);
+			writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 			break;
 		case GPIO_05:
-			val = readl(priv->ioaddr + NFUNCEN4_OFFSET);
+			val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
 			val &= ~NFUNCEN4_GPIO_05;
 			val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_05_SHIFT);
-			writel(val, priv->ioaddr + NFUNCEN4_OFFSET);
+			writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 			break;
 		case GPIO_06:
-			val = readl(priv->ioaddr + NFUNCEN4_OFFSET);
+			val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
 			val &= ~NFUNCEN4_GPIO_06;
 			val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_06_SHIFT);
-			writel(val, priv->ioaddr + NFUNCEN4_OFFSET);
+			writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 			break;
 		case GPIO_10:
-			val = readl(priv->ioaddr + NFUNCEN5_OFFSET);
+			val = readl(td->sfr_addr + NFUNCEN5_OFFSET);
 			val &= ~NFUNCEN5_GPIO_10;
 			val |= (NFUNCEN_FUNC0 << NFUNCEN5_GPIO_10_SHIFT);
-			writel(val, priv->ioaddr + NFUNCEN5_OFFSET);
+			writel(val, td->sfr_addr + NFUNCEN5_OFFSET);
 			break;
 		case GPIO_11:
-			val = readl(priv->ioaddr + NFUNCEN5_OFFSET);
+			val = readl(td->sfr_addr + NFUNCEN5_OFFSET);
 			val &= ~NFUNCEN5_GPIO_11;
 			val |= (NFUNCEN_FUNC0 << NFUNCEN5_GPIO_11_SHIFT);
-			writel(val, priv->ioaddr + NFUNCEN5_OFFSET);
+			writel(val, td->sfr_addr + NFUNCEN5_OFFSET);
 			break;
 		case GPIO_12:
-			val = readl(priv->ioaddr + NFUNCEN6_OFFSET);
+			val = readl(td->sfr_addr + NFUNCEN6_OFFSET);
 			val &= ~NFUNCEN6_GPIO_12;
 			val |= (NFUNCEN_FUNC0 << NFUNCEN6_GPIO_12_SHIFT);
-			writel(val, priv->ioaddr + NFUNCEN6_OFFSET);
+			writel(val, td->sfr_addr + NFUNCEN6_OFFSET);
 			break;
 		case GPIO_13:
-			val = readl(priv->ioaddr + NFUNCEN7_OFFSET);
+			val = readl(td->sfr_addr + NFUNCEN7_OFFSET);
 			val &= ~NFUNCEN7_GPIO_13;
 			val |= (NFUNCEN_FUNC2 << NFUNCEN7_GPIO_13_SHIFT);
-			writel(val, priv->ioaddr + NFUNCEN7_OFFSET);
+			writel(val, td->sfr_addr + NFUNCEN7_OFFSET);
 			break;
 		default:
 			netdev_err(priv->dev, "Invalid GPIO pin - %d\n", gpio_pin);
@@ -1136,31 +1172,31 @@ static int tc956x_gpio_restore_configuration(struct stmmac_priv *priv)
 		/* Write data to GPIO pin */
 		if (gpio_pin < GPIO_32) {
 			config = 1 << gpio_pin;
-			val = readl(priv->ioaddr + GPIOO0_OFFSET);
+			val = readl(td->sfr_addr + GPIOO0_OFFSET);
 			val &= ~config;
 			if (out_value)
 				val |= config;
 
-			writel(val, priv->ioaddr + GPIOO0_OFFSET);
+			writel(val, td->sfr_addr + GPIOO0_OFFSET);
 		}  else {
 			config = 1 << (gpio_pin - GPIO_32);
-			val = readl(priv->ioaddr + GPIOO1_OFFSET);
+			val = readl(td->sfr_addr + GPIOO1_OFFSET);
 			val &= ~config;
 			if (out_value)
 				val |= config;
 
-			writel(val, priv->ioaddr + GPIOO1_OFFSET);
+			writel(val, td->sfr_addr + GPIOO1_OFFSET);
 		}
 
 		/* Configure the GPIO pin in output direction */
 		if (gpio_pin < GPIO_32) {
 			config = ~(1 << gpio_pin);
-			val = readl(priv->ioaddr + GPIOE0_OFFSET);
-		writel(val & config, priv->ioaddr + GPIOE0_OFFSET);
+			val = readl(td->sfr_addr + GPIOE0_OFFSET);
+		writel(val & config, td->sfr_addr + GPIOE0_OFFSET);
 		} else {
 			config = ~(1 << (gpio_pin - GPIO_32));
-			val = readl(priv->ioaddr + GPIOE1_OFFSET);
-			writel(val & config, priv->ioaddr + GPIOE1_OFFSET);
+			val = readl(td->sfr_addr + GPIOE1_OFFSET);
+			writel(val & config, td->sfr_addr + GPIOE1_OFFSET);
 		}
 	}
 	return 0;
@@ -3040,11 +3076,11 @@ static s32 tc956x_load_firmware(struct device *dev, struct stmmac_resources *res
 
 	/* Assert M3 reset */
 	adrs = NRSTCTRL0_OFFSET;
-	val = ioread32((void __iomem *)(res->addr + adrs));
+	val = ioread32((void __iomem *)(res->tc956x_SFR_pci_base_addr + adrs));
 	dev_dbg(dev,  "Reset Register value = %lx\n", (unsigned long)val);
 
 	val |= NRSTCTRL0_RST_ASRT;
-	iowrite32(val, (void __iomem *)(res->addr + adrs));
+	iowrite32(val, (void __iomem *)(res->tc956x_SFR_pci_base_addr + adrs));
 
 	iowrite32(0, (void __iomem *)(res->tc956x_SRAM_pci_base_addr +
 			TC956X_M3_INIT_DONE));
@@ -3066,9 +3102,9 @@ static s32 tc956x_load_firmware(struct device *dev, struct stmmac_resources *res
 
 	/* De-assert M3 reset */
 	adrs = NRSTCTRL0_OFFSET;
-	val = ioread32((void __iomem *)(res->addr + adrs));
+	val = ioread32((void __iomem *)(res->tc956x_SFR_pci_base_addr + adrs));
 	val &= ~NRSTCTRL0_RST_DE_ASRT;
-	iowrite32(val, (void __iomem *)(res->addr + adrs));
+	iowrite32(val, (void __iomem *)(res->tc956x_SFR_pci_base_addr + adrs));
 
 	readl_poll_timeout_atomic(res->tc956x_SRAM_pci_base_addr + TC956X_M3_INIT_DONE,
 				fw_init_sync, fw_init_sync, 100, 100000);
@@ -3182,6 +3218,7 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 {
 	struct tc956xmac_pci_info *info = (struct tc956xmac_pci_info *)id->driver_data;
 	struct plat_stmmacenet_data *plat;
+	struct toshiba_data *td;
 	struct stmmac_resources res;
 #if (defined(TC956X_PCIE_DSP_CUT_THROUGH) || defined(CONFIG_TC956X_PCIE_GEN3_SETTING)) && defined(TC956X_SRIOV_PF)
 	u32 val;
@@ -3215,6 +3252,9 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 		ret = -ENOMEM;
 		goto err_out_enb_failed;
 	}
+
+	td = devm_kzalloc(&pdev->dev, sizeof(*plat), GFP_KERNEL);
+	plat->bsp_priv = td;
 
 	plat->mdio_bus_data = devm_kzalloc(&pdev->dev,
 					   sizeof(*plat->mdio_bus_data),
@@ -3372,17 +3412,22 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 	dev_dbg(&(pdev->dev), "BAR2 virtual address = %p\n", res.tc956x_SRAM_pci_base_addr);
 	dev_dbg(&(pdev->dev), "BAR4 virtual address = %p\n", res.tc956x_SFR_pci_base_addr);
 
-	res.addr = res.tc956x_SFR_pci_base_addr;
-
 	res.port_num = readl(res.tc956x_BRIDGE_CFG_pci_base_addr + RSCMNG_ID_REG); /* Resource Manager ID */
 	res.port_num &= RSCMNG_PFN;
 
+	td->device = &pdev->dev;
+	td->sfr_addr = res.tc956x_SFR_pci_base_addr;
+	td->port_num = res.port_num;
+
+	res.addr = td->sfr_addr +
+		   (td->port_num == 0 ? MAC0_BASE_OFFSET : MAC1_BASE_OFFSET);
+
 	if (res.port_num == RM_PF0_ID) {
 
-		if ((tc956x_logstat_set_state_log_enable((void __iomem *)res.addr, UPSTREAM_PORT, STATE_LOG_ENABLE) < 0)
-		|| (tc956x_logstat_set_state_log_enable((void __iomem *)res.addr, DOWNSTREAM_PORT1, STATE_LOG_ENABLE) < 0)
-		|| (tc956x_logstat_set_state_log_enable((void __iomem *)res.addr, DOWNSTREAM_PORT2, STATE_LOG_ENABLE) < 0)
-		|| (tc956x_logstat_set_state_log_enable((void __iomem *)res.addr, INTERNAL_ENDPOINT, STATE_LOG_ENABLE) < 0)) {
+		if ((tc956x_logstat_set_state_log_enable((void __iomem *)td->sfr_addr, UPSTREAM_PORT, STATE_LOG_ENABLE) < 0)
+		|| (tc956x_logstat_set_state_log_enable((void __iomem *)td->sfr_addr, DOWNSTREAM_PORT1, STATE_LOG_ENABLE) < 0)
+		|| (tc956x_logstat_set_state_log_enable((void __iomem *)td->sfr_addr, DOWNSTREAM_PORT2, STATE_LOG_ENABLE) < 0)
+		|| (tc956x_logstat_set_state_log_enable((void __iomem *)td->sfr_addr, INTERNAL_ENDPOINT, STATE_LOG_ENABLE) < 0)) {
 			ret = -EFAULT; /* The returns returned by above functions are -EFAULT only */
 			dev_dbg(&(pdev->dev), "<--%s : Error ret: %d\n", __func__, ret);
 			goto err_dvr_logstat;
@@ -3454,45 +3499,45 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 
 #ifdef TC956X_PCIE_LINK_STATE_LATENCY_CTRL
 	/* 0x4002_C02C SSREG_GLUE_SW_REG_ACCESS_CTRL.sw_port_reg_access_enable for USP Access enable */
-	writel(SW_USP_ENABLE, res.addr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
+	writel(SW_USP_ENABLE, td->sfr_addr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
 
 	/* 0x4002_496C K_PEXCONF_209_205.aspm_l0s_entry_delay in terms of 256ns */
-	reg_val = readl(res.addr + TC956X_PCIE_S_L0s_ENTRY_LATENCY);
+	reg_val = readl(td->sfr_addr + TC956X_PCIE_S_L0s_ENTRY_LATENCY);
 	reg_val &= ~(TC956X_PCIE_USP_L0s_ENTRY_MASK);
 	reg_val |= ((plat->usp_l0s_delay << TC956X_PCIE_USP_L0s_ENTRY_SHIFT) & TC956X_PCIE_USP_L0s_ENTRY_MASK);
-	writel(reg_val, res.addr + TC956X_PCIE_S_L0s_ENTRY_LATENCY);
+	writel(reg_val, td->sfr_addr + TC956X_PCIE_S_L0s_ENTRY_LATENCY);
 
 	/* 0x4002_4970 K_PEXCONF_219_210.aspm_L1_entry_delay in terms of 256ns */
-	reg_val = readl(res.addr + TC956X_PCIE_S_L1_ENTRY_LATENCY);
+	reg_val = readl(td->sfr_addr + TC956X_PCIE_S_L1_ENTRY_LATENCY);
 	reg_val &= ~(TC956X_PCIE_USP_L1_ENTRY_MASK);
 	reg_val |= ((plat->usp_l1_delay << TC956X_PCIE_USP_L1_ENTRY_SHIFT) & TC956X_PCIE_USP_L1_ENTRY_MASK);
-	writel(reg_val, res.addr + TC956X_PCIE_S_L1_ENTRY_LATENCY);
+	writel(reg_val, td->sfr_addr + TC956X_PCIE_S_L1_ENTRY_LATENCY);
 
 	/* 0x4002_C02C SSREG_GLUE_SW_REG_ACCESS_CTRL.sw_port_reg_access_enable for DSP1 Access enable */
-	writel(SW_DSP1_ENABLE, res.addr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
+	writel(SW_DSP1_ENABLE, td->sfr_addr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
 	/* 0x4002_496C K_PEXCONF_209_205.aspm_l0s_entry_delay in terms of 256ns */
-	writel(DSP1_L0s_ENTRY_DELAY, res.addr + TC956X_PCIE_S_L0s_ENTRY_LATENCY);
+	writel(DSP1_L0s_ENTRY_DELAY, td->sfr_addr + TC956X_PCIE_S_L0s_ENTRY_LATENCY);
 	/* 0x4002_4970 K_PEXCONF_219_210.aspm_L1_entry_delay in terms of 256ns */
-	writel(DSP1_L1_ENTRY_DELAY, res.addr + TC956X_PCIE_S_L1_ENTRY_LATENCY);
+	writel(DSP1_L1_ENTRY_DELAY, td->sfr_addr + TC956X_PCIE_S_L1_ENTRY_LATENCY);
 
 	/* 0x4002_C02C SSREG_GLUE_SW_REG_ACCESS_CTRL.sw_port_reg_access_enable for DSP2 Access enable */
-	writel(SW_DSP2_ENABLE, res.addr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
+	writel(SW_DSP2_ENABLE, td->sfr_addr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
 	/* 0x4002_496C K_PEXCONF_209_205.aspm_l0s_entry_delay in terms of 256ns */
-	writel(DSP2_L0s_ENTRY_DELAY, res.addr + TC956X_PCIE_S_L0s_ENTRY_LATENCY);
+	writel(DSP2_L0s_ENTRY_DELAY, td->sfr_addr + TC956X_PCIE_S_L0s_ENTRY_LATENCY);
 	/* 0x4002_4970 K_PEXCONF_219_210.aspm_L1_entry_delay in terms of 256ns */
-	writel(DSP2_L1_ENTRY_DELAY, res.addr + TC956X_PCIE_S_L1_ENTRY_LATENCY);
+	writel(DSP2_L1_ENTRY_DELAY, td->sfr_addr + TC956X_PCIE_S_L1_ENTRY_LATENCY);
 
 	/* 0x4002_C02C SSREG_GLUE_SW_REG_ACCESS_CTRL.sw_port_reg_access_enable
 	 * for VDSP Access enable
 	 */
-	writel(SW_VDSP_ENABLE, res.addr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
+	writel(SW_VDSP_ENABLE, td->sfr_addr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
 	/* 0x4002_496C K_PEXCONF_209_205.aspm_l0s_entry_delay in terms of 256ns */
-	writel(VDSP_L0s_ENTRY_DELAY, res.addr + TC956X_PCIE_S_L0s_ENTRY_LATENCY);
+	writel(VDSP_L0s_ENTRY_DELAY, td->sfr_addr + TC956X_PCIE_S_L0s_ENTRY_LATENCY);
 	/* 0x4002_4970 K_PEXCONF_219_210.aspm_L1_entry_delay in terms of 256ns */
-	writel(VDSP_L1_ENTRY_DELAY, res.addr + TC956X_PCIE_S_L1_ENTRY_LATENCY);
+	writel(VDSP_L1_ENTRY_DELAY, td->sfr_addr + TC956X_PCIE_S_L1_ENTRY_LATENCY);
 
 	/* 0x4002_00D8 Reading PCIE EP Capability setting Register */
-	reg_val = readl(res.addr + TC956X_PCIE_EP_CAPB_SET);
+	reg_val = readl(td->sfr_addr + TC956X_PCIE_EP_CAPB_SET);
 
 	/* Clearing PCIE EP Capability setting of L0s & L1 entry delays */
 	reg_val &= ~(TC956X_PCIE_EP_L0s_ENTRY_MASK | TC956X_PCIE_EP_L1_ENTRY_MASK);
@@ -3504,12 +3549,12 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 				TC956X_PCIE_EP_L1_ENTRY_MASK));
 
 	/* 0x4002_00D8 PCIE EP Capability setting L0S & L1 entry delay in terms of 256ns */
-	writel(reg_val, res.addr + TC956X_PCIE_EP_CAPB_SET);
+	writel(reg_val, td->sfr_addr + TC956X_PCIE_EP_CAPB_SET);
 
 	/* 0x4002_C02C SSREG_GLUE_SW_REG_ACCESS_CTRL.sw_port_reg_access_enable
 	 * for All Switch Ports Access enable
 	 */
-	writel(TC956X_PCIE_S_EN_ALL_PORTS_ACCESS, res.addr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
+	writel(TC956X_PCIE_S_EN_ALL_PORTS_ACCESS, td->sfr_addr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
 #endif /* end of TC956X_PCIE_LINK_STATE_LATENCY_CTRL */
 
 
@@ -3522,7 +3567,7 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 #ifdef CONFIG_TC956X_MAGIC_PACKET_WOL_GPIO
 	if (res.port_num == RM_PF0_ID) {
 		pr_debug("%s: Port %d Bus number %x - Configuring GPIO for WOL", __func__, res.port_num, pdev->bus->number);
-		tc956x_wol_gpio_trigger(res.addr, false); /* Set to LOW */
+		tc956x_wol_gpio_trigger(td->sfr_addr, false); /* Set to LOW */
 	}
 #endif
 #ifdef DISABLE_EMAC_PORT1
@@ -3530,11 +3575,11 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 
 		dev_dbg(&pdev->dev, "Disabling all eMAC clocks for Port 1\n");
 		/* Disable all clocks to eMAC Port1 */
-		ret = readl(res.addr + NCLKCTRL1_OFFSET);
+		ret = readl(td->sfr_addr + NCLKCTRL1_OFFSET);
 
 		ret &= (~(NCLKCTRL1_MAC1TXCEN | NCLKCTRL1_MAC1RXCEN |
 			  NCLKCTRL1_MAC1ALLCLKEN1 | NCLKCTRL1_MAC1RMCEN));
-		writel(ret, res.addr + NCLKCTRL1_OFFSET);
+		writel(ret, td->sfr_addr + NCLKCTRL1_OFFSET);
 
 		ret = -ENODEV;
 		goto disable_emac_port;
@@ -3543,8 +3588,8 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 
 	plat->port_num = res.port_num;
 
-	reg = readl(res.addr + NCID_OFFSET);
-	pr_debug("NCID Register value: %x\n", readl(res.addr + NCID_OFFSET));
+	reg = readl(td->sfr_addr + NCID_OFFSET);
+	pr_debug("NCID Register value: %x\n", readl(td->sfr_addr + NCID_OFFSET));
 	if ((reg & REV_ID_MASK) == REV_ID1)
 		plat->RevID = REV_ID1;
 	else if ((reg & REV_ID_MASK) == REV_ID2)
@@ -3732,17 +3777,17 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 #endif
 
 	if (res.port_num == RM_PF0_ID) {
-		ret = readl(res.addr + NRSTCTRL0_OFFSET);
+		ret = readl(td->sfr_addr + NRSTCTRL0_OFFSET);
 		ret |= (NRSTCTRL0_INTRST);
-		writel(ret, res.addr + NRSTCTRL0_OFFSET);
+		writel(ret, td->sfr_addr + NRSTCTRL0_OFFSET);
 
-		ret = readl(res.addr + NCLKCTRL0_OFFSET);
+		ret = readl(td->sfr_addr + NCLKCTRL0_OFFSET);
 		ret |= NCLKCTRL0_INTCEN;
-		writel(ret, res.addr + NCLKCTRL0_OFFSET);
+		writel(ret, td->sfr_addr + NCLKCTRL0_OFFSET);
 
-		ret = readl(res.addr + NRSTCTRL0_OFFSET);
+		ret = readl(td->sfr_addr + NRSTCTRL0_OFFSET);
 		ret &= (~(NRSTCTRL0_INTRST));
-		writel(ret, res.addr + NRSTCTRL0_OFFSET);
+		writel(ret, td->sfr_addr + NRSTCTRL0_OFFSET);
 
 		/* Configure Address Transslation block
 		 * Bridge Base address to be passed for TC956X
@@ -3782,16 +3827,16 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 
 
 	if (res.port_num == RM_PF0_ID) {
-		ret = readl(res.addr + NRSTCTRL0_OFFSET);
+		ret = readl(td->sfr_addr + NRSTCTRL0_OFFSET);
 
 		/* Assertion of EMAC Port0 software Reset */
 		ret |= NRSTCTRL0_MAC0RST;
 
-		writel(ret, res.addr + NRSTCTRL0_OFFSET);
+		writel(ret, td->sfr_addr + NRSTCTRL0_OFFSET);
 
 		dev_dbg(&pdev->dev, "Enabling all eMAC clocks for Port 0 Bus number %x\n", pdev->bus->number);
 		/* Enable all clocks to eMAC Port0 */
-		ret = readl(res.addr + NCLKCTRL0_OFFSET);
+		ret = readl(td->sfr_addr + NCLKCTRL0_OFFSET);
 
 		ret |= ((NCLKCTRL0_MAC0TXCEN | NCLKCTRL0_MAC0ALLCLKEN | NCLKCTRL0_MAC0RXCEN));
 		/* Only if "current" port is SGMII 2.5G, configure below clocks. */
@@ -3803,10 +3848,10 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 			ret &= ~NCLKCTRL0_MAC0125CLKEN;
 			ret &= ~NCLKCTRL0_MAC0312CLKEN;
 		}
-		writel(ret, res.addr + NCLKCTRL0_OFFSET);
+		writel(ret, td->sfr_addr + NCLKCTRL0_OFFSET);
 
 		/* Interface configuration for port0*/
-		ret = readl(res.addr + NEMAC0CTL_OFFSET);
+		ret = readl(td->sfr_addr + NEMAC0CTL_OFFSET);
 		ret &= ~(NEMACCTL_SP_SEL_MASK | NEMACCTL_PHY_INF_SEL_MASK);
 		if ((res.port_interface == ENABLE_SGMII_INTERFACE) ||
 			(res.port_interface == ENABLE_2500BASE_X_INTERFACE))
@@ -3824,24 +3869,24 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 			ret |= 0x00000040; /* Set Active low */
 
 		ret |= NEMACCTL_PHY_INF_SEL | NEMACCTL_LPIHWCLKEN;
-		writel(ret, res.addr + NEMAC0CTL_OFFSET);
+		writel(ret, td->sfr_addr + NEMAC0CTL_OFFSET);
 
 		/* De-assertion of EMAC Port0  software Reset*/
-		ret = readl(res.addr + NRSTCTRL0_OFFSET);
+		ret = readl(td->sfr_addr + NRSTCTRL0_OFFSET);
 		ret &= ~(NRSTCTRL0_MAC0RST);
-		writel(ret, res.addr + NRSTCTRL0_OFFSET);
+		writel(ret, td->sfr_addr + NRSTCTRL0_OFFSET);
 	}
 
 	if (res.port_num == RM_PF1_ID) {
-		ret = readl(res.addr + NRSTCTRL1_OFFSET);
+		ret = readl(td->sfr_addr + NRSTCTRL1_OFFSET);
 
 		/* Assertion of EMAC Port1 software Reset*/
 		ret |= NRSTCTRL1_MAC1RST1;
-		writel(ret, res.addr + NRSTCTRL1_OFFSET);
+		writel(ret, td->sfr_addr + NRSTCTRL1_OFFSET);
 
 		dev_dbg(&pdev->dev, "Enabling all eMAC clocks for Port 1 Bus number-%x\n", pdev->bus->number);
 		/* Enable all clocks to eMAC Port1 */
-		ret = readl(res.addr + NCLKCTRL1_OFFSET);
+		ret = readl(td->sfr_addr + NCLKCTRL1_OFFSET);
 
 		ret |= ((NCLKCTRL1_MAC1TXCEN | NCLKCTRL1_MAC1RXCEN |
 		NCLKCTRL1_MAC1ALLCLKEN1 | 1 << 15));
@@ -3850,10 +3895,10 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 			ret &= ~NCLKCTRL1_MAC1125CLKEN1;
 			ret &= ~NCLKCTRL1_MAC1312CLKEN1;
 		}
-		writel(ret, res.addr + NCLKCTRL1_OFFSET);
+		writel(ret, td->sfr_addr + NCLKCTRL1_OFFSET);
 
 		/* Interface configuration for port1*/
-		ret = readl(res.addr + NEMAC1CTL_OFFSET);
+		ret = readl(td->sfr_addr + NEMAC1CTL_OFFSET);
 		ret &= ~(NEMACCTL_SP_SEL_MASK | NEMACCTL_PHY_INF_SEL_MASK);
 		if ((res.port_interface == ENABLE_RGMII_INTERFACE) ||
 			(res.port_interface == ENABLE_RGMII_ID_INTERFACE))
@@ -3874,12 +3919,12 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 			ret |= 0x00000040; /* Set Active low */
 
 		ret |= NEMACCTL_PHY_INF_SEL | NEMACCTL_LPIHWCLKEN;
-		writel(ret, res.addr + NEMAC1CTL_OFFSET);
+		writel(ret, td->sfr_addr + NEMAC1CTL_OFFSET);
 
 		/* De-assertion of EMAC Port1  software Reset */
-		ret = readl(res.addr + NRSTCTRL1_OFFSET);
+		ret = readl(td->sfr_addr + NRSTCTRL1_OFFSET);
 		ret &= ~NRSTCTRL1_MAC1RST1;
-		writel(ret, res.addr + NRSTCTRL1_OFFSET);
+		writel(ret, td->sfr_addr + NRSTCTRL1_OFFSET);
 	}
 
 
@@ -3913,8 +3958,8 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 	}
 
 	if ((res.port_num == RM_PF1_ID) && ((res.port_interface == ENABLE_RGMII_INTERFACE) || (res.port_interface == ENABLE_RGMII_ID_INTERFACE))) {
-		writel(0x00000000, res.addr + 0x1050);
-		writel(0xF300F300, res.addr + 0x107C);
+		writel(0x00000000, td->sfr_addr + 0x1050);
+		writel(0xF300F300, td->sfr_addr + 0x107C);
 	}
 
 #ifdef TC956X_PCIE_DSP_CUT_THROUGH
@@ -3922,41 +3967,41 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 	/* Read mode setting register
 	 * Mode settings values 0:Setting A: x4x1x1, 1:Setting B: x2x2x1
 	 */
-	val = readl(res.addr + NMODESTS_OFFSET);
+	val = readl(td->sfr_addr + NMODESTS_OFFSET);
 	pcie_mode = (val & NMODESTS_MODE2) >> NMODESTS_MODE2_SHIFT;
 
 	switch (pcie_mode) {
 	case TC956X_PCIE_SETTING_A: /* 0:Setting A: x4x1x1 mode */
 		dev_dbg(&(pdev->dev), "%s : Setting A : Adding DSP Cut Through Settings for DSP1 & DSP2", __func__);
 		/*DSP1 & DSP2 is selected*/
-		val = readl(res.addr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
+		val = readl(td->sfr_addr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
 		val &= ~(SW_DSP1_ENABLE|SW_DSP2_ENABLE);
 		val |= (SW_DSP1_ENABLE|SW_DSP2_ENABLE);
-		writel(val, res.addr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
+		writel(val, td->sfr_addr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
 		/*Set 0x0 to Rx Bit enable_cut_through_on_receive_path*/
-		val = readl(res.addr + TC956X_SSREG_K_PCICONF_021_021);
+		val = readl(td->sfr_addr + TC956X_SSREG_K_PCICONF_021_021);
 		val &= ~(ENABLE_CUT_THROUGH_ON_RX_PATH_MASK);
-		writel(val, res.addr + TC956X_SSREG_K_PCICONF_021_021);
+		writel(val, td->sfr_addr + TC956X_SSREG_K_PCICONF_021_021);
 		/*Set 0x00000000 to Tx Bit enable_cut_through_on_transmit_path*/
-		val = readl(res.addr + TC956X_SSREG_K_PCICONF_022_022);
+		val = readl(td->sfr_addr + TC956X_SSREG_K_PCICONF_022_022);
 		val &= ~(ENABLE_CUT_THROUGH_ON_TX_PATH_MASK);
-		writel(val, res.addr + TC956X_SSREG_K_PCICONF_022_022);
+		writel(val, td->sfr_addr + TC956X_SSREG_K_PCICONF_022_022);
 		break;
 	case TC956X_PCIE_SETTING_B: /* 1:Setting B: x2x2x1 mode */
 		dev_dbg(&(pdev->dev), "%s : Setting B : Adding DSP Cut Through Settings for DSP2", __func__);
 		/*DSP2 is selected*/
-		val = readl(res.addr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
+		val = readl(td->sfr_addr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
 		val &= ~(SW_DSP2_ENABLE);
 		val |= (SW_DSP2_ENABLE);
-		writel(val, res.addr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
+		writel(val, td->sfr_addr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
 		/*Set 0x0 to Rx Bit enable_cut_through_on_receive_path*/
-		val = readl(res.addr + TC956X_SSREG_K_PCICONF_021_021);
+		val = readl(td->sfr_addr + TC956X_SSREG_K_PCICONF_021_021);
 		val &= ~(ENABLE_CUT_THROUGH_ON_RX_PATH_MASK);
-		writel(val, res.addr + TC956X_SSREG_K_PCICONF_021_021);
+		writel(val, td->sfr_addr + TC956X_SSREG_K_PCICONF_021_021);
 		/*Set 0x0 to Tx Bit enable_cut_through_on_transmit_path*/
-		val = readl(res.addr + TC956X_SSREG_K_PCICONF_022_022);
+		val = readl(td->sfr_addr + TC956X_SSREG_K_PCICONF_022_022);
 		val &= ~(ENABLE_CUT_THROUGH_ON_TX_PATH_MASK);
-		writel(val, res.addr + TC956X_SSREG_K_PCICONF_022_022);
+		writel(val, td->sfr_addr + TC956X_SSREG_K_PCICONF_022_022);
 		break;
 	}
 #endif /* #ifdef TC956X_PCIE_DSP_CUT_THROUGH */
@@ -4270,7 +4315,7 @@ static int tc956x_pcie_suspend(struct device *dev)
 #ifdef CONFIG_TC956X_MAGIC_PACKET_WOL_GPIO
 	if (priv->port_num == RM_PF0_ID) {
 		pr_debug("%s: Port %d %s - Configuring GPIO for WOL", __func__, priv->port_num, priv->dev->name);
-		tc956x_wol_gpio_trigger(priv->ioaddr, true); /* Set to HIGH */
+		tc956x_wol_gpio_trigger(td->sfr_addr, true); /* Set to HIGH */
 	}
 #endif
 	ret = tc956x_pcie_pm_pci(pdev, SUSPEND);
@@ -4307,6 +4352,7 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 {
 	struct net_device *ndev = dev_get_drvdata(&pdev->dev);
 	struct stmmac_priv *priv = netdev_priv(ndev);
+	struct toshiba_data *td = priv->plat->bsp_priv;
 	/* use signal from MSPHY */
 	uint8_t SgmSigPol = 0;
 	int ret = 0;
@@ -4428,16 +4474,16 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 
 		if (priv->port_num == RM_PF0_ID) {
 			/* Assertion of PMA &  XPCS reset  software Reset*/
-			ret = readl(priv->ioaddr + NRSTCTRL0_OFFSET);
+			ret = readl(td->sfr_addr + NRSTCTRL0_OFFSET);
 			ret |= (NRSTCTRL0_MAC0PMARST | NRSTCTRL0_MAC0PONRST);
-			writel(ret, priv->ioaddr + NRSTCTRL0_OFFSET);
+			writel(ret, td->sfr_addr + NRSTCTRL0_OFFSET);
 		}
 
 		if (priv->port_num == RM_PF1_ID) {
 			/* Assertion of PMA &  XPCS reset  software Reset*/
-			ret = readl(priv->ioaddr + NRSTCTRL1_OFFSET);
+			ret = readl(td->sfr_addr + NRSTCTRL1_OFFSET);
 			ret |= (NRSTCTRL1_MAC1PMARST1 | NRSTCTRL1_MAC1PONRST1);
-			writel(ret, priv->ioaddr + NRSTCTRL1_OFFSET);
+			writel(ret, td->sfr_addr + NRSTCTRL1_OFFSET);
 		}
 
 		ret = tc956x_pma_setup(priv, priv->pmaaddr);
@@ -4446,30 +4492,30 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 
 		if (priv->port_num == RM_PF0_ID) {
 			/* De-assertion of PMA &  XPCS reset  software Reset*/
-			ret = readl(priv->ioaddr + NRSTCTRL0_OFFSET);
+			ret = readl(td->sfr_addr + NRSTCTRL0_OFFSET);
 			ret &= ~(NRSTCTRL0_MAC0PMARST | NRSTCTRL0_MAC0PONRST);
 #ifdef EEE_MAC_CONTROLLED_MODE
 			ret &= ~(NRSTCTRL0_MAC0RST | NRSTCTRL0_MAC0RST);
 #endif
-			writel(ret, priv->ioaddr + NRSTCTRL0_OFFSET);
+			writel(ret, td->sfr_addr + NRSTCTRL0_OFFSET);
 		}
 
 		if (priv->port_num == RM_PF1_ID) {
 			/* De-assertion of PMA &  XPCS reset  software Reset*/
-			ret = readl(priv->ioaddr + NRSTCTRL1_OFFSET);
+			ret = readl(td->sfr_addr + NRSTCTRL1_OFFSET);
 			ret &= ~(NRSTCTRL1_MAC1PMARST1 | NRSTCTRL1_MAC1PONRST1);
-			writel(ret, priv->ioaddr + NRSTCTRL1_OFFSET);
+			writel(ret, td->sfr_addr + NRSTCTRL1_OFFSET);
 		}
 
 		if (priv->port_num == RM_PF0_ID) {
 			do {
-				ret = readl(priv->ioaddr + NEMAC0CTL_OFFSET);
+				ret = readl(td->sfr_addr + NEMAC0CTL_OFFSET);
 		} while ((NEMACCTL_INIT_DONE & ret) != NEMACCTL_INIT_DONE);
 		}
 
 		if (priv->port_num == RM_PF1_ID) {
 			do {
-				ret = readl(priv->ioaddr + NEMAC1CTL_OFFSET);
+				ret = readl(td->sfr_addr + NEMAC1CTL_OFFSET);
 		} while ((NEMACCTL_INIT_DONE & ret) != NEMACCTL_INIT_DONE);
 		}
 		ret = tc956x_xpcs_init(priv, priv->xpcsaddr);
@@ -4502,6 +4548,7 @@ static int tc956x_pcie_resume(struct device *dev)
 	struct pci_dev *pdev = to_pci_dev(dev);
 	struct net_device *ndev = dev_get_drvdata(&pdev->dev);
 	struct stmmac_priv *priv = netdev_priv(ndev);
+	struct toshiba_data *td = priv->plat->bsp_priv;
 	int ret = 0;
 
 	dev_dbg(&(pdev->dev), "-->%s\n", __func__);
@@ -4543,8 +4590,8 @@ static int tc956x_pcie_resume(struct device *dev)
 	/* Call stmmac_resume() */
 	stmmac_resume(&pdev->dev);
 	if ((priv->port_num == RM_PF1_ID) && ((priv->port_interface == ENABLE_RGMII_INTERFACE) || (priv->port_interface == ENABLE_RGMII_ID_INTERFACE))) {
-		writel(NEMACTXCDLY_DEFAULT, priv->ioaddr + TC9563_CFG_NEMACTXCDLY);
-		writel(NEMACIOCTL_DEFAULT, priv->ioaddr + TC9563_CFG_NEMACIOCTL);
+		writel(NEMACTXCDLY_DEFAULT, td->sfr_addr + TC9563_CFG_NEMACTXCDLY);
+		writel(NEMACIOCTL_DEFAULT, td->sfr_addr + TC9563_CFG_NEMACIOCTL);
 	}
 
 	/* Increment device usage counter */
@@ -4565,14 +4612,14 @@ static int tc956x_pcie_resume(struct device *dev)
 #ifdef CONFIG_TC956X_MAGIC_PACKET_WOL_GPIO
 	if (priv->port_num == RM_PF0_ID) {
 		pr_debug("%s: Port %d - Configuring GPIO for WOL", __func__, priv->port_num);
-		tc956x_wol_gpio_trigger(priv->ioaddr, false); /* Set to LOW */
+		tc956x_wol_gpio_trigger(td->sfr_addr, false); /* Set to LOW */
 	}
 #endif
 	if (priv->port_num == RM_PF0_ID) {
-		if ((tc956x_logstat_set_state_log_enable((void __iomem *)priv->ioaddr, UPSTREAM_PORT, STATE_LOG_ENABLE) < 0)
-			|| (tc956x_logstat_set_state_log_enable((void __iomem *)priv->ioaddr, DOWNSTREAM_PORT1, STATE_LOG_ENABLE) < 0)
-			|| (tc956x_logstat_set_state_log_enable((void __iomem *)priv->ioaddr, DOWNSTREAM_PORT2, STATE_LOG_ENABLE) < 0)
-			|| (tc956x_logstat_set_state_log_enable((void __iomem *)priv->ioaddr, INTERNAL_ENDPOINT, STATE_LOG_ENABLE) < 0)) {
+		if ((tc956x_logstat_set_state_log_enable((void __iomem *)td->sfr_addr, UPSTREAM_PORT, STATE_LOG_ENABLE) < 0)
+			|| (tc956x_logstat_set_state_log_enable((void __iomem *)td->sfr_addr, DOWNSTREAM_PORT1, STATE_LOG_ENABLE) < 0)
+			|| (tc956x_logstat_set_state_log_enable((void __iomem *)td->sfr_addr, DOWNSTREAM_PORT2, STATE_LOG_ENABLE) < 0)
+			|| (tc956x_logstat_set_state_log_enable((void __iomem *)td->sfr_addr, INTERNAL_ENDPOINT, STATE_LOG_ENABLE) < 0)) {
 			ret = -EFAULT; /* The returns returned by above function are -EFAULT only */
 			dev_err(&(pdev->dev),
 			"%s: error in calling tc956x_logstat_set_state_log_enable", pci_name(pdev));
