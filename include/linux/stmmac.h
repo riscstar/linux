@@ -349,6 +349,7 @@ struct plat_stmmacenet_data {
 #ifndef DISABLE_TC9563
 	bool c45_needed;
 	struct tc956xmac_rx_parser_cfg rxp_cfg;
+	bool en_tx_lpi_clockgating;
 	struct stmmac_est *est;
 	struct clk *tc956xmac_clk;
 	int (*cphy_read)(void *priv, int phyaddr, int phyreg);
