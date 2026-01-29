@@ -41,9 +41,6 @@ struct stmmac_resources {
 
 #ifndef DISABLE_TC9563
 	u32 sriov_enabled;
-	void __iomem *tc956x_BRIDGE_CFG_pci_base_addr;
-	void __iomem *tc956x_SRAM_pci_base_addr;
-	void __iomem *tc956x_SFR_pci_base_addr;
 	unsigned int port_num;
 	u8  device_num;
 	unsigned int port_interface; /* Kernel module parameter variable for interface */
@@ -400,9 +397,6 @@ struct stmmac_priv {
 
 #ifndef DISABLE_TC9563
 	s32 sriov_enabled;
-	void __iomem *tc956x_BRIDGE_CFG_pci_base_addr;
-	void __iomem *tc956x_SRAM_pci_base_addr;
-	void __iomem *tc956x_SFR_pci_base_addr;
 	void __iomem *xpcsaddr;
 	void __iomem *pmaaddr;
 	u32 port_num;

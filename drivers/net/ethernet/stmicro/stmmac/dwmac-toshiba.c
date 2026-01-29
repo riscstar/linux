@@ -44,11 +44,13 @@ struct toshiba_data {
 	/** @dev: Device pointer */
 	struct device *device;
 
-	/**
-	 * @base_addr: SFR PCIe Base Address Register (BAR4)
-	 *
-	 * Provides access to the whole bus (reset, clock, gpio, MACs, etc).
-	 */
+	/** &bridge_cfg_addr: Bridge config base address (BAR0) */
+	void __iomem *bridge_cfg_addr;
+
+	/** &sram_addr: SRAM base address (BAR2) */
+	void __iomem *sram_addr;
+
+	/** @sfr_addr: SFR base address (BAR4) */
 	void __iomem *sfr_addr;
 
 	/** @port_num: Indicates which eMAC is assigned to this driver */
@@ -2249,17 +2251,19 @@ static struct tc956xmac_rx_parser_entry
  */
 static void tc956xmac_pm_set_power(struct stmmac_priv *priv, enum TC956X_PORT_PM_STATE state)
 {
+	struct toshiba_data *td = priv->plat->bsp_priv;
+
 	void *nrst_reg = NULL, *nclk_reg = NULL, *commonclk_reg = NULL;
 	u32 nrst_val = 0, nclk_val = 0, commonclk_val = 0;
 
 	pr_debug("-->%s : Port %d interface %s", __func__, priv->port_num, priv->dev->name);
 	/* Select register address by port */
 	if (priv->port_num == 0) {
-		nrst_reg = priv->tc956x_SFR_pci_base_addr + NRSTCTRL0_OFFSET;
-		nclk_reg = priv->tc956x_SFR_pci_base_addr + NCLKCTRL0_OFFSET;
+		nrst_reg = td->sfr_addr + NRSTCTRL0_OFFSET;
+		nclk_reg = td->sfr_addr + NCLKCTRL0_OFFSET;
 	} else {
-		nrst_reg = priv->tc956x_SFR_pci_base_addr + NRSTCTRL1_OFFSET;
-		nclk_reg = priv->tc956x_SFR_pci_base_addr + NCLKCTRL1_OFFSET;
+		nrst_reg = td->sfr_addr + NRSTCTRL1_OFFSET;
+		nclk_reg = td->sfr_addr + NCLKCTRL1_OFFSET;
 	}
 
 	if (state == SUSPEND) {
@@ -2277,7 +2281,7 @@ static void tc956xmac_pm_set_power(struct stmmac_priv *priv, enum TC956X_PORT_PM
 		writel(nrst_val, nrst_reg);
 		writel(nclk_val, nclk_reg);
 		if (tx956x_pci_shrd_mem[priv->pci_bd].pci_dev_active_cnt == TC956X_ALL_MAC_PORT_SUSPENDED) {
-			commonclk_reg = priv->tc956x_SFR_pci_base_addr + NCLKCTRL0_OFFSET;
+			commonclk_reg = td->sfr_addr + NCLKCTRL0_OFFSET;
 			commonclk_val = readl(commonclk_reg);
 			pr_debug("%s : Port %d interface %s Common CLK Rd Reg:%x", __func__, priv->port_num, priv->dev->name,
 				commonclk_val);
@@ -2290,7 +2294,7 @@ static void tc956xmac_pm_set_power(struct stmmac_priv *priv, enum TC956X_PORT_PM
 	} else if (state == RESUME) {
 		pr_debug("%s : Port %d interface %s Set Power for Resume", __func__, priv->port_num, priv->dev->name);
 		if (tx956x_pci_shrd_mem[priv->pci_bd].pci_dev_active_cnt == TC956X_ALL_MAC_PORT_SUSPENDED) {
-			commonclk_reg = priv->tc956x_SFR_pci_base_addr + NCLKCTRL0_OFFSET;
+			commonclk_reg = td->sfr_addr + NCLKCTRL0_OFFSET;
 			commonclk_val = readl(commonclk_reg);
 			pr_debug("%s : Port %d interface %s Common CLK Rd Reg:%x", __func__, priv->port_num, priv->dev->name,
 				commonclk_val);
@@ -2896,13 +2900,13 @@ static const struct tc956xmac_pci_info tc956xmac_xgmac3_pci_info = {
  *
  * \return none
  */
-static void tc956x_reset_SRAM(struct device *dev, struct stmmac_resources *res)
+static void tc956x_reset_SRAM(struct device *dev, struct toshiba_data *td)
 {
 	dev_dbg(dev,  "Resetting SRAM Region start\n");
 	/* Resetting SRAM IMEM Region */
-	memset_io(res->tc956x_SRAM_pci_base_addr, 0x0, 0x10000);
+	memset_io(td->sram_addr, 0x0, 0x10000);
 	/* Resetting SRAM DMEM Region */
-	memset_io((res->tc956x_SRAM_pci_base_addr + 0x40000), 0x0, 0x10000);
+	memset_io(td->sram_addr + 0x40000, 0x0, 0x10000);
 	dev_dbg(dev,  "Resetting SRAM Region end\n");
 }
 
@@ -2920,7 +2924,7 @@ static void tc956x_reset_SRAM(struct device *dev, struct stmmac_resources *res)
  * \retval 0 on success & -ve number on failure.
  */
 
-static s32 tc956x_load_firmware(struct device *dev, struct stmmac_resources *res)
+static s32 tc956x_load_firmware(struct device *dev, struct toshiba_data *td)
 {
 	u32 adrs = 0, val = 0;
 	u32 fw_init_sync;
@@ -2951,25 +2955,24 @@ static s32 tc956x_load_firmware(struct device *dev, struct stmmac_resources *res
 
 	/* Assert M3 reset */
 	adrs = NRSTCTRL0_OFFSET;
-	val = ioread32((void __iomem *)(res->tc956x_SFR_pci_base_addr + adrs));
+	val = ioread32(td->sfr_addr + adrs);
 	dev_dbg(dev,  "Reset Register value = %lx\n", (unsigned long)val);
 
 	val |= NRSTCTRL0_RST_ASRT;
-	iowrite32(val, (void __iomem *)(res->tc956x_SFR_pci_base_addr + adrs));
+	iowrite32(val, td->sfr_addr + adrs);
 
-	iowrite32(0, (void __iomem *)(res->tc956x_SRAM_pci_base_addr +
-			TC956X_M3_INIT_DONE));
+	iowrite32(0, td->sram_addr + TC956X_M3_INIT_DONE);
 
-	tc956x_reset_SRAM(dev, res);
+	tc956x_reset_SRAM(dev, td);
 
 	mdelay(10);
-	iowrite8(EEPROM_OFFSET, (void __iomem *)(res->tc956x_SRAM_pci_base_addr +
-			TC956X_M3_SRAM_EEPROM_OFFSET_ADDR));
-	iowrite8(EEPROM_MAC_COUNT, (void __iomem *)(res->tc956x_SRAM_pci_base_addr +
-			TC956X_M3_SRAM_EEPROM_MAC_COUNT));
+	iowrite8(EEPROM_OFFSET,
+		 td->sram_addr + TC956X_M3_SRAM_EEPROM_OFFSET_ADDR);
+	iowrite8(EEPROM_MAC_COUNT,
+		 td->sram_addr + TC956X_M3_SRAM_EEPROM_MAC_COUNT);
 
 	/* Copy TC956X FW to SRAM */
-	memcpy_toio(res->tc956x_SRAM_pci_base_addr, pfw->data, pfw->size);
+	memcpy_toio(td->sram_addr, pfw->data, pfw->size);
 	/* Release kernel firmware interface */
 	release_firmware(pfw);
 
@@ -2977,11 +2980,11 @@ static s32 tc956x_load_firmware(struct device *dev, struct stmmac_resources *res
 
 	/* De-assert M3 reset */
 	adrs = NRSTCTRL0_OFFSET;
-	val = ioread32((void __iomem *)(res->tc956x_SFR_pci_base_addr + adrs));
+	val = ioread32(td->sfr_addr + adrs);
 	val &= ~NRSTCTRL0_RST_DE_ASRT;
-	iowrite32(val, (void __iomem *)(res->tc956x_SFR_pci_base_addr + adrs));
+	iowrite32(val, td->sfr_addr + adrs);
 
-	readl_poll_timeout_atomic(res->tc956x_SRAM_pci_base_addr + TC956X_M3_INIT_DONE,
+	readl_poll_timeout_atomic(td->sram_addr + TC956X_M3_INIT_DONE,
 				fw_init_sync, fw_init_sync, 100, 100000);
 	if (!fw_init_sync)
 		dev_alert(dev, "TC956x FW yet to start!!!");
@@ -3222,43 +3225,43 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 	dev_dbg(&(pdev->dev),
 		"BAR4 physical address = 0x%llx\n", (u64)pci_resource_start(pdev, 4));
 
-	res.tc956x_BRIDGE_CFG_pci_base_addr = ioremap
-		(pci_resource_start(pdev, TC956X_BAR0), pci_resource_len(pdev, TC956X_BAR0));
-	if (((void __iomem *)res.tc956x_BRIDGE_CFG_pci_base_addr == NULL)) {
+	// TODO: devm_pci_iomap?
+	td->bridge_cfg_addr = ioremap(pci_resource_start(pdev, TC956X_BAR0),
+				      pci_resource_len(pdev, TC956X_BAR0));
+	if (!td->bridge_cfg_addr) {
 		dev_err(&(pdev->dev), "%s: cannot map TC956X BAR0, aborting", pci_name(pdev));
 		ret = -EIO;
 		dev_dbg(&(pdev->dev), "<--%s : ret: %d\n", __func__, ret);
 		goto err_out_map_failed;
 	}
-	res.tc956x_SRAM_pci_base_addr = ioremap
-		(pci_resource_start(pdev, TC956X_BAR2), pci_resource_len(pdev, TC956X_BAR2));
-	if (((void __iomem *)res.tc956x_SRAM_pci_base_addr == NULL)) {
-		pci_iounmap(pdev, (void __iomem *)res.tc956x_BRIDGE_CFG_pci_base_addr);
+	td->sram_addr = ioremap(pci_resource_start(pdev, TC956X_BAR2),
+				pci_resource_len(pdev, TC956X_BAR2));
+	if (!td->sram_addr) {
+		pci_iounmap(pdev, td->bridge_cfg_addr);
 		dev_err(&(pdev->dev), "%s: cannot map TC956X BAR2, aborting", pci_name(pdev));
 		ret = -EIO;
 		dev_dbg(&(pdev->dev), "<--%s : ret: %d\n", __func__, ret);
 		goto err_out_map_failed;
 	}
-	res.tc956x_SFR_pci_base_addr = ioremap
-		(pci_resource_start(pdev, TC956X_BAR4), pci_resource_len(pdev, TC956X_BAR4));
-	if (((void __iomem *)res.tc956x_SFR_pci_base_addr == NULL)) {
-		pci_iounmap(pdev, (void __iomem *)res.tc956x_BRIDGE_CFG_pci_base_addr);
-		pci_iounmap(pdev, (void __iomem *)res.tc956x_SRAM_pci_base_addr);
+	td->sfr_addr = ioremap(pci_resource_start(pdev, TC956X_BAR4),
+			       pci_resource_len(pdev, TC956X_BAR4));
+	if (!td->sfr_addr) {
+		pci_iounmap(pdev, td->bridge_cfg_addr);
+		pci_iounmap(pdev, td->sram_addr);
 		dev_err(&(pdev->dev), "%s: cannot map TC956X BAR4, aborting", pci_name(pdev));
 		ret = -EIO;
 		dev_dbg(&(pdev->dev), "<--%s : ret: %d\n", __func__, ret);
 		goto err_out_map_failed;
 	}
 
-	dev_dbg(&(pdev->dev), "BAR0 virtual address = %p\n", res.tc956x_BRIDGE_CFG_pci_base_addr);
-	dev_dbg(&(pdev->dev), "BAR2 virtual address = %p\n", res.tc956x_SRAM_pci_base_addr);
-	dev_dbg(&(pdev->dev), "BAR4 virtual address = %p\n", res.tc956x_SFR_pci_base_addr);
+	dev_dbg(&(pdev->dev), "BAR0 virtual address = %p\n", td->bridge_cfg_addr);
+	dev_dbg(&(pdev->dev), "BAR2 virtual address = %p\n", td->sram_addr);
+	dev_dbg(&(pdev->dev), "BAR4 virtual address = %p\n", td->sfr_addr);
 
-	res.port_num = readl(res.tc956x_BRIDGE_CFG_pci_base_addr + RSCMNG_ID_REG); /* Resource Manager ID */
+	res.port_num = readl(td->bridge_cfg_addr + RSCMNG_ID_REG); /* Resource Manager ID */
 	res.port_num &= RSCMNG_PFN;
 
 	td->device = &pdev->dev;
-	td->sfr_addr = res.tc956x_SFR_pci_base_addr;
 	td->port_num = res.port_num;
 
 	res.addr = td->sfr_addr +
@@ -3266,10 +3269,10 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 
 	if (res.port_num == RM_PF0_ID) {
 
-		if ((tc956x_logstat_set_state_log_enable((void __iomem *)td->sfr_addr, UPSTREAM_PORT, STATE_LOG_ENABLE) < 0)
-		|| (tc956x_logstat_set_state_log_enable((void __iomem *)td->sfr_addr, DOWNSTREAM_PORT1, STATE_LOG_ENABLE) < 0)
-		|| (tc956x_logstat_set_state_log_enable((void __iomem *)td->sfr_addr, DOWNSTREAM_PORT2, STATE_LOG_ENABLE) < 0)
-		|| (tc956x_logstat_set_state_log_enable((void __iomem *)td->sfr_addr, INTERNAL_ENDPOINT, STATE_LOG_ENABLE) < 0)) {
+		if ((tc956x_logstat_set_state_log_enable(td->sfr_addr, UPSTREAM_PORT, STATE_LOG_ENABLE) < 0)
+		|| (tc956x_logstat_set_state_log_enable(td->sfr_addr, DOWNSTREAM_PORT1, STATE_LOG_ENABLE) < 0)
+		|| (tc956x_logstat_set_state_log_enable(td->sfr_addr, DOWNSTREAM_PORT2, STATE_LOG_ENABLE) < 0)
+		|| (tc956x_logstat_set_state_log_enable(td->sfr_addr, INTERNAL_ENDPOINT, STATE_LOG_ENABLE) < 0)) {
 			ret = -EFAULT; /* The returns returned by above functions are -EFAULT only */
 			dev_dbg(&(pdev->dev), "<--%s : Error ret: %d\n", __func__, ret);
 			goto err_dvr_logstat;
@@ -3315,14 +3318,7 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 
 	plat->device_num = res.device_num;
 
-
-
-
-
-
-
-
-	res.port_num = readl(res.tc956x_BRIDGE_CFG_pci_base_addr + RSCMNG_ID_REG); /* Resource Manager ID */
+	res.port_num = readl(td->bridge_cfg_addr + RSCMNG_ID_REG); /* Resource Manager ID */
 	res.port_num &= RSCMNG_PFN;
 
 	plat->port_num = res.port_num;
@@ -3519,7 +3515,7 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 		/* Configure Address Transslation block
 		 * Bridge Base address to be passed for TC956X
 		 */
-		tc956x_config_tamap(&pdev->dev, res.tc956x_BRIDGE_CFG_pci_base_addr);
+		tc956x_config_tamap(&pdev->dev, td->bridge_cfg_addr);
 	}
 	dev_dbg(&(pdev->dev), "Initialising eMAC Port %d bus number-%x\n", res.port_num, pdev->bus->number);
 	/* Enable MSI  and Allocate Vectors */
@@ -3539,7 +3535,7 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 
 
 	if (res.port_num == RM_PF0_ID) {
-		ret = tc956x_load_firmware(&pdev->dev, &res);
+		ret = tc956x_load_firmware(&pdev->dev, td);
 		if (ret)
 			dev_err(&(pdev->dev), "Firmware load failed\n");
 	}
@@ -3736,12 +3732,12 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 err_dvr_probe:
 err_out_msi_failed:
 	pci_free_irq_vectors(pdev);
-	if (((void __iomem *)res.tc956x_SFR_pci_base_addr != NULL))
-		pci_iounmap(pdev, (void __iomem *)res.tc956x_SFR_pci_base_addr);
-	if (((void __iomem *)res.tc956x_SRAM_pci_base_addr != NULL))
-		pci_iounmap(pdev, (void __iomem *)res.tc956x_SRAM_pci_base_addr);
-	if (((void __iomem *)res.tc956x_BRIDGE_CFG_pci_base_addr != NULL))
-		pci_iounmap(pdev, (void __iomem *)res.tc956x_BRIDGE_CFG_pci_base_addr);
+	if (td->sfr_addr)
+		pci_iounmap(pdev, td->sfr_addr);
+	if (td->sram_addr)
+		pci_iounmap(pdev, td->sram_addr);
+	if (td->bridge_cfg_addr)
+		pci_iounmap(pdev, td->bridge_cfg_addr);
 err_dvr_logstat:
 err_out_map_failed:
 #ifdef CONFIG_PCI_IOV
@@ -3786,6 +3782,7 @@ static void tc956xmac_pci_remove(struct pci_dev *pdev)
 {
 	struct net_device *ndev = dev_get_drvdata(&pdev->dev);
 	struct stmmac_priv *priv = netdev_priv(ndev);
+	struct toshiba_data *td = priv->plat->bsp_priv;
 	void *nrst_reg, *nclk_reg;
 	u32 nrst_val, nclk_val;
 	mutex_lock(&tc956x_pm_suspend_lock);
@@ -3813,15 +3810,15 @@ static void tc956xmac_pci_remove(struct pci_dev *pdev)
 
 	/* Set reset value for CLK control and RESET Control registers */
 	if (priv->port_num == 0) {
-		nrst_reg = priv->tc956x_SFR_pci_base_addr + NRSTCTRL0_OFFSET;
-		nclk_reg = priv->tc956x_SFR_pci_base_addr + NCLKCTRL0_OFFSET;
+		nrst_reg = td->sfr_addr + NRSTCTRL0_OFFSET;
+		nclk_reg = td->sfr_addr + NCLKCTRL0_OFFSET;
 		nrst_val = readl(nrst_reg);
 		nclk_val = readl(nclk_reg);
 		nrst_val |= NRSTCTRL0_DEFAULT;
 		nclk_val &= ~NCLKCTRL_PORT0_EMAC_MASK;
 	} else {
-		nrst_reg = priv->tc956x_SFR_pci_base_addr + NRSTCTRL1_OFFSET;
-		nclk_reg = priv->tc956x_SFR_pci_base_addr + NCLKCTRL1_OFFSET;
+		nrst_reg = td->sfr_addr + NRSTCTRL1_OFFSET;
+		nclk_reg = td->sfr_addr + NCLKCTRL1_OFFSET;
 		nrst_val = NRSTCTRL_EMAC_MASK;
 		nclk_val = 0;
 	}
@@ -3829,8 +3826,8 @@ static void tc956xmac_pci_remove(struct pci_dev *pdev)
 	writel(nclk_val, nclk_reg);
 	if (tx956x_pci_shrd_mem[priv->pci_bd].pci_dev_active_cnt == TC956X_SINGLE_MAC_DEVICE_IN_USE) {
 		/* Set reset value for Common CLK control and Common RESET Control registers */
-		nrst_reg = priv->tc956x_SFR_pci_base_addr + NRSTCTRL0_OFFSET;
-		nclk_reg = priv->tc956x_SFR_pci_base_addr + NCLKCTRL0_OFFSET;
+		nrst_reg = td->sfr_addr + NRSTCTRL0_OFFSET;
+		nclk_reg = td->sfr_addr + NCLKCTRL0_OFFSET;
 		nrst_val = readl(nrst_reg);
 		nclk_val = readl(nclk_reg);
 		nrst_val |= NRSTCTRL_COMMON;
@@ -3852,15 +3849,12 @@ static void tc956xmac_pci_remove(struct pci_dev *pdev)
 
 
 	/* Un-map previously mapped BAR0/2/4 address memory */
-	if ((void __iomem *)priv->tc956x_SFR_pci_base_addr != NULL)
-		pci_iounmap(pdev, (void __iomem *)
-			priv->tc956x_SFR_pci_base_addr);
-	if ((void __iomem *)priv->tc956x_SRAM_pci_base_addr != NULL)
-		pci_iounmap(pdev, (void __iomem *)
-			priv->tc956x_SRAM_pci_base_addr);
-	if ((void __iomem *)priv->tc956x_BRIDGE_CFG_pci_base_addr != NULL)
-		pci_iounmap(pdev, (void __iomem *)
-			priv->tc956x_BRIDGE_CFG_pci_base_addr);
+	if (td->sfr_addr)
+		pci_iounmap(pdev, td->sfr_addr);
+	if (td->sram_addr)
+		pci_iounmap(pdev, td->sram_addr);
+	if (td->bridge_cfg_addr)
+		pci_iounmap(pdev, td->bridge_cfg_addr);
 	pci_release_regions(pdev);
 
 	pci_disable_device(pdev);
@@ -4061,16 +4055,16 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 	}
 
 	if (priv->port_num == RM_PF0_ID) {
-		ret = readl(priv->tc956x_SFR_pci_base_addr + NRSTCTRL0_OFFSET);
+		ret = readl(td->sfr_addr + NRSTCTRL0_OFFSET);
 
 		/* Assertion of EMAC Port0 software Reset */
 		ret |= NRSTCTRL0_MAC0RST;
 
-		writel(ret, priv->tc956x_SFR_pci_base_addr + NRSTCTRL0_OFFSET);
+		writel(ret, td->sfr_addr + NRSTCTRL0_OFFSET);
 
 		dev_dbg(&pdev->dev, "Enabling all eMAC clocks for Port 0 %s\n", priv->dev->name);
 		/* Enable all clocks to eMAC Port0 */
-		ret = readl(priv->tc956x_SFR_pci_base_addr + NCLKCTRL0_OFFSET);
+		ret = readl(td->sfr_addr + NCLKCTRL0_OFFSET);
 
 		ret |= ((NCLKCTRL0_MAC0TXCEN | NCLKCTRL0_MAC0ALLCLKEN | NCLKCTRL0_MAC0RXCEN));
 		if ((priv->port_interface == ENABLE_SGMII_INTERFACE) ||
@@ -4082,10 +4076,10 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 			ret &= ~NCLKCTRL0_MAC0125CLKEN;
 			ret &= ~NCLKCTRL0_MAC0312CLKEN;
 		}
-		writel(ret, priv->tc956x_SFR_pci_base_addr + NCLKCTRL0_OFFSET);
+		writel(ret, td->sfr_addr + NCLKCTRL0_OFFSET);
 
 		/* Interface configuration for port0*/
-		ret = readl(priv->tc956x_SFR_pci_base_addr + NEMAC0CTL_OFFSET);
+		ret = readl(td->sfr_addr + NEMAC0CTL_OFFSET);
 		ret &= ~(NEMACCTL_SP_SEL_MASK | NEMACCTL_PHY_INF_SEL_MASK);
 		if ((priv->port_interface == ENABLE_SGMII_INTERFACE) ||
 			(priv->port_interface == ENABLE_2500BASE_X_INTERFACE))
@@ -4103,24 +4097,24 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 			ret |= 0x00000040; /* Set Active low */
 
 		ret |= NEMACCTL_PHY_INF_SEL | NEMACCTL_LPIHWCLKEN;
-		writel(ret, priv->tc956x_SFR_pci_base_addr + NEMAC0CTL_OFFSET);
+		writel(ret, td->sfr_addr + NEMAC0CTL_OFFSET);
 
 		/* De-assertion of EMAC Port0  software Reset*/
-		ret = readl(priv->tc956x_SFR_pci_base_addr + NRSTCTRL0_OFFSET);
+		ret = readl(td->sfr_addr + NRSTCTRL0_OFFSET);
 		ret &= ~(NRSTCTRL0_MAC0RST);
-		writel(ret, priv->tc956x_SFR_pci_base_addr + NRSTCTRL0_OFFSET);
+		writel(ret, td->sfr_addr + NRSTCTRL0_OFFSET);
 	}
 
 	if (priv->port_num == RM_PF1_ID) {
-		ret = readl(priv->tc956x_SFR_pci_base_addr + NRSTCTRL1_OFFSET);
+		ret = readl(td->sfr_addr + NRSTCTRL1_OFFSET);
 
 		/* Assertion of EMAC Port1 software Reset*/
 		ret |= NRSTCTRL1_MAC1RST1;
-		writel(ret, priv->tc956x_SFR_pci_base_addr + NRSTCTRL1_OFFSET);
+		writel(ret, td->sfr_addr + NRSTCTRL1_OFFSET);
 
 		dev_dbg(&pdev->dev, "Enabling all eMAC clocks for Port 1 %s\n", priv->dev->name);
 		/* Enable all clocks to eMAC Port1 */
-		ret = readl(priv->tc956x_SFR_pci_base_addr + NCLKCTRL1_OFFSET);
+		ret = readl(td->sfr_addr + NCLKCTRL1_OFFSET);
 
 		ret |= ((NCLKCTRL1_MAC1TXCEN | NCLKCTRL1_MAC1RXCEN |
 		NCLKCTRL1_MAC1ALLCLKEN1 | 1 << 15));
@@ -4129,10 +4123,10 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 			ret &= ~NCLKCTRL1_MAC1125CLKEN1;
 			ret &= ~NCLKCTRL1_MAC1312CLKEN1;
 		}
-		writel(ret, priv->tc956x_SFR_pci_base_addr + NCLKCTRL1_OFFSET);
+		writel(ret, td->sfr_addr + NCLKCTRL1_OFFSET);
 
 		/* Interface configuration for port1*/
-		ret = readl(priv->tc956x_SFR_pci_base_addr + NEMAC1CTL_OFFSET);
+		ret = readl(td->sfr_addr + NEMAC1CTL_OFFSET);
 		ret &= ~(NEMACCTL_SP_SEL_MASK | NEMACCTL_PHY_INF_SEL_MASK);
 		if ((priv->port_interface == ENABLE_RGMII_INTERFACE) ||
 			(priv->port_interface == ENABLE_RGMII_ID_INTERFACE))
@@ -4153,12 +4147,12 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 			ret |= 0x00000040; /* Set Active low */
 
 		ret |= NEMACCTL_PHY_INF_SEL | NEMACCTL_LPIHWCLKEN;
-		writel(ret, priv->tc956x_SFR_pci_base_addr + NEMAC1CTL_OFFSET);
+		writel(ret, td->sfr_addr + NEMAC1CTL_OFFSET);
 
 		/* De-assertion of EMAC Port1  software Reset */
-		ret = readl(priv->tc956x_SFR_pci_base_addr + NRSTCTRL1_OFFSET);
+		ret = readl(td->sfr_addr + NRSTCTRL1_OFFSET);
 		ret &= ~NRSTCTRL1_MAC1RST1;
-		writel(ret, priv->tc956x_SFR_pci_base_addr + NRSTCTRL1_OFFSET);
+		writel(ret, td->sfr_addr + NRSTCTRL1_OFFSET);
 	}
 
 /*PMA module init*/
@@ -4271,7 +4265,7 @@ static int tc956x_pcie_resume(struct device *dev)
 
 	if (tx956x_pci_shrd_mem[priv->pci_bd].pci_dev_active_cnt == TC956X_ALL_MAC_PORT_SUSPENDED) {
 		dev_dbg(&(pdev->dev), "%s : Tamap Re-configuration", __func__);
-		tc956x_config_tamap(&pdev->dev, priv->tc956x_BRIDGE_CFG_pci_base_addr);
+		tc956x_config_tamap(&pdev->dev, td->bridge_cfg_addr);
 	}
 
 	/* Configure EMAC Port */
