@@ -404,12 +404,10 @@ struct stmmac_priv {
 	u32 port_interface; /* Kernel module parameter variable for interface */
 	bool tc956x_port_pm_suspend; /* Port Suspend Status; True : port suspended, False : port resume */
 	bool tc956xmac_pm_wol_interrupt; /* Port-wise flag for clearing interrupt after resume. */
-	void *plat_priv;
 	/* Work struct for handling phy interrupt */
 	struct work_struct emac_phy_work;
 	u32 pm_saved_emac_rst; /* Save and restore EMAC Resets during suspend-resume sequence */
 	u32 pm_saved_emac_clk; /* Save and restore EMAC Clocks during suspend-resume sequence */
-	struct tc956x_gpio_config saved_gpio_config[13 + 1]; /* Only GPIO0- GPIO06, GPI010-GPIO13 are used */
 	uint16_t pci_bd; /* PCI bus and device ID of self */
 	unsigned int mdc_clk;
 	unsigned int c45_state;
