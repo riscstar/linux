@@ -13,9 +13,9 @@
 DECLARE_EVENT_CLASS(rwmmio_rw_template,
 
 	TP_PROTO(unsigned long caller, unsigned long caller0, u64 val, u8 width,
-		 volatile void __iomem *addr),
+		 volatile void __iomem *addr, const char *tag, unsigned long offset),
 
-	TP_ARGS(caller, caller0, val, width, addr),
+	TP_ARGS(caller, caller0, val, width, addr, tag, offset),
 
 	TP_STRUCT__entry(
 		__field(unsigned long, caller)
@@ -23,6 +23,8 @@ DECLARE_EVENT_CLASS(rwmmio_rw_template,
 		__field(unsigned long, addr)
 		__field(u64, val)
 		__field(u8, width)
+		__string(tag, tag)
+		__field(unsigned long, offset)
 	),
 
 	TP_fast_assign(
@@ -31,37 +33,41 @@ DECLARE_EVENT_CLASS(rwmmio_rw_template,
 		__entry->val = val;
 		__entry->addr = (unsigned long)addr;
 		__entry->width = width;
+		__assign_str(tag);
+		__entry->offset = offset;
 	),
 
-	TP_printk("%pS -> %pS width=%d val=%#llx addr=%#lx",
+	TP_printk("%pS -> %pS width=%d val=%#llx addr=%#lx tag=%s offset=%06lx",
 		(void *)__entry->caller0, (void *)__entry->caller, __entry->width,
-		__entry->val, __entry->addr)
+		__entry->val, __entry->addr, __get_str(tag), __entry->offset)
 );
 
 DEFINE_EVENT(rwmmio_rw_template, rwmmio_write,
 	TP_PROTO(unsigned long caller, unsigned long caller0, u64 val, u8 width,
-		 volatile void __iomem *addr),
-	TP_ARGS(caller, caller0, val, width, addr)
+		 volatile void __iomem *addr, const char *tag, unsigned long offset),
+	TP_ARGS(caller, caller0, val, width, addr, tag, offset)
 );
 
 DEFINE_EVENT(rwmmio_rw_template, rwmmio_post_write,
 	TP_PROTO(unsigned long caller, unsigned long caller0, u64 val, u8 width,
-		 volatile void __iomem *addr),
-	TP_ARGS(caller, caller0, val, width, addr)
+		 volatile void __iomem *addr, const char *tag, unsigned long offset),
+	TP_ARGS(caller, caller0, val, width, addr, tag, offset)
 );
 
 TRACE_EVENT(rwmmio_read,
 
 	TP_PROTO(unsigned long caller, unsigned long caller0, u8 width,
-		 const volatile void __iomem *addr),
+		 const volatile void __iomem *addr, const char *tag, unsigned long offset),
 
-	TP_ARGS(caller, caller0, width, addr),
+	TP_ARGS(caller, caller0, width, addr, tag, offset),
 
 	TP_STRUCT__entry(
 		__field(unsigned long, caller)
 		__field(unsigned long, caller0)
 		__field(unsigned long, addr)
 		__field(u8, width)
+		__string(tag, tag)
+		__field(unsigned long, offset)
 	),
 
 	TP_fast_assign(
@@ -69,18 +75,20 @@ TRACE_EVENT(rwmmio_read,
 		__entry->caller0 = caller0;
 		__entry->addr = (unsigned long)addr;
 		__entry->width = width;
+		__assign_str(tag);
+		__entry->offset = offset;
 	),
 
-	TP_printk("%pS -> %pS width=%d addr=%#lx",
-		 (void *)__entry->caller0, (void *)__entry->caller, __entry->width, __entry->addr)
+	TP_printk("%pS -> %pS width=%d addr=%#lx tag=%s offset=%06lx",
+		 (void *)__entry->caller0, (void *)__entry->caller, __entry->width, __entry->addr, __get_str(tag), __entry->offset)
 );
 
 TRACE_EVENT(rwmmio_post_read,
 
 	TP_PROTO(unsigned long caller, unsigned long caller0, u64 val, u8 width,
-		 const volatile void __iomem *addr),
+		 const volatile void __iomem *addr, const char *tag, unsigned long offset),
 
-	TP_ARGS(caller, caller0, val, width, addr),
+	TP_ARGS(caller, caller0, val, width, addr, tag, offset),
 
 	TP_STRUCT__entry(
 		__field(unsigned long, caller)
@@ -88,6 +96,8 @@ TRACE_EVENT(rwmmio_post_read,
 		__field(unsigned long, addr)
 		__field(u64, val)
 		__field(u8, width)
+		__string(tag, tag)
+		__field(unsigned long, offset)
 	),
 
 	TP_fast_assign(
@@ -96,11 +106,13 @@ TRACE_EVENT(rwmmio_post_read,
 		__entry->val = val;
 		__entry->addr = (unsigned long)addr;
 		__entry->width = width;
+		__assign_str(tag);
+		__entry->offset = offset;
 	),
 
-	TP_printk("%pS -> %pS width=%d val=%#llx addr=%#lx",
+	TP_printk("%pS -> %pS width=%d val=%#llx addr=%#lx tag=%s offset=%06lx",
 		 (void *)__entry->caller0, (void *)__entry->caller, __entry->width,
-		 __entry->val, __entry->addr)
+		 __entry->val, __entry->addr, __get_str(tag), __entry->offset)
 );
 
 #endif /* _TRACE_RWMMIO_H */

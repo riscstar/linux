@@ -1359,11 +1359,9 @@ static u32 tc956x_xpcs_write(void __iomem *xpcsaddr, u32 pcs_reg_num, u32 value)
 static int tc956x_xpcs_init(struct plat_stmmacenet_data *plat)
 {
 	struct toshiba_data *td = plat->bsp_priv;
-	void __iomem *xpcsaddr = td->sfr_addr +
-				 (plat->port_num == RM_PF0_ID ?
-					  MAC0_BASE_OFFSET :
-					  MAC1_BASE_OFFSET) +
-				 XPCS_XGMAC_OFFSET;
+	void __iomem *xpcsaddr = td->sfr_addr + (plat->port_num == RM_PF0_ID ?
+							 MAC0_BASE_OFFSET :
+							 MAC1_BASE_OFFSET) + XPCS_XGMAC_OFFSET;
 	u32 reg_value;
 
 	dev_dbg(td->device, "-->%s\n", __func__);
@@ -3328,6 +3326,10 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 	dev_dbg(&(pdev->dev), "BAR2 virtual address = %p\n", td->sram_addr);
 	dev_dbg(&(pdev->dev), "BAR4 virtual address = %p\n", td->sfr_addr);
 
+	log_mmio_register_range(td->bridge_cfg_addr, pci_resource_len(pdev, 0), "bridge_cfg");
+	//log_mmio_register_range(td->sram_addr, pci_resource_len(pdev, 2), "sram");
+	log_mmio_register_range(td->sfr_addr, pci_resource_len(pdev, 4), "sfr");
+
 	res.port_num = readl(td->bridge_cfg_addr + RSCMNG_ID_REG); /* Resource Manager ID */
 	res.port_num &= RSCMNG_PFN;
 
@@ -3337,6 +3339,16 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 	res.addr = td->sfr_addr +
 		   (td->port_num == 0 ? MAC0_BASE_OFFSET : MAC1_BASE_OFFSET);
 
+	// Don't log simple MDIO peek/pokes
+	if (res.port_num == RM_PF0_ID) {
+		log_mmio_register_block(res.addr + 0x040200);
+		log_mmio_register_block(res.addr + 0x040204);
+		log_mmio_register_block(res.addr + 0x040220);
+	} else {
+		log_mmio_register_block(res.addr + 0x048200);
+		log_mmio_register_block(res.addr + 0x048204);
+		log_mmio_register_block(res.addr + 0x048220);
+	}
 	if (res.port_num == RM_PF0_ID) {
 
 		if ((tc956x_logstat_set_state_log_enable(td->sfr_addr, UPSTREAM_PORT, STATE_LOG_ENABLE) < 0)
@@ -4544,7 +4556,7 @@ static const struct pci_device_id tc956xmac_id_table[] = {
 	TC956XMAC_DEVICE(TOSHIBA, DEVICE_ID, tc956xmac_xgmac3_pci_info),
 	{}
 };
-MODULE_DEVICE_TABLE(pci, tc956xmac_id_table);
+//MODULE_DEVICE_TABLE(pci, tc956xmac_id_table);
 
 static SIMPLE_DEV_PM_OPS(tc956xmac_pm_ops, tc956x_pcie_suspend, tc956x_pcie_resume);
 
