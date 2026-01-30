@@ -1356,18 +1356,28 @@ static u32 tc956x_xpcs_write(void __iomem *xpcsaddr, u32 pcs_reg_num, u32 value)
 }
 
 
-static int tc956x_xpcs_init(struct stmmac_priv *priv, void __iomem *xpcsaddr)
+static int tc956x_xpcs_init(struct plat_stmmacenet_data *plat)
 {
+	struct toshiba_data *td = plat->bsp_priv;
+	void __iomem *xpcsaddr = td->sfr_addr +
+				 (plat->port_num == RM_PF0_ID ?
+					  MAC0_BASE_OFFSET :
+					  MAC1_BASE_OFFSET) +
+				 XPCS_XGMAC_OFFSET;
 	u32 reg_value;
 
-	dev_dbg(priv->device, "-->%s\n", __func__);
+	dev_dbg(td->device, "-->%s\n", __func__);
+
+	// TODO: This may only be knowable *after* the core driver has
+	//       initialized. For now we are hard coding it.
+	bool is_sgmii_2p5g = true;
 
 	reg_value = tc956x_xpcs_read(xpcsaddr, XGMAC_SR_MII_CTRL);
 	if (reg_value & XGMAC_SOFT_RST)
 		return -1;
 
 	/*Clause 37 autoneg related settings*/
-	if (priv->plat->phy_interface == PHY_INTERFACE_MODE_SGMII) {
+	if (plat->phy_interface == PHY_INTERFACE_MODE_SGMII) {
 		//DK2
 		//PCS Type Select SR_XS_PCS_CTRL2  PCS_TYPE_SEL -> 1
 		reg_value = tc956x_xpcs_read(xpcsaddr, XGMAC_SR_XS_PCS_CTRL2);
@@ -1380,7 +1390,7 @@ static int tc956x_xpcs_init(struct stmmac_priv *priv, void __iomem *xpcsaddr)
 		reg_value |= XGMAC_SGMII_MODE; /*SGMII PCS MODE*/
 		tc956x_xpcs_write(xpcsaddr, XGMAC_VR_MII_AN_CTRL, reg_value);
 
-		if (priv->is_sgmii_2p5g == true) {
+		if (is_sgmii_2p5g == true) {
 			reg_value = tc956x_xpcs_read(xpcsaddr,
 						     XGMAC_VR_XS_PCS_DIG_CTRL1);
 			reg_value &= ~(0x4);
@@ -1390,17 +1400,17 @@ static int tc956x_xpcs_init(struct stmmac_priv *priv, void __iomem *xpcsaddr)
 					  reg_value);
 		}
 		}
-		if ((priv->plat->phy_interface == PHY_INTERFACE_MODE_USXGMII) ||
-			(priv->plat->phy_interface == PHY_INTERFACE_MODE_10GKR)
-			|| (priv->plat->phy_interface == PHY_INTERFACE_MODE_10GBASER)
+		if ((plat->phy_interface == PHY_INTERFACE_MODE_USXGMII) ||
+			(plat->phy_interface == PHY_INTERFACE_MODE_10GKR)
+			|| (plat->phy_interface == PHY_INTERFACE_MODE_10GBASER)
 			) {
 			reg_value = tc956x_xpcs_read(xpcsaddr, XGMAC_SR_XS_PCS_CTRL2);
 			reg_value &= XGMAC_PCS_TYPE_SEL;/*PCS_TYPE_SEL as 10GBASE-R PCS */
 			tc956x_xpcs_write(xpcsaddr, XGMAC_SR_XS_PCS_CTRL2, reg_value);
 
 			reg_value = tc956x_xpcs_read(xpcsaddr, XGMAC_VR_XS_PCS_DIG_CTRL1);
-			if (priv->plat->phy_interface == PHY_INTERFACE_MODE_10GKR
-				|| (priv->plat->phy_interface == PHY_INTERFACE_MODE_10GBASER)
+			if (plat->phy_interface == PHY_INTERFACE_MODE_10GKR
+				|| (plat->phy_interface == PHY_INTERFACE_MODE_10GBASER)
 				) {
 				reg_value &= (~XGMAC_USXG_EN); /*Disable USXG_EN*/
 			} else {
@@ -1411,9 +1421,9 @@ static int tc956x_xpcs_init(struct stmmac_priv *priv, void __iomem *xpcsaddr)
 
 			reg_value = tc956x_xpcs_read(xpcsaddr, XGMAC_VR_XS_PCS_KR_CTRL);
 			reg_value &= ~XGMAC_USXG_MODE;/*USXG_MODE : 0x000*/
-			if (priv->plat->port_interface == ENABLE_USXGMII_5G_INTERFACE)
+			if (plat->port_interface == ENABLE_USXGMII_5G_INTERFACE)
 				reg_value |= XPCS_USX_5G_MODE;
-			else if (priv->plat->port_interface == ENABLE_USXGMII_2_5G_INTERFACE)
+			else if (plat->port_interface == ENABLE_USXGMII_2_5G_INTERFACE)
 				reg_value |= XPCS_USX_2_5G_MODE;
 			tc956x_xpcs_write(xpcsaddr, XGMAC_VR_XS_PCS_KR_CTRL, reg_value);
 
@@ -1478,7 +1488,7 @@ static int tc956x_xpcs_init(struct stmmac_priv *priv, void __iomem *xpcsaddr)
 
 	reg_value = tc956x_xpcs_read(xpcsaddr, XGMAC_VR_MII_DIG_CTRL1);
 	reg_value &= ~XGMAC_MAC_AUTO_SW_EN;/*MAC_AUTO_SW enable*/
-	if (priv->is_sgmii_2p5g != true)
+	if (is_sgmii_2p5g != true)
 		/* Enable only if SGMII 2.5G is not enabled. */
 		reg_value |= XGMAC_MAC_AUTO_SW_EN;
 	tc956x_xpcs_write(xpcsaddr, XGMAC_VR_MII_DIG_CTRL1, reg_value);
@@ -1823,6 +1833,79 @@ static int tc956x_logstat_set_state_log_enable(void __iomem *pbase_addr, enum po
 	}
 
 	return ret;
+}
+
+//
+// Code from tc956x_pma.h in vendor driver
+//
+
+#define PMA_XGMAC_OFFSET   0x4000
+
+/*PMA registers*/
+#define XGMAC_PMA_GL_PM_CFG0				0x000001B8
+#define XGMAC_PMA_CFG_0_1_R0				0x00001888
+#define XGMAC_PMA_CFG_0_1_R1				0x00001890
+#define XGMAC_PMA_CFG_0_1_R2				0x00001898
+#define XGMAC_PMA_CFG_0_1_R3				0x000018A0
+#define XGMAC_PMA_CFG_0_1_R4				0x000018A8
+
+#define	XGMAC_PMA_HWT_REFCK_EN_R0			0x00001080
+#define	XGMAC_PMA_HWT_REFCK_TERM_EN_R0		0x00001090
+#define XGMAC_PMA_HWT_REFCK_R_EN_R1			0x00001094
+#define XGMAC_PMA_HWT_REFCK_TERM_EN_R1		0x000010A4
+#define XGMAC_PMA_HWT_REFCK_R_EN_R2			0x000010A8
+#define XGMAC_PMA_HWT_REFCK_TERM_EN_R2		0x000010B8
+#define XGMAC_PMA_HWT_REFCK_R_EN_R3			0x000010BC
+#define XGMAC_PMA_HWT_REFCK_TERM_EN_R3		0x000010CC
+#define XGMAC_PMA_HWT_REFCK_R_EN_R4			0x000010D0
+#define XGMAC_PMA_HWT_REFCK_TERM_EN_R4		0x000010E0
+
+#define XGMAC_PCS_GL_PC_CNT0				0x0000016C
+
+/*PMA register values*/
+#define XGMAC_PMA_OFFSET0					0x00000000
+#define XGMAC_PMA_OFFSET1					0x0001EF04
+#define XGMAC_PMA_OFFSET2					0x00000001
+
+//
+// Code from tc956x_pma.c in vendor driver
+//
+
+static int tc956x_pma_init(struct stmmac_priv *priv, void __iomem *pmaaddr)
+{
+
+	u32 reg_value;
+
+	/*Power on CML buffer*/
+	reg_value = readl(pmaaddr + XGMAC_PMA_GL_PM_CFG0);
+	reg_value = XGMAC_PMA_OFFSET0;
+	writel(reg_value, pmaaddr + XGMAC_PMA_GL_PM_CFG0);
+
+	/*Switch clock from C0_REFCK to CLK_REF_I*/
+	writel(XGMAC_PMA_OFFSET1, pmaaddr + XGMAC_PMA_CFG_0_1_R0);
+	writel(XGMAC_PMA_OFFSET1, pmaaddr + XGMAC_PMA_CFG_0_1_R1);
+	writel(XGMAC_PMA_OFFSET1, pmaaddr + XGMAC_PMA_CFG_0_1_R2);
+	writel(XGMAC_PMA_OFFSET1, pmaaddr + XGMAC_PMA_CFG_0_1_R3);
+	writel(XGMAC_PMA_OFFSET1, pmaaddr + XGMAC_PMA_CFG_0_1_R4);
+
+	/*Disable C0_REFCK*/
+	writel(XGMAC_PMA_OFFSET0, pmaaddr + XGMAC_PMA_HWT_REFCK_EN_R0);
+	writel(XGMAC_PMA_OFFSET0, pmaaddr + XGMAC_PMA_HWT_REFCK_TERM_EN_R0);
+	writel(XGMAC_PMA_OFFSET0, pmaaddr + XGMAC_PMA_HWT_REFCK_R_EN_R1);
+	writel(XGMAC_PMA_OFFSET0, pmaaddr + XGMAC_PMA_HWT_REFCK_TERM_EN_R1);
+	writel(XGMAC_PMA_OFFSET0, pmaaddr + XGMAC_PMA_HWT_REFCK_R_EN_R2);
+	writel(XGMAC_PMA_OFFSET0, pmaaddr + XGMAC_PMA_HWT_REFCK_TERM_EN_R2);
+	writel(XGMAC_PMA_OFFSET0, pmaaddr + XGMAC_PMA_HWT_REFCK_R_EN_R3);
+	writel(XGMAC_PMA_OFFSET0, pmaaddr + XGMAC_PMA_HWT_REFCK_TERM_EN_R3);
+	writel(XGMAC_PMA_OFFSET0, pmaaddr + XGMAC_PMA_HWT_REFCK_R_EN_R4);
+	writel(XGMAC_PMA_OFFSET0, pmaaddr + XGMAC_PMA_HWT_REFCK_TERM_EN_R4);
+
+	/*ASPETH mode decoded from sp_sel of NEMAC0CTL*/
+	/*PMA PLL enable*/
+	//writel(XGMAC_PMA_OFFSET2, pmaaddr + XGMAC_PCS_GL_PC_CNT0); //Commented as per monitor script
+
+	return 0;
+
 }
 
 //
@@ -3653,6 +3736,51 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 		goto err_platform_probe;
 	}
 
+	if (td->port_num == RM_PF0_ID) {
+		/* Assertion of PMA & XPCS reset software Reset*/
+		ret = readl(td->sfr_addr + NRSTCTRL0_OFFSET);
+		ret |= (NRSTCTRL0_MAC0PMARST | NRSTCTRL0_MAC0PONRST);
+		writel(ret, td->sfr_addr + NRSTCTRL0_OFFSET);
+	} else {
+		BUG_ON(td->port_num != RM_PF1_ID);
+		/* Assertion of PMA &  XPCS reset  software Reset*/
+		ret = readl(td->sfr_addr + NRSTCTRL1_OFFSET);
+		ret |= (NRSTCTRL1_MAC1PMARST1 | NRSTCTRL1_MAC1PONRST1);
+		writel(ret, td->sfr_addr + NRSTCTRL1_OFFSET);
+	}
+
+	ret = tc956x_pma_init(NULL, res.addr + PMA_XGMAC_OFFSET);
+	if (ret < 0)
+		pr_info("PMA switching to internal clock Failed\n");
+
+	if (td->port_num == RM_PF0_ID) {
+		/* De-assertion of PMA & XPCS reset software Reset*/
+		ret = readl(td->sfr_addr + NRSTCTRL0_OFFSET);
+		ret &= ~(NRSTCTRL0_MAC0PMARST | NRSTCTRL0_MAC0PONRST);
+		writel(ret, td->sfr_addr + NRSTCTRL0_OFFSET);
+	} else {
+		BUG_ON(td->port_num != RM_PF1_ID);
+		/* De-assertion of PMA &  XPCS reset software Reset*/
+		ret = readl(td->sfr_addr + NRSTCTRL1_OFFSET);
+		ret &= ~(NRSTCTRL1_MAC1PMARST1 | NRSTCTRL1_MAC1PONRST1);
+		writel(ret, td->sfr_addr + NRSTCTRL1_OFFSET);
+	}
+
+	if (td->port_num == RM_PF0_ID) {
+		do {
+			ret = readl(td->sfr_addr + NEMAC0CTL_OFFSET);
+		} while ((NEMACCTL_INIT_DONE & ret) != NEMACCTL_INIT_DONE);
+	} else {
+		BUG_ON(td->port_num != RM_PF1_ID);
+		do {
+			ret = readl(td->sfr_addr + NEMAC1CTL_OFFSET);
+		} while ((NEMACCTL_INIT_DONE & ret) != NEMACCTL_INIT_DONE);
+	}
+
+	ret = tc956x_xpcs_init(plat);
+	if (ret < 0)
+		dev_err(&pdev->dev, "XPCS initialization error\n");
+
 	ret = stmmac_dvr_probe(&pdev->dev, plat, &res);
 	if (ret) {
 		if (ret == -ENODEV) {
@@ -4200,7 +4328,7 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 				ret = readl(td->sfr_addr + NEMAC1CTL_OFFSET);
 		} while ((NEMACCTL_INIT_DONE & ret) != NEMACCTL_INIT_DONE);
 		}
-		ret = tc956x_xpcs_init(priv, priv->xpcsaddr);
+		ret = tc956x_xpcs_init(priv->plat);
 		if (ret < 0)
 			pr_info("XPCS initialization error\n");
 	}
