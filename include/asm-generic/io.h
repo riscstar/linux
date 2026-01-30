@@ -81,6 +81,9 @@ DECLARE_TRACEPOINT(rwmmio_post_write);
 DECLARE_TRACEPOINT(rwmmio_read);
 DECLARE_TRACEPOINT(rwmmio_post_read);
 
+void log_mmio_register_block(volatile void __iomem *addr);
+void log_mmio_register_range(volatile void __iomem *addr, unsigned long len, const char *tag);
+
 void log_write_mmio(u64 val, u8 width, volatile void __iomem *addr,
 		    unsigned long caller_addr, unsigned long caller_addr0);
 void log_post_write_mmio(u64 val, u8 width, volatile void __iomem *addr,
