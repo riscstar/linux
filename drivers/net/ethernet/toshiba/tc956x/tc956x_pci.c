@@ -1658,21 +1658,21 @@ static int tc956xmac_xgmac3_default_data(struct pci_dev *pdev,
 	plat->tx_queues_cfg[5].idle_slope = 0x800;
 	plat->tx_queues_cfg[5].send_slope = 0x1800;
 	plat->tx_queues_cfg[5].high_credit = 0x320000;
-	plat->tx_queues_cfg[5].low_credit = 0xff6a0000;
+	plat->tx_queues_cfg[5].low_credit = 0x1f6a0000;
 
 	/* CBS: queue 6 -> Class A traffic (25% BW) */
 	/* plat->tx_queues_cfg[5].idle_slope = plat->est_cfg.enable ? 0x8e4 : 0x800; */
 	plat->tx_queues_cfg[6].idle_slope = 0x800;
 	plat->tx_queues_cfg[6].send_slope = 0x1800;
 	plat->tx_queues_cfg[6].high_credit = 0x320000;
-	plat->tx_queues_cfg[6].low_credit = 0xff6a0000;
+	plat->tx_queues_cfg[6].low_credit = 0x1f6a0000;
 
 	/* CBS: queue 7 -> Class CDT traffic (40%) BW */
 	/* plat->tx_queues_cfg[4].idle_slope = plat->est_cfg.enable ? 0xe38 : 0xccc; */
 	plat->tx_queues_cfg[7].idle_slope = 0xccc;
 	plat->tx_queues_cfg[7].send_slope = 0x1333;
 	plat->tx_queues_cfg[7].high_credit = 0x500000;
-	plat->tx_queues_cfg[7].low_credit = 0xff880000;
+	plat->tx_queues_cfg[7].low_credit = 0x1f880000;
 
 #endif
 #ifndef TC956X_SRIOV_VF
@@ -1893,6 +1893,25 @@ static int tc956xmac_xgmac3_default_data(struct pci_dev *pdev,
 	plat->rx_dma_ch_owner[5] = RX_DMA_CH5_OWNER;
 	plat->rx_dma_ch_owner[6] = RX_DMA_CH6_OWNER;
 	plat->rx_dma_ch_owner[7] = RX_DMA_CH7_OWNER;
+#else
+	plat->tx_dma_ch_owner[0] = USE_IN_TC956X_SW;
+	plat->tx_dma_ch_owner[1] = USE_IN_TC956X_SW;
+	plat->tx_dma_ch_owner[2] = USE_IN_TC956X_SW;
+	plat->tx_dma_ch_owner[3] = USE_IN_TC956X_SW;
+	plat->tx_dma_ch_owner[4] = USE_IN_TC956X_SW;
+	plat->tx_dma_ch_owner[5] = USE_IN_TC956X_SW;
+	plat->tx_dma_ch_owner[6] = USE_IN_TC956X_SW;
+	plat->tx_dma_ch_owner[7] = USE_IN_TC956X_SW;
+
+	plat->rx_dma_ch_owner[0] = USE_IN_TC956X_SW;
+	plat->rx_dma_ch_owner[1] = USE_IN_TC956X_SW;
+	plat->rx_dma_ch_owner[2] = USE_IN_TC956X_SW;
+	plat->rx_dma_ch_owner[3] = USE_IN_TC956X_SW;
+	plat->rx_dma_ch_owner[4] = USE_IN_TC956X_SW;
+	plat->rx_dma_ch_owner[5] = USE_IN_TC956X_SW;
+	plat->rx_dma_ch_owner[6] = USE_IN_TC956X_SW;
+	plat->rx_dma_ch_owner[7] = USE_IN_TC956X_SW;
+
 #endif
 
 	/* Configuration of PHY operating mode 1(true): for interrupt mode, 0(false): for polling mode */
@@ -3033,6 +3052,7 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 #endif
 
 	// Don't log simple MDIO peek/pokes
+#if 0
 	if (res.port_num == RM_PF0_ID) {
 		log_mmio_register_block(res.addr + 0x040200);
 		log_mmio_register_block(res.addr + 0x040204);
@@ -3042,6 +3062,7 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 		log_mmio_register_block(res.addr + 0x048204);
 		log_mmio_register_block(res.addr + 0x048220);
 	}
+#endif
 
 #ifndef TC956X_SRIOV_VF
 #ifdef TC956X_PCIE_LOGSTAT

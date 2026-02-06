@@ -52,6 +52,7 @@ static inline void tc956xmac_config_data(struct plat_tc956xmacenet_data *plat)
 #else /* !SCFG_TC956XMAC */
 static inline void tc956xmac_config_data(struct plat_tc956xmacenet_data *plat)
 {
+#error Unexpected change to config
 	plat->force_sf_dma_mode = TC956XMAC_EN(MTL_SF);
 	plat->force_thresh_dma_mode = TC956XMAC_EN(MTL_THR);
 	plat->tso_en = TC956XMAC_EN(TSO);

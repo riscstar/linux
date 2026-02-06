@@ -855,14 +855,15 @@ enum packets_types {
 /* Tx Queue TSO Enable/Disable */
 #define TX_QUEUE0_TSO		1
 #define TX_QUEUE1_TSO		1
-#define TX_QUEUE2_TSO		0
-#define TX_QUEUE3_TSO		0
-#define TX_QUEUE4_TSO		0
+#define TX_QUEUE2_TSO		1
+#define TX_QUEUE3_TSO		1
+#define TX_QUEUE4_TSO		1
 #define TX_QUEUE5_TSO		0
 #define TX_QUEUE6_TSO		0
 #define TX_QUEUE7_TSO		0
 
 /* Configure TxQueue - Traffic Class mapping */
+#if 0
 #define TX_QUEUE0_TC	0x0
 #define TX_QUEUE1_TC	0x0
 #define TX_QUEUE2_TC	0x0
@@ -871,6 +872,16 @@ enum packets_types {
 #define TX_QUEUE5_TC	0x2
 #define TX_QUEUE6_TC	0x3
 #define TX_QUEUE7_TC	0x4
+#else
+#define TX_QUEUE0_TC	0x0
+#define TX_QUEUE1_TC	0x1
+#define TX_QUEUE2_TC	0x2
+#define TX_QUEUE3_TC	0x3
+#define TX_QUEUE4_TC	0x4
+#define TX_QUEUE5_TC	0x5
+#define TX_QUEUE6_TC	0x6
+#define TX_QUEUE7_TC	0x7
+#endif
 
 
 /*
@@ -2210,8 +2221,8 @@ entry delay = n * 256 ns */
 #endif
 #define MIN_SUPPORTED_MTU	(ETH_ZLEN + ETH_FCS_LEN + VLAN_HLEN)
 
-#define HOST_MAC_ADDR_OFFSET 2
-#define HOST_BC_ADDR_OFFSET 0
+#define HOST_MAC_ADDR_OFFSET 0
+#define HOST_BC_ADDR_OFFSET 1
 
 #endif /* End of TC956X Define */
 

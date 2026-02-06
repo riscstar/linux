@@ -74,9 +74,9 @@
 //#define TC956X_PCIE_DISABLE_DSP1 /*Enable this macro to disable DSP1 port*/
 //#define TC956X_PCIE_DISABLE_DSP2 /*Enable this macro to disable DSP2 port*/
 /* Enable for PORT0 interrupt mode, if commented polling mode */
-#define TC956X_PHY_INTERRUPT_MODE_EMAC0
+//#define TC956X_PHY_INTERRUPT_MODE_EMAC0
 /* Enable for PORT1 interrupt mode, if commented polling mode */
-#define TC956X_PHY_INTERRUPT_MODE_EMAC1
+//#define TC956X_PHY_INTERRUPT_MODE_EMAC1
 
 #ifdef TC956X
 //#define TC956X_SRIOV_PF		/* Enable TC956X SRIOV Configuration */
@@ -104,7 +104,7 @@
 
 #define MTL_MAX_RX_QUEUES	8
 #define MTL_MAX_TX_QUEUES	8
-#define MTL_MAX_TX_TC		5
+#define MTL_MAX_TX_TC		8
 #define TC956XMAC_CH_MAX		8
 
 #define TC956XMAC_RX_COE_NONE	0

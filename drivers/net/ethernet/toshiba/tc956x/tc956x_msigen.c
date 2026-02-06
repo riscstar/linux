@@ -109,6 +109,7 @@ static void tc956x_interrupt_en(struct stmmac_priv *priv, struct net_device *dev
 
 	if (en) {
 
+#if 0
 		/* Disable MSI for Tx/Rx channels that is not enabled in the Function */
 
 		for (chan = 0; chan < priv->plat->tx_queues_to_use; chan++) {
@@ -134,6 +135,7 @@ static void tc956x_interrupt_en(struct stmmac_priv *priv, struct net_device *dev
 		/* PHY MSI interrupt diabled */
 		mask_val |= (1 << MSI_INT_EXT_PHY);
 #endif
+#endif // 0
 		mask_val = TC956X_MSI_OUT_EN & (~mask_val);
 
 #ifdef TC956X_SW_MSI

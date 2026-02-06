@@ -120,7 +120,8 @@ static void dwxgmac2_core_init(struct stmmac_priv *priv,
 	rx = readl(ioaddr + XGMAC_RX_CONFIG);
 
 	tx |= XGMAC_CORE_INIT_TX;
-	rx |= XGMAC_CORE_INIT_RX;
+	//rx |= XGMAC_CORE_INIT_RX;
+	rx |= 0x3ff000c0;
 
 	if (hw->ps) {
 		tx |= XGMAC_CONFIG_TE;
@@ -160,6 +161,8 @@ static void dwxgmac2_core_init(struct stmmac_priv *priv,
 			)
 		tx |= hw->link.xgmii.speed10000;
 #endif
+	//tx = 0x00010000;
+	//rx = 0x3ff000c0;
 	writel(tx, ioaddr + XGMAC_TX_CONFIG);
 	writel(rx, ioaddr + XGMAC_RX_CONFIG);
 #ifdef TC956X_LPI_INTERRUPT
@@ -255,6 +258,7 @@ static void dwxgmac2_rx_queue_prio(struct stmmac_priv *priv,
 				   struct mac_device_info *hw, u32 prio,
 				   u32 queue)
 {
+#if 0
 	void __iomem *ioaddr = hw->pcsr;
 	u32 value, reg;
 
@@ -270,6 +274,44 @@ static void dwxgmac2_rx_queue_prio(struct stmmac_priv *priv,
 
 	NDBGPR_L2(priv->device, "%s: MAC RxQ%d Control = 0x%x", __func__,
 			queue, readl(ioaddr + reg));
+#else
+	void __iomem *ioaddr = hw->pcsr;
+	u32 clear_mask = 0;
+	u32 ctrl2, ctrl3;
+	int i;
+
+	ctrl2 = readl(ioaddr + XGMAC_RXQ_CTRL2);
+	ctrl3 = readl(ioaddr + XGMAC_RXQ_CTRL3);
+
+	/* The software must ensure that the same priority
+	 * is not mapped to multiple Rx queues
+	 */
+	for (i = 0; i < 4; i++)
+		clear_mask |= ((prio << XGMAC_PSRQ_SHIFT(i)) &
+						XGMAC_PSRQ(i));
+
+	ctrl2 &= ~clear_mask;
+	ctrl3 &= ~clear_mask;
+
+	/* First assign new priorities to a queue, then
+	 * clear them from others queues
+	 */
+	if (queue < 4) {
+		ctrl2 |= (prio << XGMAC_PSRQ_SHIFT(queue)) &
+						XGMAC_PSRQ(queue);
+
+		writel(ctrl2, ioaddr + XGMAC_RXQ_CTRL2);
+		writel(ctrl3, ioaddr + XGMAC_RXQ_CTRL3);
+	} else {
+		queue -= 4;
+
+		ctrl3 |= (prio << XGMAC_PSRQ_SHIFT(queue)) &
+						XGMAC_PSRQ(queue);
+
+		writel(ctrl3, ioaddr + XGMAC_RXQ_CTRL3);
+		writel(ctrl2, ioaddr + XGMAC_RXQ_CTRL2);
+	}
+#endif
 }
 
 #ifdef TC956X_UNSUPPORTED_UNTESTED_FEATURE
@@ -332,6 +374,7 @@ static void tc956x_rx_queue_routing(struct stmmac_priv *priv,
 	value |= (queue << route_possibilities[packet-1].reg_shift) &
 		 route_possibilities[packet - 1].reg_mask;
 
+#if 0
 	/* some packets require extra ops */
 	if (packet == PACKET_MCBCQ) {
 		value &= ~XGMAC_RXQCTRL_MCBCQEN;
@@ -341,6 +384,14 @@ static void tc956x_rx_queue_routing(struct stmmac_priv *priv,
 		value &= ~XGMAC_RXQCTRL_OMCBCQ;
 		value |= 0x1 << XGMAC_RXQCTRL_OMCBCQ_SHIFT;
 	}
+#else
+#define XGMAC_TACPQE			BIT(23)
+#define XGMAC_MCBCQEN			BIT(15)
+	if (packet == PACKET_AVCPQ)
+		value |= FIELD_PREP(XGMAC_TACPQE, 1);
+	else if (packet == PACKET_MCBCQ)
+		value |= FIELD_PREP(XGMAC_MCBCQEN, 1);
+#endif
 
 	writel(value, ioaddr + XGMAC_RXQ_CTRL1);
 }
@@ -412,11 +463,11 @@ static void dwxgmac2_set_mtl_tx_queue_weight(struct stmmac_priv *priv,
 					     u32 weight, u32 tc)
 {
 	void __iomem *ioaddr = hw->pcsr;
-	u32 value = readl(ioaddr + XGMAC_MTL_TCx_QUANTUM_WEIGHT(tc));
+	//u32 value = readl(ioaddr + XGMAC_MTL_TCx_QUANTUM_WEIGHT(tc));
 
-	value &= ~XGMAC_MTL_TCx_QUANTUM_WEIGHT_ISCQW_MASK;
-	value |= weight & XGMAC_MTL_TCx_QUANTUM_WEIGHT_ISCQW_MASK;
-	writel(value, ioaddr + XGMAC_MTL_TCx_QUANTUM_WEIGHT(tc));
+	//value &= ~XGMAC_MTL_TCx_QUANTUM_WEIGHT_ISCQW_MASK;
+	//value |= weight & XGMAC_MTL_TCx_QUANTUM_WEIGHT_ISCQW_MASK;
+	writel(weight, ioaddr + XGMAC_MTL_TCx_QUANTUM_WEIGHT(tc));
 
 	NDBGPR_L2(priv->device, "%s: MTL_TC%d weight = %d", __func__, tc, weight);
 }
@@ -434,7 +485,8 @@ static void dwxgmac2_map_mtl_to_dma(struct stmmac_priv *priv,
 		queue -= 4;
 
 	value = readl(ioaddr + reg);
-#ifdef TC956X_SRIOV_PF
+
+#ifdef TC956X_SRIOV_PF_XXX
 	/* Set QxDDMACH to enable Rx Q-ch mapping based on DA Filter Value */
 	if (priv->plat->rx_queues_cfg[rx_q].chan == TC956X_DA_MAP) {
 		value |= 1 << XGMAC_QxDDMACH_SHIFT(queue);
@@ -442,7 +494,7 @@ static void dwxgmac2_map_mtl_to_dma(struct stmmac_priv *priv,
 #endif
 		value &= ~XGMAC_QxMDMACH(queue);
 		value |= (chan << XGMAC_QxMDMACH_SHIFT(queue)) & XGMAC_QxMDMACH(queue);
-#ifdef TC956X_SRIOV_PF
+#ifdef TC956X_SRIOV_PF_XX
 	}
 #endif
 
@@ -461,36 +513,41 @@ static void dwxgmac2_config_cbs(struct stmmac_priv *priv,
 	u32 value;
 	u8 traffic_class;
 
-	traffic_class = priv->plat->tx_queues_cfg[queue].traffic_class;
+	//traffic_class = priv->plat->tx_queues_cfg[queue].traffic_class;
+	traffic_class = queue;
 
 	/* configure send slope */
-	value = readl(ioaddr + XGMAC_MTL_TCx_SENDSLOPE(traffic_class));
+	//value = readl(ioaddr + XGMAC_MTL_TCx_SENDSLOPE(traffic_class));
+	value = 0;
 	value &= ~XGMAC_MTL_TCx_SENDSLOPE_CRED_SSC_MASK;
 	value |= send_slope & XGMAC_MTL_TCx_SENDSLOPE_CRED_SSC_MASK;
 	writel(value, ioaddr + XGMAC_MTL_TCx_SENDSLOPE(traffic_class));
 
 	/* configure idle slope (same register as tx weight) */
-	value = readl(ioaddr + XGMAC_MTL_TCx_QUANTUM_WEIGHT(traffic_class));
+	//value = readl(ioaddr + XGMAC_MTL_TCx_QUANTUM_WEIGHT(traffic_class));
+	value = 0;
 	value &= ~XGMAC_MTL_TCx_QUANTUM_WEIGHT_ISCQW_MASK;
 	value |= idle_slope & XGMAC_MTL_TCx_QUANTUM_WEIGHT_ISCQW_MASK;
 	writel(value, ioaddr + XGMAC_MTL_TCx_QUANTUM_WEIGHT(traffic_class));
 
 	/* configure high credit */
-	value = readl(ioaddr + XGMAC_MTL_TCx_HICREDIT(traffic_class));
+	//value = readl(ioaddr + XGMAC_MTL_TCx_HICREDIT(traffic_class));
+	value = 0;
 	value &= ~XGMAC_MTL_TCx_HICREDIT_HC_MASK;
 	value |= high_credit & XGMAC_MTL_TCx_HICREDIT_HC_MASK;
 	writel(value, ioaddr + XGMAC_MTL_TCx_HICREDIT(traffic_class));
 
 	/* configure low credit */
-	value = readl(ioaddr + XGMAC_MTL_TCx_LOCREDIT(traffic_class));
+	//value = readl(ioaddr + XGMAC_MTL_TCx_LOCREDIT(traffic_class));
+	value = 0;
 	value &= ~XGMAC_MTL_TCx_LOCREDIT_LC_MASK;
 	value |= low_credit & XGMAC_MTL_TCx_LOCREDIT_LC_MASK;
 	writel(value, ioaddr + XGMAC_MTL_TCx_LOCREDIT(traffic_class));
-	value = readl(ioaddr + XGMAC_MTL_TCx_ETS_CONTROL(traffic_class));
 
 	/* CC is always set 0 */
+	value = readl(ioaddr + XGMAC_MTL_TCx_ETS_CONTROL(traffic_class));
 	value &= ~(XGMAC_TSA | XGMAC_CC);
-	value |= XGMAC_CBS;
+	value |= XGMAC_CC | XGMAC_CBS;
 	writel(value, ioaddr + XGMAC_MTL_TCx_ETS_CONTROL(traffic_class));
 
 	NDBGPR_L2(priv->device, "%s: MTL_TC%d Send Slope Register = 0x%x", __func__, traffic_class,
@@ -650,7 +707,8 @@ static void dwxgmac2_flow_ctrl(struct stmmac_priv *priv,
 	void __iomem *ioaddr = hw->pcsr;
 	u32 i, flow;
 
-	flow = readl(ioaddr + XGMAC_RX_FLOW_CTRL);
+	//flow = readl(ioaddr + XGMAC_RX_FLOW_CTRL);
+	flow = 0;
 	flow &= ~XGMAC_RFE;
 	if (fc & FLOW_RX)
 #ifdef TC956X_SRIOV_PF
@@ -661,7 +719,8 @@ static void dwxgmac2_flow_ctrl(struct stmmac_priv *priv,
 	writel(flow, ioaddr + XGMAC_RX_FLOW_CTRL);
 
 	for (i = 0; i < tx_cnt; i++) {
-		flow = readl(ioaddr + XGMAC_Qx_TX_FLOW_CTRL(i));
+		//flow = readl(ioaddr + XGMAC_Qx_TX_FLOW_CTRL(i));
+		flow = 0;
 		flow &= ~(XGMAC_FCB | XGMAC_TFE | XGMAC_PT);
 		if (fc & FLOW_TX) {
 			flow |= XGMAC_TFE;
@@ -818,6 +877,8 @@ static s32 tc956x_mac_ind_acc_wr_rd(struct stmmac_priv *priv, u8 wr_rd, u32 msel
 {
 	u32 reg_data, limit;
 	void __iomem *ioaddr = priv->ioaddr;
+
+	return 0;
 
 	/* Wait till previous operation is complete */
 	limit = 1000;
@@ -1411,6 +1472,10 @@ static void dwxgmac2_set_filter(struct stmmac_priv *priv, struct mac_device_info
 		dwxgmac2_enable_rx_vlan_stripping(priv, hw);
 	else
 		dwxgmac2_disable_rx_vlan_stripping(priv, hw);
+#endif
+
+#if 1
+
 #endif
 }
 
@@ -2319,6 +2384,8 @@ static int dwxgmac2_rx_parser_init(struct stmmac_priv *priv,
 	void __iomem *ioaddr = hw->pcsr;
 	u32 value, old_value = readl(ioaddr + XGMAC_RX_CONFIG);
 	int ret, max_entries = frpes;
+
+	return 0;
 
 	if (!cfg || !frpsel)
 		return -EINVAL;

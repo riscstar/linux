@@ -192,14 +192,18 @@ static int __tc956xmac_xgmac2_mdio_read(struct mii_bus *bus, int phyaddr, int ph
 		if (ret)
 			return ret;
 
+#if 0
 		value |= MII_XGMAC_SADDR;
+#endif
 	}
 
 	value |= (priv->clk_csr << priv->hw->mii.clk_csr_shift)
 		& priv->hw->mii.clk_csr_mask;
 
+#if 0
 	value &= ~MII_XGMAC_CRS;
 	value |= (priv->plat->clk_crs << MII_XGMAC_CRS_SHIFT);
+#endif
 
 	value |= MII_XGMAC_READ;
 
@@ -299,11 +303,13 @@ static int __tc956xmac_xgmac2_mdio_write(struct mii_bus *bus, int phyaddr,
 		value |= MII_XGMAC_SADDR;
 	}
 
+#if 0
 	value |= (priv->clk_csr << priv->hw->mii.clk_csr_shift)
 		& priv->hw->mii.clk_csr_mask;
 
 	value &= ~MII_XGMAC_CRS;
 	value |= (priv->plat->clk_crs << MII_XGMAC_CRS_SHIFT);
+#endif
 
 	value |= phydata;
 	value |= MII_XGMAC_WRITE;
@@ -349,6 +355,9 @@ static int __tc956xmac_xgmac2_mdio_write(struct mii_bus *bus, int phyaddr,
 	}
 #endif
 	/* Set the MII address register to write */
+
+	//WARN_ON(addr == 0x01c001e && (value & 0xff00) == 0x8000);
+
 	writel(addr, priv->ioaddr + mii_address);
 	writel(value, priv->ioaddr + mii_data);
 

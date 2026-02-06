@@ -90,6 +90,7 @@ static int tc956x_pf_rsc_mng_get_fn_id(struct stmmac_priv *priv, void __iomem *r
  */
 static void tc956x_pf_rsc_mng_set_rscs(struct stmmac_priv *priv, struct net_device *dev, u8 *rscs)
 {
+#if 0
 	void __iomem *ioaddr = priv->tc956x_BRIDGE_CFG_pci_base_addr;
 	u32 rsc_mng_rsc_ctl = 0;
 	u8 i, buffer_value;
@@ -129,6 +130,7 @@ static void tc956x_pf_rsc_mng_set_rscs(struct stmmac_priv *priv, struct net_devi
 			rsc_mng_rsc_ctl |= (i << RSC_MNG_DMA_CH0_BIT_POS);
 	}
 	writel(rsc_mng_rsc_ctl, ioaddr + RSCMNG_RSC_CTRL_REG);
+#endif
 }
 
 /**

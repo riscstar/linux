@@ -94,7 +94,6 @@ static void dwxgmac2_dma_init(struct stmmac_priv *priv, void __iomem *ioaddr,
 	value &= ~XGMAC_DSPW;
 	value |= XGMAC_DMA_MODE_INTM;
 	writel(value, ioaddr + XGMAC_DMA_MODE);
-
 }
 
 static void dwxgmac2_dma_init_chan(struct stmmac_priv *priv, void __iomem *ioaddr,
@@ -122,6 +121,7 @@ static void dwxgmac2_dma_init_rx_chan(struct stmmac_priv *priv,
 	value |= (rxpbl << XGMAC_RxPBL_SHIFT) & XGMAC_RxPBL;
 	writel(value, ioaddr + XGMAC_DMA_CH_RX_CONTROL(chan));
 
+#if 0
 	value = readl(ioaddr + XGMAC_DMA_CH_RX_CONTROL2(chan));
 	value &= ~XGMAC_OWRQ;
 	if (priv->plat->RevID == REV_ID1)
@@ -129,6 +129,7 @@ static void dwxgmac2_dma_init_rx_chan(struct stmmac_priv *priv,
 	else if (priv->plat->RevID == REV_ID2)
 		value |= (0 << XGMAC_OWRQ_SHIFT);
 	writel(value, ioaddr + XGMAC_DMA_CH_RX_CONTROL2(chan));
+#endif
 
 	if (likely(dma_cfg->eame))
 #ifdef TC956X
@@ -218,7 +219,7 @@ static void dwxgmac2_dma_axi(struct stmmac_priv *priv, void __iomem *ioaddr,
 	}
 
 	writel(value, ioaddr + XGMAC_DMA_SYSBUS_MODE);
-	writel(0, ioaddr + XGMAC_TX_EDMA_CTRL);
+	writel(XGMAC_RDPS, ioaddr + XGMAC_TX_EDMA_CTRL);
 	writel(XGMAC_RDPS, ioaddr + XGMAC_RX_EDMA_CTRL);
 }
 
@@ -253,6 +254,7 @@ static void dwxgmac2_dma_rx_mode(struct stmmac_priv *priv,
 					void __iomem *ioaddr, int mode,
 					u32 channel, int fifosz, u8 qmode)
 {
+#if 0
 	u32 value = readl(ioaddr + XGMAC_MTL_RXQ_OPMODE(channel));
 	unsigned int rqs = 0;
 
@@ -300,6 +302,65 @@ static void dwxgmac2_dma_rx_mode(struct stmmac_priv *priv,
 	/* Enable MTL RX overflow */
 	value = readl(ioaddr + XGMAC_MTL_QINTEN(channel));
 	writel(value | XGMAC_RXOIE, ioaddr + XGMAC_MTL_QINTEN(channel));
+#else
+	u32 value = readl(ioaddr + XGMAC_MTL_RXQ_OPMODE(channel));
+	unsigned int rqs = fifosz / 256 - 1;
+
+	if (mode == SF_DMA_MODE) {
+		value |= XGMAC_RSF;
+	} else {
+		value &= ~XGMAC_RSF;
+		value &= ~XGMAC_RTC;
+
+		if (mode <= 64)
+			value |= 0x0 << XGMAC_RTC_SHIFT;
+		else if (mode <= 96)
+			value |= 0x2 << XGMAC_RTC_SHIFT;
+		else
+			value |= 0x3 << XGMAC_RTC_SHIFT;
+	}
+
+	value &= ~XGMAC_RQS;
+	value |= (rqs << XGMAC_RQS_SHIFT) & XGMAC_RQS;
+
+	if ((fifosz >= 4096) && (qmode != MTL_QUEUE_AVB)) {
+		u32 flow = readl(ioaddr + XGMAC_MTL_RXQ_FLOW_CONTROL(channel));
+		unsigned int rfd, rfa;
+
+		value |= XGMAC_EHFC;
+
+		/* Set Threshold for Activating Flow Control to min 2 frames,
+		 * i.e. 1500 * 2 = 3000 bytes.
+		 *
+		 * Set Threshold for Deactivating Flow Control to min 1 frame,
+		 * i.e. 1500 bytes.
+		 */
+		switch (fifosz) {
+		case 4096:
+			/* This violates the above formula because of FIFO size
+			 * limit therefore overflow may occur in spite of this.
+			 */
+			rfd = 0x03; /* Full-2.5K */
+			rfa = 0x01; /* Full-1.5K */
+			break;
+
+		default:
+			rfd = 0x07; /* Full-4.5K */
+			rfa = 0x04; /* Full-3K */
+			break;
+		}
+
+		flow &= ~XGMAC_RFD;
+		flow |= rfd << XGMAC_RFD_SHIFT;
+
+		flow &= ~XGMAC_RFA;
+		flow |= rfa << XGMAC_RFA_SHIFT;
+
+		writel(flow, ioaddr + XGMAC_MTL_RXQ_FLOW_CONTROL(channel));
+	}
+
+	writel(value, ioaddr + XGMAC_MTL_RXQ_OPMODE(channel));
+#endif
 }
 
 static void dwxgmac2_dma_tx_mode(struct stmmac_priv *priv,
@@ -559,7 +620,7 @@ static void dwxgmac2_get_hw_feature(struct stmmac_priv *priv,
 	dma_cap->rx_coe = (hw_cap & XGMAC_HWFEAT_RXCOESEL) >> 16;
 	dma_cap->tx_coe = (hw_cap & XGMAC_HWFEAT_TXCOESEL) >> 14;
 	dma_cap->eee = (hw_cap & XGMAC_HWFEAT_EEESEL) >> 13;
-	dma_cap->atime_stamp = (hw_cap & XGMAC_HWFEAT_TSSEL) >> 12;
+	//dma_cap->atime_stamp = (hw_cap & XGMAC_HWFEAT_TSSEL) >> 12;
 	dma_cap->av = (hw_cap & XGMAC_HWFEAT_AVSEL) >> 11;
 	dma_cap->av &= !((hw_cap & XGMAC_HWFEAT_RAVSEL) >> 10);
 	dma_cap->arpoffsel = (hw_cap & XGMAC_HWFEAT_ARPOFFSEL) >> 9;
@@ -703,7 +764,8 @@ static void dwxgmac2_set_rx_ring_len(struct stmmac_priv *priv,
 {
 	u32 val;
 
-	val = readl(ioaddr + XGMAC_DMA_CH_RX_CONTROL2(chan));
+	//val = readl(ioaddr + XGMAC_DMA_CH_RX_CONTROL2(chan));
+	val = 0;
 	val &= ~XGMAC_RDRL;
 	val |= (len << XGMAC_RDRL_SHIFT) & XGMAC_RDRL;
 	writel(val, ioaddr + XGMAC_DMA_CH_RX_CONTROL2(chan));
@@ -798,6 +860,8 @@ static void dwxgmac2_enable_sph(struct stmmac_priv *priv,
 static int dwxgmac2_enable_tbs(struct stmmac_priv *priv, void __iomem *ioaddr,
 					bool en, u32 chan)
 {
+	return 0;
+
 	u32 value = readl(ioaddr + XGMAC_DMA_CH_TX_CONTROL(chan));
 
 	if (en) {
