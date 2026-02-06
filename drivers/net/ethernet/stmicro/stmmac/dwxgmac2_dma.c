@@ -32,6 +32,14 @@ static void dwxgmac2_dma_init(void __iomem *ioaddr,
 		value |= XGMAC_EAME;
 
 	writel(value, ioaddr + XGMAC_DMA_SYSBUS_MODE);
+
+#ifndef DISABLE_TC9563
+	value = readl(ioaddr + XGMAC_DMA_MODE);
+	/* Due to the erratum in XGMAC 3.01a,  DSPW=0, OWRQ=3 needs to be set */
+	value &= ~XGMAC_DSPW;
+	value |= XGMAC_DMA_MODE_INTM;
+	writel(value, ioaddr + XGMAC_DMA_MODE);
+#endif
 }
 
 static void dwxgmac2_dma_init_chan(struct stmmac_priv *priv,
@@ -240,6 +248,7 @@ static void dwxgmac2_enable_dma_irq(struct stmmac_priv *priv,
 				    void __iomem *ioaddr, u32 chan,
 				    bool rx, bool tx)
 {
+#if 1
 	u32 value = readl(ioaddr + XGMAC_DMA_CH_INT_EN(chan));
 
 	if (rx)
@@ -248,12 +257,14 @@ static void dwxgmac2_enable_dma_irq(struct stmmac_priv *priv,
 		value |= XGMAC_DMA_INT_DEFAULT_TX;
 
 	writel(value, ioaddr + XGMAC_DMA_CH_INT_EN(chan));
+#endif
 }
 
 static void dwxgmac2_disable_dma_irq(struct stmmac_priv *priv,
 				     void __iomem *ioaddr, u32 chan,
 				     bool rx, bool tx)
 {
+#if 1
 	u32 value = readl(ioaddr + XGMAC_DMA_CH_INT_EN(chan));
 
 	if (rx)
@@ -262,6 +273,7 @@ static void dwxgmac2_disable_dma_irq(struct stmmac_priv *priv,
 		value &= ~XGMAC_DMA_INT_DEFAULT_TX;
 
 	writel(value, ioaddr + XGMAC_DMA_CH_INT_EN(chan));
+#endif
 }
 
 static void dwxgmac2_dma_start_tx(struct stmmac_priv *priv,
@@ -386,7 +398,7 @@ static int dwxgmac2_get_hw_feature(void __iomem *ioaddr,
 	dma_cap->rx_coe = (hw_cap & XGMAC_HWFEAT_RXCOESEL) >> 16;
 	dma_cap->tx_coe = (hw_cap & XGMAC_HWFEAT_TXCOESEL) >> 14;
 	dma_cap->eee = (hw_cap & XGMAC_HWFEAT_EEESEL) >> 13;
-	dma_cap->atime_stamp = (hw_cap & XGMAC_HWFEAT_TSSEL) >> 12;
+	//dma_cap->atime_stamp = (hw_cap & XGMAC_HWFEAT_TSSEL) >> 12;
 	dma_cap->av = (hw_cap & XGMAC_HWFEAT_AVSEL) >> 11;
 	dma_cap->av &= !((hw_cap & XGMAC_HWFEAT_RAVSEL) >> 10);
 	dma_cap->arpoffsel = (hw_cap & XGMAC_HWFEAT_ARPOFFSEL) >> 9;
@@ -579,6 +591,8 @@ static void dwxgmac2_enable_sph(struct stmmac_priv *priv, void __iomem *ioaddr,
 static int dwxgmac2_enable_tbs(struct stmmac_priv *priv, void __iomem *ioaddr,
 			       bool en, u32 chan)
 {
+	return 0;
+
 	u32 value = readl(ioaddr + XGMAC_DMA_CH_TX_CONTROL(chan));
 
 	if (en)

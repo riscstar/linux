@@ -247,6 +247,7 @@ static void dwmac_mmc_ctrl(void __iomem *mmcaddr, unsigned int mode)
 /* To mask all interrupts.*/
 static void dwmac_mmc_intr_all_mask(void __iomem *mmcaddr)
 {
+	WARN_ON(true);
 	writel(MMC_DEFAULT_MASK, mmcaddr + MMC_RX_INTR_MASK);
 	writel(MMC_DEFAULT_MASK, mmcaddr + MMC_TX_INTR_MASK);
 	writel(MMC_DEFAULT_MASK, mmcaddr + MMC_RX_IPC_INTR_MASK);

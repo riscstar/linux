@@ -488,4 +488,10 @@ static inline int stmmac_selftest_get_count(struct stmmac_priv *priv)
 }
 #endif /* CONFIG_STMMAC_SELFTESTS */
 
+#ifndef DISABLE_TC9563
+void tc956x_msigen_init(struct stmmac_priv *priv, struct net_device *dev);
+void tc956x_interrupt_en(struct stmmac_priv *priv, struct net_device *dev, u32 en);
+void tc956x_interrupt_clr(struct stmmac_priv *priv, struct net_device *dev, u32 vector);
+#endif
+
 #endif /* __STMMAC_H__ */

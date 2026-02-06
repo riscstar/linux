@@ -357,7 +357,7 @@ int stmmac_hwif_init(struct stmmac_priv *priv)
 		if (ret)
 			return ret;
 
-		needs_setup = false;
+		//needs_setup = false;
 	}
 
 	spin_lock_init(&mac->irq_ctrl_lock);

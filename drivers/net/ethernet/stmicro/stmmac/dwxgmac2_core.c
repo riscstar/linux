@@ -23,6 +23,9 @@ static void dwxgmac2_core_init(struct mac_device_info *hw,
 	tx = readl(ioaddr + XGMAC_TX_CONFIG);
 	rx = readl(ioaddr + XGMAC_RX_CONFIG);
 
+#ifndef NO_REGDIFF_HACKS
+	tx = 0x40010001;
+#endif
 	writel(tx | XGMAC_CORE_INIT_TX, ioaddr + XGMAC_TX_CONFIG);
 	writel(rx | XGMAC_CORE_INIT_RX, ioaddr + XGMAC_RX_CONFIG);
 	writel(XGMAC_INT_DEFAULT_EN, ioaddr + XGMAC_INT_EN);
@@ -402,6 +405,15 @@ static void dwxgmac2_set_umac_addr(struct mac_device_info *hw,
 	u32 value;
 
 	value = (addr[5] << 8) | addr[4];
+#ifndef NO_REGDIFF_HACKS
+#define XGMAC_PACKET_FILTER_SA BIT(9)
+#define XGMAC_PACKET_FILTER_SAIF BIT(8)
+#define XGMAC_SA BIT(30)
+	u32 reg = readl(ioaddr + XGMAC_PACKET_FILTER);
+	if ((reg & XGMAC_PACKET_FILTER_SA) || (reg & XGMAC_PACKET_FILTER_SAIF))
+		writel(value | XGMAC_AE | XGMAC_SA, ioaddr + XGMAC_ADDRx_HIGH(reg_n));
+	else
+#endif
 	writel(value | XGMAC_AE, ioaddr + XGMAC_ADDRx_HIGH(reg_n));
 
 	value = (addr[3] << 24) | (addr[2] << 16) | (addr[1] << 8) | addr[0];
@@ -531,6 +543,7 @@ static void dwxgmac2_set_filter(struct mac_device_info *hw,
 		}
 	}
 
+#if 0
 	dwxgmac2_set_mchash(ioaddr, mc_filter, mcbitslog2);
 
 	/* Handle multiple unicast addresses */
@@ -550,6 +563,7 @@ static void dwxgmac2_set_filter(struct mac_device_info *hw,
 			writel(0, ioaddr + XGMAC_ADDRx_LOW(reg));
 		}
 	}
+#endif
 
 	writel(value, ioaddr + XGMAC_PACKET_FILTER);
 }

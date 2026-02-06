@@ -331,6 +331,10 @@
 /* DMA Registers */
 #define XGMAC_DMA_MODE			0x00003000
 #define XGMAC_SWR			BIT(0)
+#ifndef DISABLE_TC9563
+#define XGMAC_DSPW			BIT(8)
+#define XGMAC_DMA_MODE_INTM		BIT(12)
+#endif
 #define XGMAC_DMA_SYSBUS_MODE		0x00003004
 #define XGMAC_WR_OSR_LMT		GENMASK(29, 24)
 #define XGMAC_WR_OSR_LMT_SHIFT		24

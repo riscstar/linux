@@ -649,6 +649,7 @@ struct mac_device_info {
 
 #ifndef DISABLE_TC9563
         const struct tc956xmac_pma_ops *pma;
+        const struct tc956x_msi_ops *msi;
 #endif // DISABLE_TC9563
 };
 

@@ -194,6 +194,9 @@ static void dwxgmac2_prepare_tx_desc(struct dma_desc *p, int is_fs, int len,
 		dma_wmb();
 
 	p->des3 = cpu_to_le32(tdes3);
+
+	trace_printk("prepare_tx_desc: 0x%08x 0x%08x 0x%08x 0x%08x\n",
+		p->des0, p->des1, p->des2, p->des3);
 }
 
 static void dwxgmac2_prepare_tso_tx_desc(struct dma_desc *p, int is_fs,
@@ -261,6 +264,7 @@ static void dwxgmac2_set_addr(struct dma_desc *p, dma_addr_t addr)
 {
 	p->des0 = cpu_to_le32(lower_32_bits(addr));
 #ifdef DISABLE_TC9563
+#error Broken on QPS615
 	p->des1 = cpu_to_le32(upper_32_bits(addr));
 #else
 	/* Set the mask for physical address access  */
@@ -315,6 +319,7 @@ static void dwxgmac2_set_sec_addr(struct dma_desc *p, dma_addr_t addr, bool is_v
 {
 	p->des2 = cpu_to_le32(lower_32_bits(addr));
 #ifdef DISABLE_TC9563
+#error Broken on QPS615
 	p->des3 = cpu_to_le32(upper_32_bits(addr));
 #else
 	/* Set the mask for physical address access  */
