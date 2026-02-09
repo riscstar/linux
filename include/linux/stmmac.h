@@ -125,11 +125,6 @@ struct stmmac_rxq_cfg {
 	u8 pkt_route;
 	bool use_prio;
 	u32 prio;
-#ifndef DISABLE_TC9563
-	u32 size;
-	u32 rfd;
-	u32 rfa;
-#endif // DISABLE_TC9563
 };
 
 struct stmmac_txq_cfg {
@@ -358,18 +353,12 @@ struct plat_stmmacenet_data {
 	u32 RevID;
 	u32 port_interface; /* Kernel module parameter variable for interface */
 	bool phy_interrupt_mode; /* For Handling of PHY Operating mode */
-	int forced_speed; /* applicable only in case of fixed phy mode */
 	bool pse;
 	int start_phy_addr;
 	bool gate_mask;
 	u16 link_down_macrst;
 	u16 mac_no_mdio_no_phy;
 	u8 device_num;
-	u16 force_speed_mode;
-	int force_config_speed;
-	u16 filter_phy_pause;
-	u16 en_lp_pause_frame_cnt;
-	u16 mac_power_save_at_link_down;
 	int clk_crs;
 	u8 mdc_clk;
 #endif // DISABLE_TC9563

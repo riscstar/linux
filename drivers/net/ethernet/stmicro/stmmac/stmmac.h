@@ -44,8 +44,6 @@ struct stmmac_resources {
 	unsigned int port_num;
 	u8  device_num;
 	unsigned int port_interface; /* Kernel module parameter variable for interface */
-	unsigned int eee_enabled; /* Parameter to store kernel module parameter to enable/disable EEE */
-	unsigned int tx_lpi_timer; /* Parameter to store kernel module parameter for LPI Auto Entry Timer */
 	uint16_t pci_bd; /* PCI bus and device ID of self */
 	unsigned int mdc_clk;
 	unsigned int c45_state;
