@@ -6209,7 +6209,6 @@ static irqreturn_t stmmac_interrupt(int irq, void *dev_id)
 	struct net_device *dev = (struct net_device *)dev_id;
 	struct stmmac_priv *priv = netdev_priv(dev);
 
-	WARN_ON_ONCE(true);
 	tc956x_msi_intr_sts(priv, priv, dev);
 
 	/* Check if adapter is up */
