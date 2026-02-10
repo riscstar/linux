@@ -392,8 +392,6 @@ struct stmmac_priv {
 	struct devlink *devlink;
 
 #ifndef DISABLE_TC9563
-	void __iomem *xpcsaddr;
-	void __iomem *pmaaddr;
 	u32 port_num;
 	bool is_sgmii_2p5g; /* For 2.5G SGMI, XPCS doesn't support AN. This flag is to identify 2.5G Speed for SGMII interface. */
 	u32 port_interface; /* Kernel module parameter variable for interface */
@@ -405,7 +403,6 @@ struct stmmac_priv {
 	u32 pm_saved_emac_clk; /* Save and restore EMAC Clocks during suspend-resume sequence */
 	uint16_t pci_bd; /* PCI bus and device ID of self */
 	unsigned int mdc_clk;
-	unsigned int c45_state;
 	uint16_t pci_bdf; /* PCI bus, device ID and Fun ID of self */
 	uint16_t probe_seq_no;
 #endif
@@ -482,11 +479,5 @@ static inline int stmmac_selftest_get_count(struct stmmac_priv *priv)
 	return -EOPNOTSUPP;
 }
 #endif /* CONFIG_STMMAC_SELFTESTS */
-
-#ifndef DISABLE_TC9563
-void tc956x_msigen_init(struct stmmac_priv *priv, struct net_device *dev);
-void tc956x_interrupt_en(struct stmmac_priv *priv, struct net_device *dev, u32 en);
-void tc956x_interrupt_clr(struct stmmac_priv *priv, struct net_device *dev, u32 vector);
-#endif
 
 #endif /* __STMMAC_H__ */

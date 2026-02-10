@@ -37,6 +37,7 @@
 //   clause 45 activity on port 1/2.5G)
 // * TC956x has support for faster MDIO bus scanning (by increasing CSR
 //   clock rate). Should we replicate that?
+// * TC956x has support for phy interrupts. Should that be re-enabled?
 //
 
 //
@@ -84,6 +85,12 @@ struct toshiba_data {
 	 *  2.5G, false otherwise.
 	 */
 	bool is_sgmii_2p5g;
+
+	/** @port_interface: Operating mode of the port (SGMII, XII, etc) */
+	u32 port_interface;
+
+	/** @mdc_clk: TODO */
+	u8 mdc_clk;
 
 	/*
 	 * Remaining elements were copied from tc956x_qcom_priv (and all
@@ -298,7 +305,6 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 #define RM_PF1_ID		(1)
 #define RM_IS_PF		(0)
 #define RM_IS_VF		(1)
-#define MAC_PORT_NUM_CHECK	(priv->port_num == RM_PF0_ID)
 
 #define TC956X_AVB_PRIORITY_CLASS_A	(3)
 #define TC956X_AVB_PRIORITY_CLASS_B	(2)
@@ -790,13 +796,6 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 #define TRIG10_MASK			0xF000
 #define TSIE_SHIFT			12
 
-#define SP_ETH_SHIFT \
-	((MAC_PORT_NUM_CHECK) ? (SP_ETH0_SHIFT) : (SP_ETH1_SHIFT))
-
-/* REV_ID1 does not support USXGMII_5G, USXGMII_2_5G interface type */
-#define MAX_INTERFACE \
-	((plat->RevID == REV_ID1) ? (ENABLE_USXGMII_10G_INTERFACE) : (ENABLE_USXGMII_2_5G_INTERFACE))
-
 #define TC956X_SSREG_BRREG_REG_BASE		(0x00024000U)
 
 #define TC956X_GLUE_LOGIC_BASE_OFST		(0x0002C000U)
@@ -875,18 +874,6 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 
 #define TC956X_MIN_LPI_AUTO_ENTRY_TIMER		0
 #define TC956X_MAX_LPI_AUTO_ENTRY_TIMER		0xFFFF8 /* LPI Entry timer is in the units of 8 micro second granularity. So mask the last 3 bits. */
-
-//
-// Definitions taken from hwif.h in vendor driver
-//
-
-/*PMA module*/
-struct tc956xmac_pma_ops {
-	int (*init)(struct stmmac_priv *priv, void __iomem *pmaaddr);
-};
-
-#define tc956x_pma_setup(__priv, __args...) \
-	stmmac_do_callback(__priv, pma, init, __priv, __args)
 
 //
 // Definitions taken from tc956xmac_ioctl.h in vendor driver
@@ -1483,7 +1470,7 @@ static int tc956x_xpcs_init(struct plat_stmmacenet_data *plat)
 {
 	struct toshiba_data *td = plat->bsp_priv;
 	void __iomem *xpcsaddr = td->sfr_addr +
-				 (plat->port_num == RM_PF0_ID ?
+				 (td->port_num == RM_PF0_ID ?
 					  MAC0_BASE_OFFSET :
 					  MAC1_BASE_OFFSET) +
 				 XPCS_XGMAC_OFFSET;
@@ -1540,9 +1527,9 @@ static int tc956x_xpcs_init(struct plat_stmmacenet_data *plat)
 
 			reg_value = tc956x_xpcs_read(xpcsaddr, XGMAC_VR_XS_PCS_KR_CTRL);
 			reg_value &= ~XGMAC_USXG_MODE;/*USXG_MODE : 0x000*/
-			if (plat->port_interface == ENABLE_USXGMII_5G_INTERFACE)
+			if (td->port_interface == ENABLE_USXGMII_5G_INTERFACE)
 				reg_value |= XPCS_USX_5G_MODE;
-			else if (plat->port_interface == ENABLE_USXGMII_2_5G_INTERFACE)
+			else if (td->port_interface == ENABLE_USXGMII_2_5G_INTERFACE)
 				reg_value |= XPCS_USX_2_5G_MODE;
 			tc956x_xpcs_write(xpcsaddr, XGMAC_VR_XS_PCS_KR_CTRL, reg_value);
 
@@ -1654,7 +1641,7 @@ static void tc956x_xpcs_ctrl_ane(struct toshiba_data *td, bool ane)
  *
  * \return None
  */
-void tc956x_msigen_init(struct stmmac_priv *priv, struct net_device *dev)
+static void tc956x_msigen_init(struct stmmac_priv *priv, struct net_device *dev)
 {
 	struct toshiba_data *td = priv->plat->bsp_priv;
 	u32 rd_val;
@@ -1726,7 +1713,7 @@ static u32 tc956x_interrupt_sts(struct stmmac_priv *priv, struct net_device *dev
  * 0 - Disable interrupts
  * \return None
  */
-void tc956x_interrupt_en(struct stmmac_priv *priv, struct net_device *dev, u32 en)
+static void tc956x_interrupt_en(struct stmmac_priv *priv, struct net_device *dev, u32 en)
 {
 	struct toshiba_data *td = priv->plat->bsp_priv;
 	u32 /*chan,*/ mask_val = 0;
@@ -1796,7 +1783,7 @@ void tc956x_interrupt_en(struct stmmac_priv *priv, struct net_device *dev, u32 e
  *
  * \return None
  */
-void tc956x_interrupt_clr(struct stmmac_priv *priv, struct net_device *dev, u32 vector)
+static void tc956x_interrupt_clr(struct stmmac_priv *priv, struct net_device *dev, u32 vector)
 {
 	struct toshiba_data *td = priv->plat->bsp_priv;
 
@@ -2239,27 +2226,6 @@ struct tc956xmac_pci_info {
 	int (*setup)(struct pci_dev *pdev, struct plat_stmmacenet_data *plat);
 };
 
-/* By default, Bypass FRP routing */
-/* User to configure routing for FRP usecase */
-
-static struct tc956xmac_rx_parser_entry snps_rxp_entries[] = {
-	{
-		.match_data = 0x00000000,
-		.match_en = 0x00000000,
-		.af = 1,
-		.rf = 1,
-		.im = 0,
-		.nc = 0,
-		.res1 = 0,
-		.frame_offset = 0,
-		.res2 = 0,
-		.ok_index = 0,
-		.res3 = 0,
-		.dma_ch_no = 0x0,
-		.res4 = 0, /* FRP Bypass */
-	},
-};
-
 /*!
  * \brief API to save and restore clock and reset during suspend-resume.
  *
@@ -2345,109 +2311,82 @@ static void tc956xmac_pm_set_power(struct stmmac_priv *priv, enum TC956X_PORT_PM
 
 static void xgmac_default_data(struct plat_stmmacenet_data *plat)
 {
-	//plat->has_xgmac = 1;
+	struct toshiba_data *td = plat->bsp_priv;
+
 	plat->core_type = DWMAC_CORE_XGMAC;
 	plat->force_sf_dma_mode = 1;
-	//plat->tso_en = 1;
-	plat->flags |= STMMAC_FLAG_TSO_EN | STMMAC_FLAG_SPH_DISABLE;
-	plat->cphy_read = NULL;
-	plat->cphy_write = NULL;
+	plat->flags |= STMMAC_FLAG_TSO_EN;
 	plat->mdio_bus_data->phy_mask = 0;
 
-	switch (plat->mdc_clk) {
+	switch (td->mdc_clk) {
 	case TC956XMAC_XGMAC_MDC_CSR_4:
 		plat->clk_csr = 0x0;
-		plat->clk_crs = 1;
 		break;
 	case TC956XMAC_XGMAC_MDC_CSR_6:
 		plat->clk_csr = 0x1;
-		plat->clk_crs = 1;
 		break;
 	case TC956XMAC_XGMAC_MDC_CSR_8:
 		plat->clk_csr = 0x2;
-		plat->clk_crs = 1;
 		break;
 	case TC956XMAC_XGMAC_MDC_CSR_10:
 		plat->clk_csr = 0x3;
-		plat->clk_crs = 1;
 		break;
 	case TC956XMAC_XGMAC_MDC_CSR_12:
 		plat->clk_csr = 0x4;
-		plat->clk_crs = 1;
 		break;
 	case TC956XMAC_XGMAC_MDC_CSR_14:
 		plat->clk_csr = 0x5;
-		plat->clk_crs = 1;
 		break;
 	case TC956XMAC_XGMAC_MDC_CSR_16:
 		plat->clk_csr = 0x6;
-		plat->clk_crs = 1;
 		break;
 	case TC956XMAC_XGMAC_MDC_CSR_18:
 		plat->clk_csr = 0x7;
-		plat->clk_crs = 1;
 		break;
 	case TC956XMAC_XGMAC_MDC_CSR_62:
 		plat->clk_csr = 0x0;
-		plat->clk_crs = 0;
 		break;
 	case TC956XMAC_XGMAC_MDC_CSR_102:
 		plat->clk_csr = 0x1;
-		plat->clk_crs = 0;
 		break;
 	case TC956XMAC_XGMAC_MDC_CSR_122:
 		plat->clk_csr = 0x2;
-		plat->clk_crs = 0;
 		break;
 	case TC956XMAC_XGMAC_MDC_CSR_142:
 		plat->clk_csr = 0x3;
-		plat->clk_crs = 0;
 		break;
 	case TC956XMAC_XGMAC_MDC_CSR_162:
 		plat->clk_csr = 0x4;
-		plat->clk_crs = 0;
 		break;
 	case TC956XMAC_XGMAC_MDC_CSR_202:
 		plat->clk_csr = 0x5;
-		plat->clk_crs = 0;
 		break;
-
 	};
 
-	//plat->has_gmac = 0;
-	//plat->has_gmac4 = 0;
 	plat->force_thresh_dma_mode  = 0;
 	plat->mdio_bus_data->needs_reset = false;
-	if ((plat->port_interface == ENABLE_USXGMII_INTERFACE) ||
-	   (plat->port_interface == ENABLE_XFI_INTERFACE) || (plat->port_interface == ENABLE_USXGMII_10G_INTERFACE))
+	if ((td->port_interface == ENABLE_USXGMII_INTERFACE) ||
+	    (td->port_interface == ENABLE_XFI_INTERFACE) ||
+	    (td->port_interface == ENABLE_USXGMII_10G_INTERFACE))
 		plat->mac_port_sel_speed = 10000;
 
-	if (plat->port_interface == ENABLE_USXGMII_5G_INTERFACE)
+	if (td->port_interface == ENABLE_USXGMII_5G_INTERFACE)
 		plat->mac_port_sel_speed = 5000;
 
-	if (plat->port_interface == ENABLE_USXGMII_2_5G_INTERFACE)
+	if (td->port_interface == ENABLE_USXGMII_2_5G_INTERFACE)
 		plat->mac_port_sel_speed = 2500;
 
-	if ((plat->port_interface == ENABLE_RGMII_INTERFACE) ||
-		(plat->port_interface == ENABLE_RGMII_ID_INTERFACE))
+	if ((td->port_interface == ENABLE_RGMII_INTERFACE) ||
+	    (td->port_interface == ENABLE_RGMII_ID_INTERFACE))
 		plat->mac_port_sel_speed = 1000;
 
-	if ((plat->port_interface == ENABLE_SGMII_INTERFACE) ||
-		(plat->port_interface == ENABLE_2500BASE_X_INTERFACE)) {
+	if ((td->port_interface == ENABLE_SGMII_INTERFACE) ||
+	    (td->port_interface == ENABLE_2500BASE_X_INTERFACE)) {
 		plat->mac_port_sel_speed = 2500;
 	}
 
 	plat->riwt_off = 0;
 	plat->rss_en = 0;
-
-	/*For RXP config */
-	plat->rxp_cfg.enable = false;
-
-	plat->rxp_cfg.nve = ARRAY_SIZE(snps_rxp_entries);
-	plat->rxp_cfg.npe = ARRAY_SIZE(snps_rxp_entries);
-	memcpy(plat->rxp_cfg.entries, snps_rxp_entries,
-			ARRAY_SIZE(snps_rxp_entries) *
-			sizeof(struct tc956xmac_rx_parser_entry));
 }
 
 static int tc956xmac_xgmac3_default_data(struct pci_dev *pdev,
@@ -2459,41 +2398,40 @@ static int tc956xmac_xgmac3_default_data(struct pci_dev *pdev,
 	/* Set common default data first */
 	xgmac_default_data(plat);
 
-	plat->gate_mask = 1; /* 1: tc_to_txq gate mask enabled by default. Traffic control gate event mapped to respective queues in kernel and sent to Driver */
 	plat->bus_id = 1;
 	plat->phy_addr = -1;
 	plat->pdev = pdev;
-	plat->pse = 0;
 
-	if ((plat->port_interface == ENABLE_USXGMII_INTERFACE) || (plat->port_interface == ENABLE_USXGMII_10G_INTERFACE)) {
+	if ((td->port_interface == ENABLE_USXGMII_INTERFACE) ||
+	    (td->port_interface == ENABLE_USXGMII_10G_INTERFACE)) {
 		plat->phy_interface = PHY_INTERFACE_MODE_USXGMII;
 		plat->max_speed = 10000;
 	}
 
-	if (plat->port_interface == ENABLE_USXGMII_5G_INTERFACE) {
+	if (td->port_interface == ENABLE_USXGMII_5G_INTERFACE) {
 		plat->phy_interface = PHY_INTERFACE_MODE_USXGMII;
 		plat->max_speed = 5000;
 	}
 
-	if (plat->port_interface == ENABLE_USXGMII_2_5G_INTERFACE) {
+	if (td->port_interface == ENABLE_USXGMII_2_5G_INTERFACE) {
 		plat->phy_interface = PHY_INTERFACE_MODE_USXGMII;
 		plat->max_speed = 2500;
 	}
 
-	if (plat->port_interface == ENABLE_XFI_INTERFACE) {
+	if (td->port_interface == ENABLE_XFI_INTERFACE) {
 		plat->phy_interface = PHY_INTERFACE_MODE_10GBASER;
 		plat->max_speed = 10000;
 	}
-	if (plat->port_interface == ENABLE_RGMII_INTERFACE) {
+	if (td->port_interface == ENABLE_RGMII_INTERFACE) {
 		plat->phy_interface = PHY_INTERFACE_MODE_RGMII;
 		plat->max_speed = 1000;
 	}
-	if (plat->port_interface == ENABLE_RGMII_ID_INTERFACE) {
+	if (td->port_interface == ENABLE_RGMII_ID_INTERFACE) {
 		plat->phy_interface = PHY_INTERFACE_MODE_RGMII_ID;
 		plat->max_speed = 1000;
 	}
-	if ((plat->port_interface == ENABLE_SGMII_INTERFACE) ||
-		(plat->port_interface == ENABLE_2500BASE_X_INTERFACE)) {
+	if ((td->port_interface == ENABLE_SGMII_INTERFACE) ||
+	    (td->port_interface == ENABLE_2500BASE_X_INTERFACE)) {
 		plat->phy_interface = PHY_INTERFACE_MODE_SGMII;
 		plat->max_speed = 2500;
 	}
@@ -2590,10 +2528,6 @@ static int tc956xmac_xgmac3_default_data(struct pci_dev *pdev,
 	plat->tx_queues_cfg[6].mode_to_use = TX_QUEUE6_MODE;
 	plat->tx_queues_cfg[7].mode_to_use = TX_QUEUE7_MODE;
 
-	/* CBS are per TC basis in TC956X (total TC = 5) */
-	/* CBS: queue 5 -> Class B traffic (25% BW) */
-	/* plat->tx_queues_cfg[3].idle_slope = plat->est_cfg.enable ? 0x8e4 : 0x800; */
-
 	/* CBS: queue 5 -> Class B traffic (25% BW) */
 	plat->tx_queues_cfg[5].idle_slope = 0x800;
 	plat->tx_queues_cfg[5].send_slope = 0x1800;
@@ -2601,14 +2535,12 @@ static int tc956xmac_xgmac3_default_data(struct pci_dev *pdev,
 	plat->tx_queues_cfg[5].low_credit = 0x1f6a0000;
 
 	/* CBS: queue 6 -> Class A traffic (25% BW) */
-	/* plat->tx_queues_cfg[5].idle_slope = plat->est_cfg.enable ? 0x8e4 : 0x800; */
 	plat->tx_queues_cfg[6].idle_slope = 0x800;
 	plat->tx_queues_cfg[6].send_slope = 0x1800;
 	plat->tx_queues_cfg[6].high_credit = 0x320000;
 	plat->tx_queues_cfg[6].low_credit = 0x1f6a0000;
 
 	/* CBS: queue 7 -> Class CDT traffic (40%) BW */
-	/* plat->tx_queues_cfg[4].idle_slope = plat->est_cfg.enable ? 0xe38 : 0xccc; */
 	plat->tx_queues_cfg[7].idle_slope = 0xccc;
 	plat->tx_queues_cfg[7].send_slope = 0x1333;
 	plat->tx_queues_cfg[7].high_credit = 0x500000;
@@ -2642,26 +2574,6 @@ static int tc956xmac_xgmac3_default_data(struct pci_dev *pdev,
 	plat->tx_queues_cfg[5].tbs_en = TX_QUEUE5_TBS;
 	plat->tx_queues_cfg[6].tbs_en = TX_QUEUE6_TBS;
 	plat->tx_queues_cfg[7].tbs_en = TX_QUEUE7_TBS;
-
-	/* Enable/Disable TSO*/
-	plat->tx_queues_cfg[0].tso_en = TX_QUEUE0_TSO;
-	plat->tx_queues_cfg[1].tso_en = TX_QUEUE1_TSO;
-	plat->tx_queues_cfg[2].tso_en = TX_QUEUE2_TSO;
-	plat->tx_queues_cfg[3].tso_en = TX_QUEUE3_TSO;
-	plat->tx_queues_cfg[4].tso_en = TX_QUEUE4_TSO;
-	plat->tx_queues_cfg[5].tso_en = TX_QUEUE5_TSO;
-	plat->tx_queues_cfg[6].tso_en = TX_QUEUE6_TSO;
-	plat->tx_queues_cfg[7].tso_en = TX_QUEUE7_TSO;
-
-	plat->tx_queues_cfg[0].traffic_class = TX_QUEUE0_TC;
-	plat->tx_queues_cfg[1].traffic_class = TX_QUEUE1_TC;
-	plat->tx_queues_cfg[2].traffic_class = TX_QUEUE2_TC;
-	plat->tx_queues_cfg[3].traffic_class = TX_QUEUE3_TC;
-	plat->tx_queues_cfg[4].traffic_class = TX_QUEUE4_TC;
-	plat->tx_queues_cfg[5].traffic_class = TX_QUEUE5_TC;
-	plat->tx_queues_cfg[6].traffic_class = TX_QUEUE6_TC;
-	plat->tx_queues_cfg[7].traffic_class = TX_QUEUE7_TC;
-
 
 	plat->rx_queues_cfg[0].use_prio = RX_QUEUE0_USE_PRIO;
 	plat->rx_queues_cfg[0].prio = RX_QUEUE0_PRIO;
@@ -2700,7 +2612,6 @@ static int tc956xmac_xgmac3_default_data(struct pci_dev *pdev,
 
 	plat->axi->axi_lpi_en = 1;
 	plat->axi->axi_xit_frm = 0;
-	plat->en_tx_lpi_clockgating = 1;
 	plat->axi->axi_wr_osr_lmt = 31;
 	plat->axi->axi_rd_osr_lmt = 31;
 
@@ -2714,26 +2625,6 @@ static int tc956xmac_xgmac3_default_data(struct pci_dev *pdev,
 	axi_blen_array[6] = 256;
 	stmmac_axi_blen_to_mask(&plat->axi->axi_blen_regval, axi_blen_array,
 				AXI_BLEN);
-
-	if (!plat->est) {
-		plat->est = devm_kzalloc(&pdev->dev, sizeof(*plat->est),
-					 GFP_KERNEL);
-		if (!plat->est)
-			return -ENOMEM;
-	} else {
-		memset(plat->est, 0, sizeof(*plat->est));
-	}
-
-
-
-	/* Configuration of PHY operating mode 1(true): for interrupt mode, 0(false): for polling mode */
-	if (plat->port_num == RM_PF0_ID) {
-		plat->phy_interrupt_mode = true;
-	}
-
-	if (plat->port_num == RM_PF1_ID) {
-		plat->phy_interrupt_mode = true;
-	}
 
 	return 0;
 }
@@ -2964,14 +2855,14 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 			else
 				ret |= NEMACCTL_SP_SEL_SGMII_1000M;
 		} else {
-			if (plat->port_interface == ENABLE_USXGMII_INTERFACE) {
+			if (td->port_interface == ENABLE_USXGMII_INTERFACE) {
 				if (speed == SPEED_10000)
 					ret |= NEMACCTL_SP_SEL_USXGMII_10G_10G;
 				else if (speed == SPEED_5000)
 					ret |= NEMACCTL_SP_SEL_USXGMII_5G_5G;
 				else if (speed == SPEED_2500)
 					ret |= NEMACCTL_SP_SEL_USXGMII_2_5G_2_5G;
-			} else if (plat->port_interface == ENABLE_USXGMII_10G_INTERFACE) {
+			} else if (td->port_interface == ENABLE_USXGMII_10G_INTERFACE) {
 				if (speed == SPEED_10000)
 					ret |= NEMACCTL_SP_SEL_USXGMII_10G_10G;
 				else if (speed == SPEED_5000)
@@ -2988,7 +2879,7 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 					ret |= NEMACCTL_SP_SEL_USXGMII_10M_10G;
 					reg |= SP_ETH_10M << SP_ETH1_SHIFT;
 				}
-			} else if (plat->port_interface == ENABLE_USXGMII_5G_INTERFACE) {
+			} else if (td->port_interface == ENABLE_USXGMII_5G_INTERFACE) {
 				if (speed == SPEED_5000)
 					ret |= NEMACCTL_SP_SEL_USXGMII_5G_5G;
 				else if (speed == SPEED_2500)
@@ -3003,7 +2894,7 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 					ret |= NEMACCTL_SP_SEL_USXGMII_10M_5G;
 					reg |= SP_ETH_10M << SP_ETH1_SHIFT;
 				}
-			} else if (plat->port_interface == ENABLE_USXGMII_2_5G_INTERFACE) {
+			} else if (td->port_interface == ENABLE_USXGMII_2_5G_INTERFACE) {
 				if (speed == SPEED_2500)
 					ret |= NEMACCTL_SP_SEL_USXGMII_2_5G_2_5G;
 				else if (speed == SPEED_1000) {
@@ -3019,12 +2910,12 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 			}
 			reg_value = tc956x_xpcs_read(xpcsaddr, XGMAC_VR_XS_PCS_KR_CTRL);
 			reg_value &= ~XGMAC_USXG_MODE; /*USXG_MODE : 0x000*/
-			if ((plat->port_interface == ENABLE_USXGMII_5G_INTERFACE) ||
-			    ((plat->port_interface == ENABLE_USXGMII_INTERFACE) &&
+			if ((td->port_interface == ENABLE_USXGMII_5G_INTERFACE) ||
+			    ((td->port_interface == ENABLE_USXGMII_INTERFACE) &&
 			     (speed == SPEED_5000)))
 				reg_value |= XPCS_USX_5G_MODE;
-			else if ((plat->port_interface == ENABLE_USXGMII_2_5G_INTERFACE) ||
-				 ((plat->port_interface == ENABLE_USXGMII_INTERFACE) &&
+			else if ((td->port_interface == ENABLE_USXGMII_2_5G_INTERFACE) ||
+				 ((td->port_interface == ENABLE_USXGMII_INTERFACE) &&
 				  (speed == SPEED_2500)))
 				reg_value |= XPCS_USX_2_5G_MODE;
 			tc956x_xpcs_write(xpcsaddr, XGMAC_VR_XS_PCS_KR_CTRL, reg_value);
@@ -3092,7 +2983,7 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 	if (ret < 0)
 		dev_err(td->device, "XPCS initialization error\n");
 
-	if (plat->port_interface == ENABLE_USXGMII_INTERFACE) {
+	if (td->port_interface == ENABLE_USXGMII_INTERFACE) {
 		reg_value = tc956x_xpcs_read(xpcsaddr, XGMAC_VR_XS_PCS_KR_CTRL);
 		reg_value &= ~XGMAC_USXG_MODE; /*USXG_MODE : 0x000*/
 		if (speed == SPEED_5000)
@@ -3278,26 +3169,20 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 	res.port_num = readl(td->bridge_cfg_addr + RSCMNG_ID_REG); /* Resource Manager ID */
 	res.port_num &= RSCMNG_PFN;
 
-	plat->port_num = res.port_num;
-
 	plat->mac_setup = &tc956x_dwmac_setup;
 	plat->fix_mac_speed = &tc956x_fix_mac_speed;
 
+	// NCID_OFFSET gives the revision ID (and early revisions are limited
+	// to 2.5G)
 	reg = readl(td->sfr_addr + NCID_OFFSET);
 	pr_debug("NCID Register value: %x\n", readl(td->sfr_addr + NCID_OFFSET));
-	if ((reg & REV_ID_MASK) == REV_ID1)
-		plat->RevID = REV_ID1;
-	else if ((reg & REV_ID_MASK) == REV_ID2)
-		plat->RevID = REV_ID2;
-
-	dev_dbg(&pdev->dev, "Board Revision ID = %d\n", plat->RevID);
 
 	if (td->port_num == RM_PF0_ID) {
 		res.port_interface = ENABLE_XFI_INTERFACE;
-		plat->mdc_clk = TC956XMAC_XGMAC_MDC_CSR_12;
+		td->mdc_clk = TC956XMAC_XGMAC_MDC_CSR_12;
 	} else {
 		res.port_interface = ENABLE_SGMII_INTERFACE;
-		plat->mdc_clk = TC956XMAC_XGMAC_MDC_CSR_62;
+		td->mdc_clk = TC956XMAC_XGMAC_MDC_CSR_62;
 
 	}
 
@@ -3312,12 +3197,12 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 		} else {
 			dev_err(&pdev->dev, "mdc clk overlay to %d\n", mdc_clk);
 			res.mdc_clk = mdc_clk;
-			plat->mdc_clk = res.mdc_clk;
+			td->mdc_clk = res.mdc_clk;
 		}
 
 	}
 
-	plat->port_interface = res.port_interface;
+	td->port_interface = res.port_interface;
 
 	ret = info->setup(pdev, plat);
 
@@ -3325,7 +3210,7 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 		goto err_out_enb_failed;
 
 	dev_dbg(&pdev->dev, "port_interface = %d\n", res.port_interface);
-	dev_dbg(&pdev->dev, "mdc_clk = 0x%x\n", plat->mdc_clk);
+	dev_dbg(&pdev->dev, "mdc_clk = 0x%x\n", td->mdc_clk);
 
 	if (res.port_num == RM_PF0_ID) {
 		ret = readl(td->sfr_addr + NRSTCTRL0_OFFSET);
@@ -3728,10 +3613,6 @@ static void tc956xmac_pci_remove(struct pci_dev *pdev)
 	/* Free allocated interrupt vectors for device */
 	pci_free_irq_vectors(pdev);
 
-	if (priv->plat->tc956xmac_clk)
-		clk_unregister_fixed_rate(priv->plat->tc956xmac_clk);
-
-
 	/* Un-map previously mapped BAR0/2/4 address memory */
 	if (td->sfr_addr)
 		pci_iounmap(pdev, td->sfr_addr);
@@ -4056,7 +3937,7 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 			writel(ret, td->sfr_addr + NRSTCTRL1_OFFSET);
 		}
 
-		ret = tc956x_pma_setup(priv, priv->pmaaddr);
+		ret = tc956x_pma_init(priv, priv->ioaddr + PMA_XGMAC_OFFSET);
 		if (ret < 0)
 			pr_info("PMA switching to internal clock Failed\n");
 

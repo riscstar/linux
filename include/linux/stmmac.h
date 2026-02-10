@@ -139,10 +139,6 @@ struct stmmac_txq_cfg {
 	bool use_prio;
 	u32 prio;
 	int tbs_en;
-#ifndef DISABLE_TC9563
-	u32 tso_en;
-	u8 traffic_class;
-#endif // DISABLE_TC9563
 };
 
 struct stmmac_safety_feature_cfg {
@@ -197,35 +193,6 @@ enum dwmac_core_type {
 #define STMMAC_FLAG_HWTSTAMP_CORRECT_LATENCY	BIT(13)
 
 struct mac_device_info;
-
-#ifndef DISABLE_TC9563
-
-struct tc956xmac_rx_parser_entry {
-	__le32 match_data;
-	__le32 match_en;
-	__u8 af:1;
-	__u8 rf:1;
-	__u8 im:1;
-	__u8 nc:1;
-	__u8 res1:4;
-	__u8 frame_offset:6;
-	__u8 res2:2;
-	__u8 ok_index;
-	__u8 res3;
-	__u16 dma_ch_no;
-	__u16 res4;
-} __packed;
-
-#define TC956XMAC_RX_PARSER_MAX_ENTRIES               128
-
-struct tc956xmac_rx_parser_cfg {
-	bool enable;
-	__u32 nve;
-	__u32 npe;
-	struct tc956xmac_rx_parser_entry entries[TC956XMAC_RX_PARSER_MAX_ENTRIES];
-};
-
-#endif // DISABLE_TC9563
 
 struct plat_stmmacenet_data {
 	enum dwmac_core_type core_type;
@@ -339,23 +306,5 @@ struct plat_stmmacenet_data {
 	int msi_tx_base_vec;
 	const struct dwmac4_addrs *dwmac4_addrs;
 	unsigned int flags;
-
-#ifndef DISABLE_TC9563
-	struct tc956xmac_rx_parser_cfg rxp_cfg;
-	bool en_tx_lpi_clockgating;
-	struct stmmac_est *est;
-	struct clk *tc956xmac_clk;
-	int (*cphy_read)(void *priv, int phyaddr, int phyreg);
-	int (*cphy_write)(void *priv, int phyaddr, int phyreg, u16 phydata);
-	u32 port_num;
-	u32 RevID;
-	u32 port_interface; /* Kernel module parameter variable for interface */
-	bool phy_interrupt_mode; /* For Handling of PHY Operating mode */
-	bool pse;
-	bool gate_mask;
-	int clk_crs;
-	u8 mdc_clk;
-#endif // DISABLE_TC9563
 };
-
 #endif
