@@ -543,7 +543,6 @@ static void dwxgmac2_set_filter(struct mac_device_info *hw,
 		}
 	}
 
-#if 0
 	dwxgmac2_set_mchash(ioaddr, mc_filter, mcbitslog2);
 
 	/* Handle multiple unicast addresses */
@@ -563,7 +562,6 @@ static void dwxgmac2_set_filter(struct mac_device_info *hw,
 			writel(0, ioaddr + XGMAC_ADDRx_LOW(reg));
 		}
 	}
-#endif
 
 	writel(value, ioaddr + XGMAC_PACKET_FILTER);
 }

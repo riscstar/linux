@@ -3652,13 +3652,10 @@ static int stmmac_hw_setup(struct net_device *dev)
 		}
 	}
 
-#if 0
 	/* Enable Split Header */
 	sph_en = (priv->hw->rx_csum > 0) && priv->sph_active;
 	for (chan = 0; chan < rx_cnt; chan++)
 		stmmac_enable_sph(priv, priv->ioaddr, sph_en, chan);
-#endif
-
 
 	/* VLAN Tag Insertion */
 	if (priv->dma_cap.vlins)
@@ -5893,21 +5890,6 @@ static int stmmac_napi_poll_tx(struct napi_struct *napi, int budget)
 	bool pending_packets = false;
 	u32 chan = ch->index;
 	int work_done;
-	unsigned long flags;
-
-#if 0
-	{
-		static DEFINE_RATELIMIT_STATE(_rs, DEFAULT_RATELIMIT_INTERVAL,
-					      DEFAULT_RATELIMIT_BURST);
-		if (__ratelimit(&_rs)) {
-			local_irq_save(flags);
-			readl(priv->ioaddr - 0x48000 + 0x00f110); // PF1_INT_STS
-			stmmac_common_interrupt(priv);
-			stmmac_dma_interrupt(priv);
-			local_irq_restore(flags);
-		}
-	}
-#endif
 
 	txq_stats = &priv->xstats.txq_stats[chan];
 	u64_stats_update_begin(&txq_stats->napi_syncp);
@@ -6135,10 +6117,8 @@ static int stmmac_set_features(struct net_device *netdev,
 		bool sph_en = (priv->hw->rx_csum > 0) && priv->sph_active;
 		u32 chan;
 
-#if 0
 		for (chan = 0; chan < priv->plat->rx_queues_to_use; chan++)
 			stmmac_enable_sph(priv, priv->ioaddr, sph_en, chan);
-#endif
 	}
 
 	if (features & NETIF_F_HW_VLAN_CTAG_RX)
