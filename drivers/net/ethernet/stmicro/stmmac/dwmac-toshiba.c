@@ -129,11 +129,7 @@ struct toshiba_data {
 
 #define DEVICE_ID 0x0220	/* PF - 0x0220, VF - 0x0221 */
 
-#define MOD_PARAM_ACCESS 0444
-
 #define FIRMWARE_NAME "TC956X_Firmware_PCIeBridge.bin"
-
-#define TC956X_TOTAL_VFS 3
 
 #define TC956X_FW_MAX_SIZE	(64*1024)
 
@@ -168,10 +164,6 @@ struct toshiba_data {
 
 #define TC956X_ATR_IMPL 1U
 #define TC956X_ATR_SIZE(size) ((size - 1U) << 1U)
-#define TC956X_ATR_SIZE_MASK		GENMASK(6, 1)
-#define TC956x_ATR_SIZE_SHIFT		1
-#define TC956X_SRC_LO_MASK		GENMASK(31, 12)
-#define TC956X_SRC_LO_SHIFT		12
 
 #define TC956X_AXI4_SLV00_ATR_SIZE 36U
 #define TC956X_AXI4_SLV00_SRC_ADDR_LO_VAL  (0x00000000U)
@@ -184,19 +176,10 @@ struct toshiba_data {
 #define NRSTCTRL0_RST_ASRT 0x1
 #define NRSTCTRL0_RST_DE_ASRT 0x3
 
-#define TC956X_OFFSET_TAMAP 0x00000010
-#define TC956X_MASK_TAMAP 0xFFFFF000
-#define TC956X_SHIFT_TAMAP 32
-#define TC956X_OFFSET_OW 28
-#define TC956X_OFFSET_OW_MAX 53
-#define TC956X_HEX_ZERO 0x00000000
-
 #define TC956X_BAR0 0
 #define TC956X_BAR2 2
 #define TC956X_BAR4 4
 
-#define NMODESTS 0x0004
-#define NMODESTS_MODE 0x200
 #define NMODESTS_MODE2		0x400
 #define NMODESTS_MODE2_SHIFT	10
 #define TC956X_PCIE_SETTING_A	0 /* x4x1x1 mode */
@@ -207,24 +190,10 @@ struct toshiba_data {
 
 #define NEMACTXCDLY_DEFAULT		0x00000000U
 #define NEMACIOCTL_DEFAULT		0xF300F300
-/* Systick count SRAM  address  DMEM addrs 0x2000F83C, Check this value for any change */
-#define SYSTCIK_SRAM_OFFSET		0x4F83C
 
-/* Tx Timer count SRAM  address  DMEM addrs 0x2000F844, Check this value for any change */
-#define TX_TIMER_SRAM_OFFSET_0		0x4F844
-
-/* Tx Timer count SRAM  address  DMEM addrs 0x2000F848, Check this value for any change */
-#define TX_TIMER_SRAM_OFFSET_1		0x4F848
-
-#define TX_TIMER_SRAM_OFFSET(t) (((t) == RM_PF0_ID) ? (TX_TIMER_SRAM_OFFSET_0) : (TX_TIMER_SRAM_OFFSET_1))
-
-#define TC956X_M3_SRAM_EEPROM_MAC_ADDR		0x47000		/* DMEM addrs 0x20007000U */
 #define TC956X_M3_SRAM_EEPROM_OFFSET_ADDR	0x47050		/* DMEM addrs 0x20007050U */
 #define TC956X_M3_SRAM_EEPROM_MAC_COUNT		0x47051		/* DMEM addrs 0x20007051U */
-#define TC956X_M3_INIT_DONE					0x47054		/* DMEM addrs 0x20007054U */
-#define TC956X_M3_FW_EXIT					0x47058		/* DMEM addrs 0x20007058U */
-
-#define TC956X_M3_DBG_VER_START			0x4F900
+#define TC956X_M3_INIT_DONE			0x47054		/* DMEM addrs 0x20007054U */
 
 #define ENABLE_USXGMII_INTERFACE		0 /* This value is passed to TSB AQR Sample driver as dev_flags, when this changed, AQR sample driver needs change */
 #define ENABLE_XFI_INTERFACE			1 /* XFI/SFI, this is same as USXGMII, except XPCS autoneg disabled */
@@ -240,10 +209,6 @@ struct toshiba_data {
 #define TC956X_ENABLE_CHNL 1
 
 #define MAX_CM3_TAMAP_ENTRIES		3
-#define CM3_TAMAP_ATR_SIZE		28 /* ATR Size = 2 ^ (28 + 1) = 512MB */
-#define CM3_TAMAP_SIZE			(1 << (CM3_TAMAP_ATR_SIZE + 1))
-#define CM3_TAMAP_MASK			(CM3_TAMAP_SIZE - 1)
-#define CM3_TAMAP_SRC_ADDR_START	0x60000000
 
 struct tc956x_version {
 	unsigned char rel_dbg; /* 'R' for release, 'D' for debug */
@@ -286,11 +251,8 @@ struct tx956x_shrd_mem {
 
 /* Independent Suspend/Resume Debug */
 #undef TC956X_PM_DEBUG
-#define TC956X_MAX_PORT			2
 #define TC956X_ALL_MAC_PORT_SUSPENDED	0 /* All EMAC Port Suspended. To be used just after suspend and before resume. */
-#define TC956X_NO_MAC_DEVICE_IN_USE	0 /* No EMAC Port in use. To be used at probe and remove. */
 #define TC956X_SINGLE_MAC_DEVICE_IN_USE	1 /* One of the EMAC Port in use. To be used at remove. */
-#define TC956X_ALL_MAC_PORT_LINK_DOWN	2 /* All ports are Link Down */
 #define TC956X_TOT_CASCADE_DEV	7 /* Maximum number of devices for 2 Level cascade setup */
 #define TC956X_PCI_BD_MASK	0xFFF8
 
@@ -308,46 +270,20 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 	PHY_OFF_MDIO_OFF    /* PHY not available and MDIO not available */
 };
 
-#define DISABLE		0x0U
-#define ENABLE		0x1U
-#define SIZE_512B	0x200U
-#define SIZE_1KB	0x400U
-
-// TODO: this was unifdef'ed (some build options result in the value being two
+// TODO: this was unifdef'ed (some build options result in the value being two)
 #define TC956X_TOT_MSI_VEC	1
 
 /*	Dual Port related Macros	*/
 #define RM_PF0_ID		(0)
 #define RM_PF1_ID		(1)
-#define RM_IS_PF		(0)
-#define RM_IS_VF		(1)
 
 #define TC956X_AVB_PRIORITY_CLASS_A	(3)
 #define TC956X_AVB_PRIORITY_CLASS_B	(2)
 #define TC956X_PRIORITY_CLASS_CDT	(7)
 
-#define MAX_RX_QUEUE_SIZE	47104 /* 46KB Maximun RX Queue size */
-#define MAX_TX_QUEUE_SIZE	47104 /* 46KB Maximun TX Queue size */
-
 #define TC956X_DA_MAP		0xF
 
 /************************ TC956X_SRIOV_PF Starts ************************/
-
-#define TC956X_DMA_RX_AIS  BIT(14)
-#define TC956X_DMA_RX_FBE  BIT(12)
-#define TC956X_DMA_RX_RPS  BIT(8)
-#define MAX_TX_QUEUES_TO_USE	2
-#define MAX_RX_QUEUES_TO_USE	8
-
-/* Tx Queue Size*/
-#define TX_QUEUE0_SIZE	4096
-#define TX_QUEUE1_SIZE	4096
-#define TX_QUEUE2_SIZE	18432
-#define TX_QUEUE3_SIZE	4096
-#define TX_QUEUE4_SIZE	1024
-#define TX_QUEUE5_SIZE	4096
-#define TX_QUEUE6_SIZE	4096
-#define TX_QUEUE7_SIZE	4096
 
 /* TX Queue 0: Legacy and Jumbo packets */
 #define TX_QUEUE0_MODE		MTL_QUEUE_DCB
@@ -376,27 +312,6 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 #define TX_QUEUE6_TBS		1
 #define TX_QUEUE7_TBS		1
 
-/* Tx Queue TSO Enable/Disable */
-#define TX_QUEUE0_TSO		1
-#define TX_QUEUE1_TSO		1
-#define TX_QUEUE2_TSO		1
-#define TX_QUEUE3_TSO		1
-#define TX_QUEUE4_TSO		0
-#define TX_QUEUE5_TSO		0
-#define TX_QUEUE6_TSO		0
-#define TX_QUEUE7_TSO		0
-
-/* Configure TxQueue - Traffic Class mapping */
-#define TX_QUEUE0_TC	0x0
-#define TX_QUEUE1_TC	0x0
-#define TX_QUEUE2_TC	0x0
-#define TX_QUEUE3_TC	0x0
-#define TX_QUEUE4_TC	0x1
-#define TX_QUEUE5_TC	0x2
-#define TX_QUEUE6_TC	0x3
-#define TX_QUEUE7_TC	0x4
-
-
 /*
  * RX Queue 0: Unicast/Untagged Packets - Packets with
  * unique MAC Address of Host/Guest OS DMA channel selection will be based on
@@ -417,16 +332,6 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 #define RX_QUEUE6_MODE		MTL_QUEUE_AVB
 /* RX Queue 7: Broadcast/Multicast packets */
 #define RX_QUEUE7_MODE		MTL_QUEUE_DCB
-
-/* Rx Queue Size */
-#define RX_QUEUE0_SIZE	18432
-#define RX_QUEUE1_SIZE	4096
-#define RX_QUEUE2_SIZE	1024
-#define RX_QUEUE3_SIZE	4096
-#define RX_QUEUE4_SIZE	4096
-#define RX_QUEUE5_SIZE	4096
-#define RX_QUEUE6_SIZE	4096
-#define RX_QUEUE7_SIZE	4096
 
 /* Rx Queue Packet Routing */
 #define RX_QUEUE0_PKT_ROUTE	PACKET_UPQ
@@ -499,63 +404,21 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 #define EEPROM_OFFSET		0
 #define EEPROM_MAC_COUNT	14
 
-/* DMA Ch allocation in tx-rx pairs for PF & VF */
-#define TC956X_PF_CH_ALLOC	0x18	/* PF - Ch 3, 4 */
-#define TC956X_VF0_CH_ALLOC	0x21	/* VF0 - Ch 0, 5 */
-#define TC956X_VF1_CH_ALLOC	0x02	/* VF1 - Ch 1 */
-#define TC956X_VF2_CH_ALLOC	0xC4	/* VF2 - Ch 2, 6, 7 */
-
-#define TC956X_DMA0_VF_MAP  0U
-#define TC956X_DMA1_VF_MAP  1U
-#define TC956X_DMA2_VF_MAP  2U
-#define TC956X_DMA3_VF_MAP  3U
-#define TC956X_DMA4_VF_MAP  3U
-#define TC956X_DMA5_VF_MAP  0U
-#define TC956X_DMA6_VF_MAP  2U
-#define TC956X_DMA7_VF_MAP  2U
-
-#define TC956X_RXQ0_CH_MAP  3U
-#define TC956X_RXQ1_CH_MAP  3U
-#define TC956X_RXQ2_CH_MAP  4U
-#define TC956X_RXQ3_CH_MAP  3U
-#define TC956X_RXQ4_CH_MAP  8U
-#define TC956X_RXQ5_CH_MAP  8U
-#define TC956X_RXQ6_CH_MAP  8U
-#define TC956X_RXQ7_CH_MAP  3U
-
-
 /************************* TC956X_SRIOV_PF Ends *************************/
 
 #define MAC0_BASE_OFFSET 0x40000 /* eMAC0 Base Offset */
 #define MAC1_BASE_OFFSET 0x48000 /* eMAC1 Base Offset */
-
-/* Default LPI timers */
-#define TC956XMAC_DEFAULT_LIT_LS	0x3E8
-#define TC956XMAC_DEFAULT_TWT_LS	0x1E
-#define TC956XMAC_LIT_LS		0x0011
-#define TC956XMAC_TWT_LS		0x0028
-#define TC956XMAC_TIC_1US_CNTR		0x7c
-#define TC956XMAC_LPIET_600US		0x258
-#define TC956X_PHY_SPEED_5G		5000
-#define TC956X_PHY_SPEED_2_5G		2500
-
-#define TC956XMAC_CHAIN_MODE	0x1
-#define TC956XMAC_RING_MODE	0x2
 
 #define TC956X_TARGET_PTP_CLK	50000000
 
 #define RSC_MNG_OFFSET		0x2000
 #define RSCMNG_ID_REG		((RSC_MNG_OFFSET) + 0x00000000)
 #define RSCMNG_PFN		GENMASK(3, 0)
-#define RSCMNG_PFN_SHIFT	0
 
 /*	Configuration Register Address	*/
 #define NCID_OFFSET			(0x0000) /* TC956X Chip and revision ID */
 #define NMODESTS_OFFSET		(0x0004) /* TC956X current operation mode */
-#define NFUNCEN0_OFFSET		(0x0008) /* TC956X pin mux control */
-#define NPCIEBOOT_OFFSET	(0x0018) /* TC956X PCIE Boot HW Sequence Status and Control */
 
-#define NCTLSTS_OFFSET		(0x1000)  /* TC956X control and status */
 #define NCLKCTRL0_OFFSET	(0x1004)  /* TC956X clock control Register-0 */
 #define NCLKCTRL0_MCUCEN	BIT(0)
 #define NCLKCTRL0_INTCEN	BIT(4)
@@ -576,7 +439,6 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 #define NRSTCTRL0_MCURST	BIT(0)
 #define NRSTCTRL0_INTRST	BIT(4)
 #define NRSTCTRL0_MAC0RST	BIT(7)
-#define NRSTCTRL0_PCIERST	BIT(9)
 #define NRSTCTRL0_UART0RST	BIT(16)
 #define NRSTCTRL0_MSIGENRST	BIT(18)
 #define NRSTCTRL0_MAC0PMARST	BIT(30)
@@ -603,8 +465,6 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 					NRSTCTRL0_MAC0RST)
 #define NRSTCTRL_COMMON (NRSTCTRL0_MSIGENRST  | NRSTCTRL0_UART0RST | \
 					NRSTCTRL0_INTRST | NRSTCTRL0_MCURST)
-#define NCLKCTRL0_DEFAULT	(NCLKCTRL0_SRMCEM | NCLKCTRL0_I2SSPIEN | \
-					NCLKCTRL0_PCIECEN | NCLKCTRL0_MCUCEN)
 #define NCLKCTRL_ENABLE_COMMON_EMAC_MASK (NCLKCTRL0_SRMCEM | NCLKCTRL0_I2SSPIEN | \
 					NCLKCTRL0_PCIECEN | NCLKCTRL0_MCUCEN)
 #define NCLKCTRL_DISABLE_COMMON_EMAC_MASK (NCLKCTRL0_MAC0ALLCLKEN | NCLKCTRL0_MAC0312CLKEN | \
@@ -624,11 +484,6 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 
 /* MSIGEN Registers */
 
-#define MSI_INT_TX_CH0		3
-#define MSI_INT_RX_CH0		11
-
-#define MSI_INT_EXT_PHY		20
-
 #define TC956X_MSI_BASE		(0xF000)
 
 #define TC956X_MSI_F_OFFSET		(0x0100)
@@ -636,10 +491,6 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 						(vf_id * TC956X_MSI_F_OFFSET) + (pf_id * TC956X_MSI_F_OFFSET) + (0x0000))
 #define TC956X_MSI_MASK_SET_OFFSET(pf_id, vf_id)	(TC956X_MSI_BASE +\
 						(vf_id * TC956X_MSI_F_OFFSET) + (pf_id * TC956X_MSI_F_OFFSET) + (0x0008))
-#define TC956X_MSI_INT_RAW_STS_OFFSET(pf_id, vf_id)	(TC956X_MSI_BASE + \
-						(vf_id * TC956X_MSI_F_OFFSET) + (pf_id * TC956X_MSI_F_OFFSET) + (0x0014))
-#define TC956X_MSI_STS_OFFSET(pf_id, vf_id)		(TC956X_MSI_BASE + \
-						(vf_id * TC956X_MSI_F_OFFSET) + (pf_id * TC956X_MSI_F_OFFSET) + (0x0018))
 #define TC956X_MSI_MASK_CLR_OFFSET(pf_id, vf_id)	(TC956X_MSI_BASE +\
 						(vf_id * TC956X_MSI_F_OFFSET) + (pf_id * TC956X_MSI_F_OFFSET) + (0x000c))
 #define TC956X_MSI_INT_STS_OFFSET(pf_id, vf_id)	(TC956X_MSI_BASE +\
@@ -660,35 +511,10 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 						(vf_id * TC956X_MSI_F_OFFSET) + (pf_id * TC956X_MSI_F_OFFSET) + (0x0038))
 #define TC956X_MSI_VECT_SET7_OFFSET(pf_id, vf_id)	(TC956X_MSI_BASE +\
 						(vf_id * TC956X_MSI_F_OFFSET) + (pf_id * TC956X_MSI_F_OFFSET) + (0x003C))
-#define TC956X_MSI_SW_MSI_CLR(pf_id, vf_id)	(TC956X_MSI_BASE +\
-						(vf_id * TC956X_MSI_F_OFFSET) + (pf_id * TC956X_MSI_F_OFFSET) + (0x0054))
-#define TC956X_MSI_EVENT_OFFSET(pf_id, vf_id)	(TC956X_MSI_BASE +\
-						(vf_id * TC956X_MSI_F_OFFSET) + (pf_id * TC956X_MSI_F_OFFSET) + (0x0068))
-
-#define TC956X_MSI_CNT0(pf_id, vf_id)			(TC956X_MSI_BASE +\
-						(vf_id * TC956X_MSI_F_OFFSET) + (pf_id * TC956X_MSI_F_OFFSET) + (0x0080))
-#define TC956X_MSI_CNT1(pf_id, vf_id)			(TC956X_MSI_BASE +\
-						(vf_id * TC956X_MSI_F_OFFSET) + (pf_id * TC956X_MSI_F_OFFSET) + (0x0084))
-#define TC956X_MSI_CNT2(pf_id, vf_id)			(TC956X_MSI_BASE +\
-						(vf_id * TC956X_MSI_F_OFFSET) + (pf_id * TC956X_MSI_F_OFFSET) + (0x0088))
-#define TC956X_MSI_CNT3(pf_id, vf_id)			(TC956X_MSI_BASE +\
-						(vf_id * TC956X_MSI_F_OFFSET) + (pf_id * TC956X_MSI_F_OFFSET) + (0x008C))
-#define TC956X_MSI_CNT4(pf_id, vf_id)			(TC956X_MSI_BASE +\
-						(vf_id * TC956X_MSI_F_OFFSET) + (pf_id * TC956X_MSI_F_OFFSET) + (0x0090))
-#define TC956X_MSI_CNT11(pf_id, vf_id)			(TC956X_MSI_BASE +\
-						(vf_id * TC956X_MSI_F_OFFSET) + (pf_id * TC956X_MSI_F_OFFSET) + (0x00AC))
-#define TC956X_MSI_CNT12(pf_id, vf_id)			(TC956X_MSI_BASE +\
-						(vf_id * TC956X_MSI_F_OFFSET) + (pf_id * TC956X_MSI_F_OFFSET) + (0x00B0))
-#define TC956X_MSI_CNT20(pf_id, vf_id)			(TC956X_MSI_BASE +\
-						(vf_id * TC956X_MSI_F_OFFSET) + (pf_id * TC956X_MSI_F_OFFSET) + (0x00D0))
-#define TC956X_MSI_CNT24(pf_id, vf_id)			(TC956X_MSI_BASE +\
-						(vf_id * TC956X_MSI_F_OFFSET) + (pf_id * TC956X_MSI_F_OFFSET) + (0x00E0))
 
 #define TC956X_MSI_OUT_EN_CLR	(0x00000000)
 
 #define TC956X_MSI_OUT_EN (0x0017FFF8)
-
-#define TC956X_MSI_OUT_INTR_EVENT 2
 
 #define TC956X_MSI_MASK_SET	(0xFFFFFFFE)
 #define TC956X_MSI_MASK_CLR	(0x00000001)
@@ -702,16 +528,13 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 #define TC956X_MSI_SET7		(0x00000000)
 
 #define NEMAC1CTL_OFFSET	(0x1074) /* eMAC Port-1 Control */
-#define NEMACSTS_OFFSET		(0x1078) /* eMAC status */
-#define NEMACIOCTL_OFFSET	(0x107C) /* eMAC IO Control */
 
 #define NEMACCTL_SP_SEL_MASK			GENMASK(3, 0)
 #define NEMACCTL_INIT_DONE			0x200000
 #define NEMACCTL_LPIHWCLKEN			(0x100)
 #define NEMACCTL_PHY_INF_SEL_MASK		GENMASK(5, 4)
 #define NEMACCTL_PHY_INF_SEL			(0x10)/* Phy_intf_sel : clock from PHY */
-#define NEMACCTL_SP_SEL_SGMII_10M		(0x7) /* SGMII 10M */
-#define NEMACCTL_SP_SEL_SGMII_100M		(0x6) /* SGMII 100M */
+#define NEMACCTL_SP_SEL_RGMII_1000M		(0x0) /* RGMII 1000M */
 #define NEMACCTL_SP_SEL_SGMII_1000M		(0x5) /* SGMII 1000M */
 #define NEMACCTL_SP_SEL_SGMII_2500M		(0x4) /* SGMII 2500M */
 #define NEMACCTL_SP_SEL_USXGMII_2_5G_2_5G	(0xD) /* USXGMII 2.5G/2.5G */
@@ -730,41 +553,22 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 #define NEMACCTL_SP_SEL_USXGMII_100M_2_5G	(0xD) /* USXGMII 100M/2.5G */
 #define NEMACCTL_SP_SEL_USXGMII_10M_2_5G	(0xD) /* USXGMII 10M/2.5G */
 
-#define SP_ETH0_SHIFT			16
 #define SP_ETH1_SHIFT			24
 #define SP_ETH_1G				1
 #define SP_ETH_100M				3
 #define SP_ETH_10M				7
 
-#define REV_ID_MASK				0xF
-#define REV_ID1					0x1
-#define REV_ID2					0x2
-
-#define NEMACCTL_SP_SEL_RGMII_10M		(0x2) /* RGMII 10M */
-#define NEMACCTL_SP_SEL_RGMII_100M		(0x1) /* RGMII 100M */
-#define NEMACCTL_SP_SEL_RGMII_1000M		(0x0) /* RGMII 1000M */
-
-#define GPIOI0_OFFSET	(0x1200) /* GPIO Input-0 register */
-#define GPIOI1_OFFSET	(0x1204) /* GPIO Input-1 register */
 #define GPIOE0_OFFSET	(0x1208) /* GPIO Enable-0 register */
 #define GPIOE1_OFFSET	(0x120C) /* GPIO Enable-1 register */
 #define GPIOO0_OFFSET	(0x1210) /* GPIO Output-0 register */
 #define GPIOO1_OFFSET	(0x1214) /* GPIO Output-1 register */
 
-#define NPCIEPWR_OFFSET	(0x1300) /* PCIe power gating control */
-
-#define I2CERRADD_OFFSET	(0x1400)
-#define SPIERRADD_OFFSET	(0x1404)
-#define NFUNCEN1_OFFSET		(0x1514)
-#define NFUNCEN2_OFFSET		(0x151C)
-#define NFUNCEN3_OFFSET		(0x1524)
 #define NFUNCEN4_OFFSET		(0x1528)
 #define NFUNCEN5_OFFSET		(0x152C)
 #define NFUNCEN6_OFFSET		(0x1530)
 #define NFUNCEN7_OFFSET		(0x153C)
 
 #define NFUNCEN_FUNC0		(0)
-#define NFUNCEN_FUNC1		(1)
 #define NFUNCEN_FUNC2		(2)
 #define NFUNCEN4_GPIO_00	GENMASK(3, 0)
 #define NFUNCEN4_GPIO_00_SHIFT	(0)
@@ -789,10 +593,6 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 #define NFUNCEN7_GPIO_13	GENMASK(3, 0)
 #define NFUNCEN7_GPIO_13_SHIFT	(0)
 
-#define NIOCFG1_OFFSET		(0x1614)
-#define NIOCFG7_OFFSET		(0x163C)
-#define NIOEN7_OFFSET		(0x173C)
-
 #define GPIO_00			(0)
 #define GPIO_01			(1)
 #define GPIO_02			(2)
@@ -806,79 +606,27 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 #define GPIO_13			(13)
 #define GPIO_32			(32)
 
-#define TRIG00_SHIFT		4
-#define TRIG10_SHIFT		12
-#define TRIG00_MASK			0xF0
-#define TRIG10_MASK			0xF000
-#define TSIE_SHIFT			12
-
 #define TC956X_SSREG_BRREG_REG_BASE		(0x00024000U)
 
 #define TC956X_GLUE_LOGIC_BASE_OFST		(0x0002C000U)
 
-/*All phy core use the same base address, glue register we need to select correct phy core*/
-#define TC956X_PHY_CORE0_REG_BASE		(0x00028000U)
-#define TC956X_PHY_CORE1_REG_BASE		(0x00028000U)
-#define TC956X_PHY_CORE2_REG_BASE		(0x00028000U)
-#define TC956X_PHY_CORE3_REG_BASE		(0x00028000U)
-
-
-#define TC956X_SSREG_K_PCICONF_015_000		(TC956X_SSREG_BRREG_REG_BASE \
-						+ 0x00000850U)
-#define TC956X_SSREG_K_PCICONF_031_016		(TC956X_SSREG_BRREG_REG_BASE \
-						+ 0x00000854U)
 #define TC956X_SSREG_K_PCICONF_021_021		(TC956X_SSREG_BRREG_REG_BASE \
 						+ 0x000009E4U)
 #define TC956X_SSREG_K_PCICONF_022_022		(TC956X_SSREG_BRREG_REG_BASE \
 						+ 0x000009E8U)
 
-#define TC956X_GLUE_EFUSE_CTRL			(TC956X_GLUE_LOGIC_BASE_OFST \
-						+ 0x0000001CU)
 #define TC956X_GLUE_SW_REG_ACCESS_CTRL		(TC956X_GLUE_LOGIC_BASE_OFST \
 						+ 0x0000002CU)
-#define TC956X_GLUE_PHY_REG_ACCESS_CTRL		(TC956X_GLUE_LOGIC_BASE_OFST \
-						+ 0x00000030U)
-#define TC956X_GLUE_SW_RESET_CTRL		(TC956X_GLUE_LOGIC_BASE_OFST \
-						+ 0x00000044U)
-#define TC956X_GLUE_SW_DSP1_TEST_IN_31_00	(TC956X_GLUE_LOGIC_BASE_OFST \
-						+ 0x0000006CU)
-#define TC956X_GLUE_SW_DSP2_TEST_IN_31_00	(TC956X_GLUE_LOGIC_BASE_OFST \
-						+ 0x00000074U)
-#define TC956X_GLUE_SW_USP_TEST_OUT_127_096	(TC956X_GLUE_LOGIC_BASE_OFST \
-						+ 0x00000098U)
-#define TC956X_GLUE_TL_LINK_SPEED_MON		(TC956X_GLUE_LOGIC_BASE_OFST \
-						+ 0x00000244U)
-#define TC956X_GLUE_TL_NUM_LANES_MON		(TC956X_GLUE_LOGIC_BASE_OFST \
-						+ 0x00000248U)
-#define TC956X_GLUE_RSVD_RW0			(TC956X_GLUE_LOGIC_BASE_OFST \
-						+ 0x0000024CU)
 
-#define TC956X_GLUE_LTSSM_STATE_MASK		(0x0000001FU)
-#define TC956X_GLUE_LTSSM_STATE_SHIFT		(0)
-#define TC956X_GLUE_DLL_MASK			(0x00000020U)
-#define TC956X_GLUE_DLL_SHIFT			(5)
-#define TC956X_GLUE_SPEED_MASK(x)		(0x0000000FU << (8*x))
-#define TC956X_GLUE_SPEED_SHIFT(x)		(8*x)
-
-#define USP_LANE_WIDTH_MASK			(0x0000003F)
-#define DSP1_LANE_WIDTH_MASK			(0x00003F00)
-#define DSP1_LANE_WIDTH_SHIFT			(8)
-#define TC956X_GLUE_LANE_WIDTH_MASK(x)		(0x0000003FU << (8*x))
-#define TC956X_GLUE_LANE_WIDTH_SHIFT(x)		(8*x)
-
-#define SW_PORT_ENABLE_MASK			GENMASK(3, 0)
-#define SW_PORT_ENABLE_SHIFT			0U
-#define SW_USP_ENABLE				(0x00000001)
 #define SW_DSP1_ENABLE				(0x00000002)
 #define SW_DSP2_ENABLE				(0x00000004)
-#define SW_VDSP_ENABLE				(0x00000008)
 
 #define ENABLE_CUT_THROUGH_ON_RX_PATH_MASK	0x1U
 #define ENABLE_CUT_THROUGH_ON_TX_PATH_MASK	0x1U
 
 /* MSIGEN Registers */
 
-#define MSI_INT_TX_CH0		3
+#define MSI_INT_TX_CH0		 3
 #define MSI_INT_RX_CH0		11
 #define MSI_INT_EXT_PHY		20
 
@@ -887,9 +635,6 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 #endif
 
 #define MAX_MAC_ADDR_FILTERS 32
-
-#define TC956X_MIN_LPI_AUTO_ENTRY_TIMER		0
-#define TC956X_MAX_LPI_AUTO_ENTRY_TIMER		0xFFFF8 /* LPI Entry timer is in the units of 8 micro second granularity. So mask the last 3 bits. */
 
 //
 // Definitions taken from tc956xmac_ioctl.h in vendor driver
@@ -966,136 +711,6 @@ struct tc956x_ioctl_pcie_link_params {
 	__u32 cmd;
 	struct tc956x_pcie_link_params *link_param;
 	enum ports port;
-};
-
-//
-// Definitions taken from tc956x_pcie_logstat.h in vendor driver
-//
-
-/* ===================================
- * Macros
- * ===================================
- */
-/* Configuration Register Address */
-#define TC956X_CONF_REG_NPCIEUSPLOGCFG				(0x00001320U)
-#define TC956X_CONF_REG_NPCIEUSPLOGCTRL				(0x00001324U)
-#define TC956X_CONF_REG_NPCIEUSPLOGST				(0x00001328U)
-#define TC956X_CONF_REG_NPCIEUSPLOGRDCTRL			(0x0000132CU)
-#define TC956X_CONF_REG_NPCIEUSPLOGD				(0x00001330U)
-
-#define LTSSM_CONF_REG_OFFSET					(0x20U)
-
- /* LTSSM Enable Bit Mask Value*/
-#define LTSSM_BIT_MASK						(0x00000001U)
-#define LTSSM_PORT_EN_SHIFT					(0x4U)
-/* Common NPCIEUSPLOGCFG, NPCIEDSP1LOGCFG, NPCIEDSP2LOGCFG, NPCIEEPLOGCFG
- * register Logging Configuration Bit Mask and Shift Value
- */
-#define STOP_COUNT_VALUE_MASK					(0x00000FF0U)
-#define STOP_COUNT_VALUE_SHIFT					(4U)
-#define LINKWIDTH_DOWN_ST_MASK					(0x00000008U)
-#define LINKWIDTH_DOWN_ST_SHIFT					(3U)
-#define LINKSPEED_DOWN_ST_MASK					(0x00000004U)
-#define LINKSPEED_DOWN_ST_SHIFT					(2U)
-#define TIMEOUT_STOP_MASK					(0x00000002U)
-#define TIMEOUT_STOP_SHIFT					(1U)
-#define L0S_MASK_MASK						(0x00000001U)
-#define L0S_MASK_SHIFT						(0U)
-#define STATE_LOGGING_ENABLE_MASK				(0x00000001U)
-#define STATE_LOGGING_ENABLE_SHIFT				(0U)
-#define FIFO_READ_POINTER_MASK					(0x0000001FU)
-#define FIFO_READ_POINTER_SHIFT					(0U)
-#define STOP_STATUS_MASK					(0x00000001U)
-#define STOP_STATUS_SHIFT					(0U)
-
-#define COUNT_LTSSM_REG_STATES					(28U)
-
-/* Common NPCIEUSPLOGD, NPCIEDSP1LOGD, NPCIEDSP2LOGD, NPCIEEPLOGD
- * Register Logging Read Data Bit Mask and Shift Value
- */
-#define FIFO_READ_VALUE8_MASK					(0x20000000U)
-#define FIFO_READ_VALUE8_SHIFT					(29U)
-#define FIFO_READ_VALUE7_MASK					(0x10000000U)
-#define FIFO_READ_VALUE7_SHIFT					(28U)
-#define FIFO_READ_VALUE6_MASK					(0x03000000U)
-#define FIFO_READ_VALUE6_SHIFT					(24U)
-#define FIFO_READ_VALUE5_MASK					(0x00F00000U)
-#define FIFO_READ_VALUE5_SHIFT					(20U)
-#define FIFO_READ_VALUE4_MASK					(0x00070000U)
-#define FIFO_READ_VALUE4_SHIFT					(16U)
-#define FIFO_READ_VALUE3_MASK					(0x0000C000U)
-#define FIFO_READ_VALUE3_SHIFT					(14U)
-#define FIFO_READ_VALUE2_MASK					(0x00003000U)
-#define FIFO_READ_VALUE2_SHIFT					(12U)
-#define FIFO_READ_VALUE1_MASK					(0x00000300U)
-#define FIFO_READ_VALUE1_SHIFT					(8U)
-#define FIFO_READ_VALUE0_MASK					(0x0000001FU)
-#define FIFO_READ_VALUE0_SHIFT					(0U)
-#define STOP_STATUS_MASK					(0x00000001U)
-#define STOP_STATUS_SHIFT					(0U)
-/* Common NPCIEUSPLOGD, NPCIEDSP1LOGD, NPCIEDSP2LOGD, NPCIEEPLOGD
- * Register, Different Lanes Bit Mask Values
- */
-#define LANE0_MASK						(0x1U)
-#define LANE0_SHIFT						(0U)
-#define LANE1_MASK						(0x2U)
-#define LANE1_SHIFT						(1U)
-#define LANE2_MASK						(0x4U)
-#define LANE2_SHIFT						(2U)
-#define LANE3_MASK						(0x8U)
-#define LANE3_SHIFT						(3U)
-
-#define MAX_STOP_CNT						(0xFFU)
-#define MAX_FIFO_POINTER					(31U)
-
-#define STATE_LOG_REG_OFFSET					(0x20U)
-#define GLUE_REG_LTSSM_OFFSET					(0x40U)
-
-#define STATE_LOG_STOP						(1U)
-#define MAX_FIFO_READ_POINTER					(0x1F)
-#define INVALID_STATE_LOG					(0x33F7F31FU)
-
-#define LTSSM_TIMEOUT_NOT_OCCURRED				(0U)
-#define LTSSM_TIMEOUT_OCCURRED					(1U)
-#define DL_ACTIVE						(1U)
-#define DL_NOT_ACTIVE						(0U)
-#define ALL_LANES_INACTIVE					(0U)
-#define INACTIVE_L0s						(0U)
-#define EQ_PHASE0						(0U)
-#define INACTIVE_L1						(0U)
-
-#define LTSSM_MAX_VALUE						(0x1A)
-#define LOGSTAT_DUMMY_VALUE					(0xFF)
-#define ACTIVE_SINGLE_LANE_MASK					(1)
-#define ACTIVE_SINGLE_LANE_SHIFT				(1)
-#define ACTIVE_ALL_LANE_MASK					(0xF)
-/* ===================================
- * Enumeration
- * ===================================
- */
-
-/* ===================================
- * Structure/Union
- * ===================================
- */
-union tc956x_logstat_State_Log_Data {
-	struct {
-		unsigned char fifo_read_value0 :5;
-		unsigned char reserved1 :3;
-		unsigned char fifo_read_value1 :2;
-		unsigned char reserved2 :2;
-		unsigned char fifo_read_value2 :2;
-		unsigned char fifo_read_value3 :2;
-		unsigned char fifo_read_value4 :3;
-		unsigned char reserved3 :1;
-		unsigned char fifo_read_value5 :4;
-		unsigned char fifo_read_value6 :2;
-		unsigned char reserved4 :2;
-		unsigned char fifo_read_value7 :1;
-		unsigned char fifo_read_value8 :1;
-		unsigned char reserved5 :2;
-	} bitfield;
-	unsigned int reg_val;
 };
 
 //
@@ -1363,10 +978,8 @@ static int tc956x_gpio_restore_configuration(struct stmmac_priv *priv)
 #define XGMAC_VR_MII_AN_CTRL			0x7e0004
 #define XGMAC_VR_MII_DIG_CTRL1			0x7e0000
 #define XGMAC_SR_XS_PCS_CTRL1			0xC0000
-#define XGMAC_SR_XS_PCS_STS1			0xC0004
 #define XGMAC_SR_XS_PCS_CTRL2			0xC001C
 #define XGMAC_SR_XS_PCS_EEE_ABL			0xC0050
-#define XGMAC_SR_XS_PCS_STS2			0xC0020
 #define XGMAC_VR_XS_PCS_DIG_CTRL1		0xe0000
 #define XGMAC_VR_XS_PCS_EEE_MCTRL0		0xe0018
 #define XGMAC_VR_XS_PCS_EEE_MCTRL1		0xe002c
@@ -1374,14 +987,7 @@ static int tc956x_gpio_restore_configuration(struct stmmac_priv *priv)
 #define XGMAC_VR_XS_PCS_EEE_TXTIMER		0xe0020
 #define XGMAC_VR_XS_PCS_EEE_RXTIMER		0xe0024
 #define XGMAC_VR_XS_PCS_DIG_STS			0xe0040
-#define XGMAC_VR_MII_AN_INTR_STS		0x7e0008
-#define XGMAC_SR_XS_PCS_STS2			0xC0020
 
-#define XGMAC_LTX_LRX_STATE			0xFC00
-#define XGMAC_LPI_RECEIVE_STATE			0x1C00
-#define XGMAC_LPI_TRANSMIT_STATE		0xE000
-#define XGMAC_RX_LPI_RECEIVE			0x400
-#define XGAMC_TX_LPI_RECEIVE			0x800
 #define XGMAC_LPI_ENABLE			0x0800
 #define XGMAC_PSEQ_STATE			0x001C
 #define XGMAC_KXEEE				0x0010
@@ -1392,11 +998,8 @@ static int tc956x_gpio_restore_configuration(struct stmmac_priv *priv)
 #define XGMAC_EEE_TX_TIMER			0x1FFF
 #define XGMAC_TX_RX_QUIET_EN			0x000F
 #define XGMAC_MULT_FACT_100NS_MAC		0xB00
-#define XGMAC_MULT_FACT_100NS_PHY		0xA00
 #define XGMAC_EEE_TX_TIMER_MAC_CONT		0x0543
-#define XGMAC_EEE_TX_TIMER_PHY_CONT		0x0E9C
 #define XGMAC_EEE_RX_TIMER_MAC_CONT		0x062A
-#define XGMAC_EEE_RX_TIMER_PHY_CONT		0x2888
 #define XGMAC_TRN_LPI				0x1
 
 /*XPCS Register value*/
@@ -1410,31 +1013,11 @@ static int tc956x_gpio_restore_configuration(struct stmmac_priv *priv)
 #define XGMAC_USXG_EN					0x00000200/*USXG_EN enable*/
 #define XGMAC_USXG_MODE					0x00001c00/*USXG_MODE: 0x000*/
 #define XGMAC_VR_RST					0x00008000/*set VR_RST*/
-#define XGMAC_USXG_AN_STS_SPEED_MASK	0x00001c00/*USXGMII autonegotiated speed*/
-#define XGMAC_USXG_AN_STS_DUPLEX_MASK	0x00002000/*USXGMII autonegtiated duplex*/
-#define XGMAC_USXG_AN_STS_LINK_MASK		0x00004000/*USXGMII link status*/
-#define XGMAC_SGM_STS_LINK_MASK			0x00000010/*SGMII link status*/
-#define XGMAC_SGM_STS_DUPLEX			0x00000002/*SGMII autonegotiated duplex*/
-#define XGMAC_SGM_STS_SPEED_MASK		0x0000000c/*SGMII autonegotiated speed*/
 #define XGMAC_SOFT_RST					0x00008000/*SOFT RST*/
-#define XGMAC_C37_AN_COMPL				0x00000001/*C37 Autoneg complete*/
-#define XGMAC_SR_MII_CTRL_SPEED			0x00002060/* SR_MII_CTRL Reg SPEED SS13, SS6, SS5 */
-#define XGMAC_SR_MII_CTRL_SPEED_10G		0x00002040/* SR_MII_CTRL SPEED: 10G */
-#define XGMAC_SR_MII_CTRL_SPEED_5G		0x00002020/* SR_MII_CTRL SPEED: 5G */
-#define XGMAC_SR_MII_CTRL_SPEED_2_5G	0x00000020/* SR_MII_CTRL SPEED: 5G */
-#define XGMAC_SR_MII_CTRL_SPEED_1G		0x00000040/* SR_MII_CTRL SPEED: 1G */
-#define XGMAC_SR_MII_CTRL_SPEED_100M	0x00002000/* SR_MII_CTRL SPEED: 100M */
-#define XGMAC_SR_MII_CTRL_SPEED_10M		0x00000000/* SR_MII_CTRL SPEED: 10M */
-
-#define XGMAC_USRA_RST					0x400/* USRA_RST */
-#define XGMAC_EEE_LRX_EN			BIT(1)		/* LPI Rx Enable */
 
 #define XPCS_REG_BASE_ADDR				10
 #define XPCS_REG_OFFSET					0x0003FF
 #define XPCS_IND_ACCESS					0x3FC
-#define XPCS_SS_SGMII_1G				0x40
-#define XPCS_SS_SGMII_100M				0x2000
-#define XPCS_SS_SGMII_10M				0x0
 
 #define XPCS_USX_5G_MODE				(0x1 << 10)
 #define XPCS_USX_2_5G_MODE				(0x2 << 10)
@@ -2048,73 +1631,6 @@ static int tc956x_platform_resume(struct stmmac_priv *priv)
 }
 
 //
-// Code from tc956x_pcie_logstat.c in vendor driver
-//
-
-/* ===================================
- * Global Variables
- * ===================================
- */
-/*
- * Array containing Different Available Ports.
- */
-static uint8_t pcie_port[4][20] = {
-	"Upstream Port",
-	"Downstream Port1",
-	"Downstream Port2",
-	"Endpoint Port",
-};
-
-/* ===================================
- * Function Definition
- * ===================================
- */
-
-/**
- * tc956x_logstat_set_state_log_enable
- *
- * \brief Function to Enable and Disable State Log.
- *
- * \details This function enable or disable State Logging based on mode passed.
- *
- * \param[in] pbase_addr - pointer to Bar4 base address.
- * \param[in] nport - log start/stop for port passed.
- * \param[in] mode - start or stop state logging.
- *
- * \return -EFAULT in case of bad address, otherwise 0
- */
-static int tc956x_logstat_set_state_log_enable(void __iomem *pbase_addr, enum ports nport, enum state_log_enable enable)
-{
-	int ret = 0;
-	uint32_t port_offset; /* Port Address Register Offset */
-
-	if (pbase_addr == NULL) {
-		ret = -EFAULT;
-		pr_info("%s : Invalid Arguments\n", __func__);
-	}
-
-	if (ret == 0) {
-		port_offset = nport * STATE_LOG_REG_OFFSET;
-
-		if (enable == STATE_LOG_ENABLE) {
-			/* Stop State Log */
-			writel(STATE_LOG_DISABLE, pbase_addr + TC956X_CONF_REG_NPCIEUSPLOGCTRL + port_offset);
-			/* Start State Log */
-			writel(STATE_LOG_ENABLE, pbase_addr + TC956X_CONF_REG_NPCIEUSPLOGCTRL + port_offset);
-			/* Verify Sate Log Enable */
-			if (readl(pbase_addr + TC956X_CONF_REG_NPCIEUSPLOGCTRL + port_offset) == STATE_LOG_ENABLE)
-				pr_debug("%s : Enabling State Logging for port %s\n", __func__, pcie_port[nport]);
-		} else {
-			/* Stop State Log */
-			writel(STATE_LOG_DISABLE, pbase_addr + TC956X_CONF_REG_NPCIEUSPLOGCTRL + port_offset);
-		}
-		/* pr_debug("WR: Addr= 0x%08X, Val= 0x%08X\n", TC956X_CONF_REG_NPCIEUSPLOGCTRL + port_offset, enable); */
-	}
-
-	return ret;
-}
-
-//
 // Code from tc956x_pma.h in vendor driver
 //
 
@@ -2139,12 +1655,9 @@ static int tc956x_logstat_set_state_log_enable(void __iomem *pbase_addr, enum po
 #define XGMAC_PMA_HWT_REFCK_R_EN_R4			0x000010D0
 #define XGMAC_PMA_HWT_REFCK_TERM_EN_R4		0x000010E0
 
-#define XGMAC_PCS_GL_PC_CNT0				0x0000016C
-
 /*PMA register values*/
 #define XGMAC_PMA_OFFSET0					0x00000000
 #define XGMAC_PMA_OFFSET1					0x0001EF04
-#define XGMAC_PMA_OFFSET2					0x00000001
 
 //
 // Code from tc956x_pma.c in vendor driver
@@ -2179,10 +1692,6 @@ static int tc956x_pma_init(struct stmmac_priv *priv, void __iomem *pmaaddr)
 	writel(XGMAC_PMA_OFFSET0, pmaaddr + XGMAC_PMA_HWT_REFCK_R_EN_R4);
 	writel(XGMAC_PMA_OFFSET0, pmaaddr + XGMAC_PMA_HWT_REFCK_TERM_EN_R4);
 
-	/*ASPETH mode decoded from sp_sel of NEMAC0CTL*/
-	/*PMA PLL enable*/
-	//writel(XGMAC_PMA_OFFSET2, pmaaddr + XGMAC_PCS_GL_PC_CNT0); //Commented as per monitor script
-
 	return 0;
 
 }
@@ -2212,15 +1721,6 @@ static uint16_t tc956x_get_shared_mem_offset(struct pci_dev *pdev, uint16_t pci_
 	return 0xFFFF;
 }
 
-#define DEF_FORCE_CONFIG_SPEED	3		/* 1Gbps */
-
-/* RFA RFD values initialized for CPE configuration and PF/VF configuration */
-#define RX_QUEUE0_RFD  0xe
-#define RX_QUEUE0_RFA  0x3
-#define RX_QUEUE1_RFD  5
-#define RX_QUEUE1_RFA  5
-
-int tc956x_dsp_count;
 /*
  * This struct is used to associate PCI Function of MAC controller on a board,
  * discovered via DMI, with the address of PHY connected to the MAC. The
@@ -2466,8 +1966,8 @@ static int tc956xmac_xgmac3_default_data(struct pci_dev *pdev,
 	plat->maxmtu = XGMAC_JUMBO_LEN;
 
 	/* Set default number of RX and TX queues to use */
-	plat->tx_queues_to_use = MAX_TX_QUEUES_TO_USE;
-	plat->rx_queues_to_use = MAX_RX_QUEUES_TO_USE;
+	plat->tx_queues_to_use = 2;
+	plat->rx_queues_to_use = 8;
 
 	/* MTL Configuration */
 
@@ -3162,18 +2662,6 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 	}
 #endif
 
-	if (td->port_num == RM_PF0_ID) {
-
-		if ((tc956x_logstat_set_state_log_enable(td->sfr_addr, UPSTREAM_PORT, STATE_LOG_ENABLE) < 0)
-		|| (tc956x_logstat_set_state_log_enable(td->sfr_addr, DOWNSTREAM_PORT1, STATE_LOG_ENABLE) < 0)
-		|| (tc956x_logstat_set_state_log_enable(td->sfr_addr, DOWNSTREAM_PORT2, STATE_LOG_ENABLE) < 0)
-		|| (tc956x_logstat_set_state_log_enable(td->sfr_addr, INTERNAL_ENDPOINT, STATE_LOG_ENABLE) < 0)) {
-			ret = -EFAULT; /* The returns returned by above functions are -EFAULT only */
-			dev_dbg(&(pdev->dev), "<--%s : Error ret: %d\n", __func__, ret);
-			goto err_dvr_logstat;
-		}
-	}
-
 	//plat->rx_fifo_size = 196608;
 	//plat->tx_fifo_size = 131072;
 
@@ -3529,7 +3017,9 @@ err_out_msi_failed:
 		pci_iounmap(pdev, td->sram_addr);
 	if (td->bridge_cfg_addr)
 		pci_iounmap(pdev, td->bridge_cfg_addr);
+#if 0
 err_dvr_logstat:
+#endif
 err_out_map_failed:
 	pci_release_regions(pdev);
 err_out_req_reg_failed:
@@ -4060,20 +3550,6 @@ static int tc956x_pcie_resume(struct device *dev)
 
 	td->tc956x_port_pm_suspend = false;
 
-	if (td->port_num == RM_PF0_ID) {
-		if ((tc956x_logstat_set_state_log_enable((void __iomem *)td->sfr_addr, UPSTREAM_PORT, STATE_LOG_ENABLE) < 0)
-			|| (tc956x_logstat_set_state_log_enable((void __iomem *)td->sfr_addr, DOWNSTREAM_PORT1, STATE_LOG_ENABLE) < 0)
-			|| (tc956x_logstat_set_state_log_enable((void __iomem *)td->sfr_addr, DOWNSTREAM_PORT2, STATE_LOG_ENABLE) < 0)
-			|| (tc956x_logstat_set_state_log_enable((void __iomem *)td->sfr_addr, INTERNAL_ENDPOINT, STATE_LOG_ENABLE) < 0)) {
-			ret = -EFAULT; /* The returns returned by above function are -EFAULT only */
-			dev_err(&(pdev->dev),
-			"%s: error in calling tc956x_logstat_set_state_log_enable", pci_name(pdev));
-			dev_dbg(&(pdev->dev), "<--%s : Error ret: %d\n", __func__, ret);
-			goto err_resume_logstat;
-		}
-	}
-	dev_dbg(&(pdev->dev), "<--%s\n", __func__);
-err_resume_logstat:
 err:
 	mutex_unlock(&tc956x_pm_suspend_lock);
 	dev_dbg(&(pdev->dev), "<--%s\n", __func__);
@@ -4097,89 +3573,9 @@ static void tc956x_pcie_shutdown(struct pci_dev *pdev)
 	dev_dbg(&(pdev->dev), "<--%s\n", __func__);
 }
 
-/**
- * tc956x_pcie_error_detected
- *
- * \brief Function is called when PCI AER kernel module detects an error.
- *
- * \details This is a dummy implementation for the callback registration
- *
- * \param[in] pdev - pointer to pci_dev structure.
- *
- * \param[in] state - PCI error state.
- *
- * \return Error recovery state
- */
-static pci_ers_result_t tc956x_pcie_error_detected(struct pci_dev *pdev,
-						pci_channel_state_t state)
-{
-	dev_err(&(pdev->dev), "PCI AER Error detected : %d\n", state);
-
-	/* No further error recovery to be carried out */
-	return PCI_ERS_RESULT_DISCONNECT;
-}
-
-/**
- * tc956x_pcie_slot_reset
- *
- * \brief Function is called when PCI AER kernel module issues an slot reset.
- *
- * \details This is a dummy implementation for the callback registration
- *
- * \param[in] pdev - pointer to pci_dev structure.
- *
- * \return Error recovery state
- */
-static pci_ers_result_t tc956x_pcie_slot_reset(struct pci_dev *pdev)
-{
-	dev_err(&(pdev->dev), "PCI AER Slot reset Invoked\n");
-
-	/* No further error recovery to be carried out */
-	return PCI_ERS_RESULT_DISCONNECT;
-}
-
-
-/**
- * tc956x_pcie_io_resume
- *
- * \brief Function is called when PCI AER kernel module requests for
- *	  device to resume.
- *
- * \details This is a dummy implementation for the callback registration
- *
- * \param[in] pdev - pointer to pci_dev structure.
- *
- * \return void
- */
-static void tc956x_pcie_io_resume(struct pci_dev *pdev)
-{
-	dev_err(&(pdev->dev), "PCI AER Resume Invoked\n");
-}
-
-/* PCI AER Error handlers */
-static struct pci_error_handlers tc956x_err_handler = {
-	.error_detected = tc956x_pcie_error_detected,
-	.slot_reset = tc956x_pcie_slot_reset,
-	.resume = tc956x_pcie_io_resume,
-};
-
-/* synthetic ID, no official vendor */
-#define PCI_VENDOR_ID_TC956XMAC 0x700
-
-#define TC956XMAC_QUARK_ID  0x0937
-#define TC956XMAC_DEVICE_ID 0x1108
-#define TC956XMAC_EHL_RGMII1G_ID	0x4b30
-#define TC956XMAC_EHL_SGMII1G_ID	0x4b31
-#define TC956XMAC_TGL_SGMII1G_ID	0xa0ac
-#define TC956XMAC_GMAC5_ID		0x7102
-#define TC956XMAC_XGMAC3_10G	0x7203
-#define TC956XMAC_XGMAC3_2_5G	0x7207
-#define TC956XMAC_XGMAC3_2_5G_MDIO	0x7211
-
-#define TC956XMAC_DEVICE(vendor_id, dev_id, info)	{	\
-	PCI_VDEVICE(vendor_id, dev_id),			\
-	.driver_data = (kernel_ulong_t)&info		\
-	}
+#define TC956XMAC_DEVICE(vendor_id, dev_id, info) \
+	{ PCI_VDEVICE(vendor_id, dev_id),         \
+	  .driver_data = (kernel_ulong_t) & info }
 
 static const struct pci_device_id tc956xmac_id_table[] = {
 	TC956XMAC_DEVICE(TOSHIBA, DEVICE_ID, tc956xmac_xgmac3_pci_info),
@@ -4200,7 +3596,6 @@ static struct pci_driver tc956xmac_pci_driver = {
 		.owner		= THIS_MODULE,
 		.pm		= &tc956xmac_pm_ops,
 	},
-	.err_handler = &tc956x_err_handler
 };
 
 module_pci_driver(tc956xmac_pci_driver);
