@@ -14,7 +14,6 @@
 	https://bugzilla.stlinux.com/
 *******************************************************************************/
 
-#include "linux/workqueue_types.h"
 #include <linux/clk.h>
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
@@ -55,8 +54,6 @@
 #include "dwmac1000.h"
 #include "dwxgmac2.h"
 #include "hwif.h"
-
-static void stmmac_common_interrupt(struct stmmac_priv *priv);
 
 /* As long as the interface is active, we keep the timestamping counter enabled
  * with fine resolution and binary rollover. This avoid non-monotonic behavior
@@ -2977,14 +2974,10 @@ static void stmmac_set_dma_operation_mode(struct stmmac_priv *priv, u32 txmode,
 	int rxfifosz = priv->plat->rx_fifo_size;
 	int txfifosz = priv->plat->tx_fifo_size;
 
-	dev_dbg(priv->device, "plat rx %d  dma_cap rx %d  plat tx %d  dma_cap tx %d\n",
-		rxfifosz, priv->dma_cap.rx_fifo_size, txfifosz, priv->dma_cap.tx_fifo_size);
-
 	if (rxfifosz == 0)
 		rxfifosz = priv->dma_cap.rx_fifo_size;
 	if (txfifosz == 0)
 		txfifosz = priv->dma_cap.tx_fifo_size;
-
 
 	/* Adjust for real per queue fifo size */
 	rxfifosz /= rx_channels_count;
@@ -3657,6 +3650,7 @@ static int stmmac_hw_setup(struct net_device *dev)
 	for (chan = 0; chan < rx_cnt; chan++)
 		stmmac_enable_sph(priv, priv->ioaddr, sph_en, chan);
 
+
 	/* VLAN Tag Insertion */
 	if (priv->dma_cap.vlins)
 		stmmac_enable_vlan(priv, priv->hw, STMMAC_VLAN_INSERT);
@@ -4099,7 +4093,9 @@ static int __stmmac_open(struct net_device *dev,
 		goto init_error;
 	}
 
+#ifdef TC956X
 	tc956x_msi_init(priv, priv, dev);
+#endif
 
 	stmmac_setup_ptp(priv);
 
@@ -4111,11 +4107,16 @@ static int __stmmac_open(struct net_device *dev,
 	if (ret)
 		goto irq_error;
 
+
+#ifdef TC956X
 	tc956x_msi_intr_en(priv, priv, dev, true);
+#endif
 
 	stmmac_enable_all_queues(priv);
 	netif_tx_start_all_queues(priv->dev);
+#ifdef TC956X
 	tc956x_msi_intr_clr(priv, priv, dev, 0);
+#endif
 	stmmac_enable_all_dma_irq(priv);
 
 	return 0;
@@ -4179,7 +4180,10 @@ static void __stmmac_release(struct net_device *dev)
 	struct stmmac_priv *priv = netdev_priv(dev);
 	u32 chan;
 
+#ifdef TC956X
 	tc956x_msi_intr_en(priv, priv, dev, false);
+#endif
+
 
 	/* Stop and disconnect the PHY */
 	phylink_stop(priv->phylink);
@@ -6189,7 +6193,9 @@ static irqreturn_t stmmac_interrupt(int irq, void *dev_id)
 	struct net_device *dev = (struct net_device *)dev_id;
 	struct stmmac_priv *priv = netdev_priv(dev);
 
+#ifdef TC956X
 	tc956x_msi_intr_sts(priv, priv, dev);
+#endif
 
 	/* Check if adapter is up */
 	if (test_bit(STMMAC_DOWN, &priv->state))
@@ -6205,8 +6211,10 @@ static irqreturn_t stmmac_interrupt(int irq, void *dev_id)
 	/* To handle DMA interrupts */
 	stmmac_dma_interrupt(priv);
 
+#ifdef TC956X
 	tc956x_msi_intr_sts(priv, priv, dev);
 	tc956x_msi_intr_clr(priv, priv, dev, 0);
+#endif
 
 	return IRQ_HANDLED;
 }
@@ -7094,7 +7102,7 @@ int stmmac_xdp_open(struct net_device *dev)
 					      rx_q->queue_index);
 		}
 
-		//stmmac_enable_sph(priv, priv->ioaddr, sph_en, chan);
+		stmmac_enable_sph(priv, priv->ioaddr, sph_en, chan);
 	}
 
 	/* DMA TX Channel Configuration */

@@ -51,4 +51,4 @@ obj-$(CONFIG_DWMAC_LOONGSON)	+= dwmac-loongson.o
 obj-$(CONFIG_DWMAC_TOSHIBA)	+= dwmac-toshiba.o
 stmmac-pci-objs:= stmmac_pci.o
 
-ccflags-y += -DDEBUG
+ccflags-y += -DTC956X

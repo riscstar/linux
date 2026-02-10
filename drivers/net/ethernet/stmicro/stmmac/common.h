@@ -349,10 +349,6 @@ enum packets_types {
 	PACKET_DCBCPQ = 0x3, /* DCB Control Packets */
 	PACKET_UPQ = 0x4, /* Untagged Packets */
 	PACKET_MCBCQ = 0x5, /* Multicast & Broadcast Packets */
-#ifndef DISABLE_TC9563
-	PACKET_FPE_RESIDUE = 0x6, /* Frame Pre-emption residue packets */
-	PACKET_FILTER_FAIL = 0x7, /* Filter Fail packets */
-#endif // DISABLE_TC9563
 };
 
 /* Rx IPC status */
@@ -647,10 +643,9 @@ struct mac_device_info {
 	 */
 	spinlock_t irq_ctrl_lock;
 
-#ifndef DISABLE_TC9563
-        const struct tc956xmac_pma_ops *pma;
+#ifdef TC956X
         const struct tc956x_msi_ops *msi;
-#endif // DISABLE_TC9563
+#endif
 };
 
 struct stmmac_rx_routing {
@@ -677,9 +672,5 @@ void stmmac_dwmac4_get_mac_addr(void __iomem *ioaddr, unsigned char *addr,
 void stmmac_dwmac4_set_mac(void __iomem *ioaddr, bool enable);
 
 void dwmac_dma_flush_tx_fifo(void __iomem *ioaddr);
-
-#ifndef DISABLE_TC9563
-#define TC956X_HOST_PHYSICAL_ADRS_MASK (0x10) /* bit no 37: (1<<36) */
-#endif // DISABLE_TC9563
 
 #endif /* __COMMON_H__ */

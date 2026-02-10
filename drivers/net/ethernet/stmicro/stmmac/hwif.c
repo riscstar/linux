@@ -357,7 +357,10 @@ int stmmac_hwif_init(struct stmmac_priv *priv)
 		if (ret)
 			return ret;
 
-		//needs_setup = false;
+#ifndef TC956X
+		// This is part of the hack that allow us to insert the msi ops
+		needs_setup = false;
+#endif
 	}
 
 	spin_lock_init(&mac->irq_ctrl_lock);
