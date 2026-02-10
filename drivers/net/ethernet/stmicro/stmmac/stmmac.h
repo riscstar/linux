@@ -42,11 +42,9 @@ struct stmmac_resources {
 #ifndef DISABLE_TC9563
 	u32 sriov_enabled;
 	unsigned int port_num;
-	u8  device_num;
 	unsigned int port_interface; /* Kernel module parameter variable for interface */
 	uint16_t pci_bd; /* PCI bus and device ID of self */
 	unsigned int mdc_clk;
-	unsigned int c45_state;
 	unsigned int link_down_macrst;
 	uint16_t pci_bdf; /* PCI bus, device ID and Fun ID of self */
 	uint16_t probe_seq_no;
@@ -394,7 +392,6 @@ struct stmmac_priv {
 	struct devlink *devlink;
 
 #ifndef DISABLE_TC9563
-	s32 sriov_enabled;
 	void __iomem *xpcsaddr;
 	void __iomem *pmaaddr;
 	u32 port_num;

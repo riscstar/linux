@@ -142,7 +142,6 @@ struct stmmac_txq_cfg {
 #ifndef DISABLE_TC9563
 	u32 tso_en;
 	u8 traffic_class;
-	u32 size;
 #endif // DISABLE_TC9563
 };
 
@@ -342,7 +341,6 @@ struct plat_stmmacenet_data {
 	unsigned int flags;
 
 #ifndef DISABLE_TC9563
-	bool c45_needed;
 	struct tc956xmac_rx_parser_cfg rxp_cfg;
 	bool en_tx_lpi_clockgating;
 	struct stmmac_est *est;
@@ -354,11 +352,7 @@ struct plat_stmmacenet_data {
 	u32 port_interface; /* Kernel module parameter variable for interface */
 	bool phy_interrupt_mode; /* For Handling of PHY Operating mode */
 	bool pse;
-	int start_phy_addr;
 	bool gate_mask;
-	u16 link_down_macrst;
-	u16 mac_no_mdio_no_phy;
-	u8 device_num;
 	int clk_crs;
 	u8 mdc_clk;
 #endif // DISABLE_TC9563
