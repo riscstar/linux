@@ -2332,7 +2332,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	dev_dbg(&(pdev->dev), "BAR2 virtual address = %p\n", td->sram_addr);
 	dev_dbg(&(pdev->dev), "BAR4 virtual address = %p\n", td->sfr_addr);
 
-#if IS_ENABLED(CONFIG_MMIOTRACE)
+#if IS_ENABLED(CONFIG_TRACE_MMIO_ACCESS)
 	/*
 	 *  TODO: This is the filtering/tagging support for MMIO tracing.
 	 *
