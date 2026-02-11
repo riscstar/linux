@@ -1393,13 +1393,13 @@ static int tc956x_platform_of_parse(struct device *dev,
 	}
 
 	td->pinctrl = devm_pinctrl_get(dev);
-	if (IS_ERR_OR_NULL(td->pinctrl)) {
+	if (IS_ERR(td->pinctrl)) {
 		dev_err(dev, "Failed to get pinctrl handle\n");
 		goto err_pinctrl_get;
 	}
 
 	td->pinctrl_default = pinctrl_lookup_state(td->pinctrl, PINCTRL_STATE_DEFAULT);
-	if (IS_ERR_OR_NULL(td->pinctrl_default)) {
+	if (IS_ERR(td->pinctrl_default)) {
 		dev_err(dev, "Failed to look up '%s' pinctrl state\n", PINCTRL_STATE_DEFAULT);
 		goto err_pinctrl_lookup_state;
 	}
