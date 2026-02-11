@@ -182,9 +182,6 @@ struct tc956x_data {
 #define ENABLE_USXGMII_5G_INTERFACE		7 /* This value is passed to TSB AQR Sample driver as dev_flags, when this changed, AQR sample driver needs change */
 #define ENABLE_USXGMII_2_5G_INTERFACE	8
 
-#define TC956X_DISABLE_CHNL 0
-#define TC956X_ENABLE_CHNL 1
-
 #define MAX_CM3_TAMAP_ENTRIES		3
 
 struct tc956x_version {
@@ -1039,24 +1036,24 @@ static void tc956x_interrupt_en(struct stmmac_priv *priv, struct net_device *dev
 #if 0
 	// This table is copied from tc956xmac_main.c and is almost certainly
 	// wrong in some way (subtle or otherwise)
-	u32 tx_ch_in_use[8];
-	u32 rx_ch_in_use[8];
-	tx_ch_in_use[0] = TC956X_ENABLE_CHNL;
-	tx_ch_in_use[1] = TC956X_DISABLE_CHNL;
-	tx_ch_in_use[2] = TC956X_DISABLE_CHNL;
-	tx_ch_in_use[3] = TC956X_DISABLE_CHNL;
-	tx_ch_in_use[4] = TC956X_ENABLE_CHNL;
-	tx_ch_in_use[5] = TC956X_ENABLE_CHNL;
-	tx_ch_in_use[6] = TC956X_ENABLE_CHNL;
-	tx_ch_in_use[7] = TC956X_ENABLE_CHNL;
-	rx_ch_in_use[0] = TC956X_ENABLE_CHNL;
-	rx_ch_in_use[1] = TC956X_DISABLE_CHNL;
-	rx_ch_in_use[2] = TC956X_DISABLE_CHNL;
-	rx_ch_in_use[3] = TC956X_ENABLE_CHNL;
-	rx_ch_in_use[4] = TC956X_ENABLE_CHNL;
-	rx_ch_in_use[5] = TC956X_ENABLE_CHNL;
-	rx_ch_in_use[6] = TC956X_ENABLE_CHNL;
-	rx_ch_in_use[7] = TC956X_ENABLE_CHNL;
+	bool tx_ch_in_use[8];
+	bool rx_ch_in_use[8];
+	tx_ch_in_use[0] = true;
+	tx_ch_in_use[1] = false;
+	tx_ch_in_use[2] = false;
+	tx_ch_in_use[3] = false;
+	tx_ch_in_use[4] = true;
+	tx_ch_in_use[5] = true;
+	tx_ch_in_use[6] = true;
+	tx_ch_in_use[7] = true;
+	rx_ch_in_use[0] = true;
+	rx_ch_in_use[1] = false;
+	rx_ch_in_use[2] = false;
+	rx_ch_in_use[3] = true;
+	rx_ch_in_use[4] = true;
+	rx_ch_in_use[5] = true;
+	rx_ch_in_use[6] = true;
+	rx_ch_in_use[7] = true;
 #endif
 
 	if (en) {
@@ -1071,13 +1068,12 @@ static void tc956x_interrupt_en(struct stmmac_priv *priv, struct net_device *dev
 #if 0
 		u32 chan;
 		/* Disable MSI for Tx/Rx channels that is not enabled in the Function */
-		for (chan = 0; chan < priv->plat->tx_queues_to_use; chan++) {
-			if (tx_ch_in_use[chan] != TC956X_ENABLE_CHNL)
+		for (chan = 0; chan < priv->plat->tx_queues_to_use; chan++)
+			if (!tx_ch_in_use[chan])
 				mask_val |= (1 << (MSI_INT_TX_CH0 + chan));
-		}
 
 		for (chan = 0; chan < priv->plat->rx_queues_to_use; chan++) {
-			if (rx_ch_in_use[chan] != TC956X_ENABLE_CHNL)
+			if (!rx_ch_in_use[chan])
 				mask_val |= (1 << (MSI_INT_RX_CH0 + chan));
 		}
 		if (priv->dev->phydev != NULL) {
