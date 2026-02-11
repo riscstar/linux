@@ -577,18 +577,6 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 #define NFUNCEN7_GPIO_13	GENMASK(3, 0)
 #define NFUNCEN7_GPIO_13_SHIFT	(0)
 
-#define GPIO_00			(0)
-#define GPIO_01			(1)
-#define GPIO_02			(2)
-#define GPIO_03			(3)
-#define GPIO_04			(4)
-#define GPIO_05			(5)
-#define GPIO_06			(6)
-#define GPIO_10			(10)
-#define GPIO_11			(11)
-#define GPIO_12			(12)
-#define GPIO_13			(13)
-
 #define TC956X_SSREG_BRREG_REG_BASE		(0x00024000U)
 
 #define TC956X_GLUE_LOGIC_BASE_OFST		(0x0002C000U)
@@ -636,67 +624,67 @@ static int tc956x_GPIO_OutputConfigPin(struct tc956x_data *td, u8 out_value)
 
 	/* Only GPIO0- GPIO06, GPI010-GPIO12 are allowed */
 	switch (gpio_pin) {
-	case GPIO_00:
+	case 0:
 		val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
 		val &= ~NFUNCEN4_GPIO_00;
 		val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_00_SHIFT);
 		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 		break;
-	case GPIO_01:
+	case 1:
 		val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
 		val &= ~NFUNCEN4_GPIO_01;
 		val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_01_SHIFT);
 		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 		break;
-	case GPIO_02:
+	case 2:
 		val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
 		val &= ~NFUNCEN4_GPIO_02;
 		val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_02_SHIFT);
 		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 		break;
-	case GPIO_03:
+	case 3:
 		val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
 		val &= ~NFUNCEN4_GPIO_03;
 		val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_03_SHIFT);
 		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 		break;
-	case GPIO_04:
+	case 4:
 		val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
 		val &= ~NFUNCEN4_GPIO_04;
 		val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_04_SHIFT);
 		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 		break;
-	case GPIO_05:
+	case 5:
 		val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
 		val &= ~NFUNCEN4_GPIO_05;
 		val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_05_SHIFT);
 		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 		break;
-	case GPIO_06:
+	case 6:
 		val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
 		val &= ~NFUNCEN4_GPIO_06;
 		val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_06_SHIFT);
 		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 		break;
-	case GPIO_10:
+	case 10:
 		val = readl(td->sfr_addr + NFUNCEN5_OFFSET);
 		val &= ~NFUNCEN5_GPIO_10;
 		val |= (NFUNCEN_FUNC0 << NFUNCEN5_GPIO_10_SHIFT);
 		writel(val, td->sfr_addr + NFUNCEN5_OFFSET);
 		break;
-	case GPIO_11:
+	case 11:
 		val = readl(td->sfr_addr + NFUNCEN5_OFFSET);
 		val &= ~NFUNCEN5_GPIO_11;
 		val |= (NFUNCEN_FUNC0 << NFUNCEN5_GPIO_11_SHIFT);
 		writel(val, td->sfr_addr + NFUNCEN5_OFFSET);
 		break;
-	case GPIO_12:
+	case 12:
 		val = readl(td->sfr_addr + NFUNCEN6_OFFSET);
 		val &= ~NFUNCEN6_GPIO_12;
 		val |= (NFUNCEN_FUNC0 << NFUNCEN6_GPIO_12_SHIFT);
 		writel(val, td->sfr_addr + NFUNCEN6_OFFSET);
 		break;
-	case GPIO_13:
+	case 13:
 		val = readl(td->sfr_addr + NFUNCEN7_OFFSET);
 		val &= ~NFUNCEN7_GPIO_13;
 		val |= (NFUNCEN_FUNC2 << NFUNCEN7_GPIO_13_SHIFT);
@@ -758,7 +746,7 @@ static int tc956x_gpio_restore_configuration(struct stmmac_priv *priv)
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	u32 config, val, gpio_pin, out_value;
 
-	for (gpio_pin = 0; gpio_pin <= GPIO_13; gpio_pin++) {
+	for (gpio_pin = 0; gpio_pin <= 13; gpio_pin++) {
 
 		/* Restore only the GPIOs which were configured/saved */
 		if (!(td->saved_gpio_config[gpio_pin].config))
@@ -769,67 +757,67 @@ static int tc956x_gpio_restore_configuration(struct stmmac_priv *priv)
 
 		/* Only GPIO0- GPIO06, GPI010-GPIO12 are allowed */
 		switch (gpio_pin) {
-		case GPIO_00:
+		case 0:
 			val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
 			val &= ~NFUNCEN4_GPIO_00;
 			val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_00_SHIFT);
 			writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 			break;
-		case GPIO_01:
+		case 1:
 			val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
 			val &= ~NFUNCEN4_GPIO_01;
 			val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_01_SHIFT);
 			writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 			break;
-		case GPIO_02:
+		case 2:
 			val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
 			val &= ~NFUNCEN4_GPIO_02;
 			val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_02_SHIFT);
 			writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 			break;
-		case GPIO_03:
+		case 3:
 			val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
 			val &= ~NFUNCEN4_GPIO_03;
 			val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_03_SHIFT);
 			writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 			break;
-		case GPIO_04:
+		case 4:
 			val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
 			val &= ~NFUNCEN4_GPIO_04;
 			val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_04_SHIFT);
 			writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 			break;
-		case GPIO_05:
+		case 5:
 			val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
 			val &= ~NFUNCEN4_GPIO_05;
 			val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_05_SHIFT);
 			writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 			break;
-		case GPIO_06:
+		case 6:
 			val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
 			val &= ~NFUNCEN4_GPIO_06;
 			val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_06_SHIFT);
 			writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 			break;
-		case GPIO_10:
+		case 10:
 			val = readl(td->sfr_addr + NFUNCEN5_OFFSET);
 			val &= ~NFUNCEN5_GPIO_10;
 			val |= (NFUNCEN_FUNC0 << NFUNCEN5_GPIO_10_SHIFT);
 			writel(val, td->sfr_addr + NFUNCEN5_OFFSET);
 			break;
-		case GPIO_11:
+		case 11:
 			val = readl(td->sfr_addr + NFUNCEN5_OFFSET);
 			val &= ~NFUNCEN5_GPIO_11;
 			val |= (NFUNCEN_FUNC0 << NFUNCEN5_GPIO_11_SHIFT);
 			writel(val, td->sfr_addr + NFUNCEN5_OFFSET);
 			break;
-		case GPIO_12:
+		case 12:
 			val = readl(td->sfr_addr + NFUNCEN6_OFFSET);
 			val &= ~NFUNCEN6_GPIO_12;
 			val |= (NFUNCEN_FUNC0 << NFUNCEN6_GPIO_12_SHIFT);
 			writel(val, td->sfr_addr + NFUNCEN6_OFFSET);
 			break;
-		case GPIO_13:
+		case 13:
 			val = readl(td->sfr_addr + NFUNCEN7_OFFSET);
 			val &= ~NFUNCEN7_GPIO_13;
 			val |= (NFUNCEN_FUNC2 << NFUNCEN7_GPIO_13_SHIFT);
