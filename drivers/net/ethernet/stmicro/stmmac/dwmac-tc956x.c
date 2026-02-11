@@ -588,7 +588,6 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 #define GPIO_11			(11)
 #define GPIO_12			(12)
 #define GPIO_13			(13)
-#define GPIO_32			(32)
 
 #define TC956X_SSREG_BRREG_REG_BASE		(0x00024000U)
 
@@ -711,7 +710,8 @@ static int tc956x_GPIO_OutputConfigPin(struct tc956x_data *td, u8 out_value)
 	td->saved_gpio_config[gpio_pin].config = 1;
 
 	/* Write data to GPIO pin */
-	if (gpio_pin < GPIO_32) {
+	if (gpio_pin < 32) {
+		/* First bank */
 		config = 1 << gpio_pin;
 		val = readl(td->sfr_addr + GPIOO0_OFFSET);
 		val &= ~config;
@@ -720,7 +720,8 @@ static int tc956x_GPIO_OutputConfigPin(struct tc956x_data *td, u8 out_value)
 
 		writel(val, td->sfr_addr + GPIOO0_OFFSET);
 	}  else {
-		config = 1 << (gpio_pin - GPIO_32);
+		/* Second bank */
+		config = 1 << (gpio_pin - 32);
 		val = readl(td->sfr_addr + GPIOO1_OFFSET);
 		val &= ~config;
 		if (out_value)
@@ -732,12 +733,14 @@ static int tc956x_GPIO_OutputConfigPin(struct tc956x_data *td, u8 out_value)
 	td->saved_gpio_config[gpio_pin].out_val = out_value;
 
 	/* Configure the GPIO pin in output direction */
-	if (gpio_pin < GPIO_32) {
+	if (gpio_pin < 32) {
+		/* First bank */
 		config = ~(1 << gpio_pin);
 		val = readl(td->sfr_addr + GPIOE0_OFFSET);
 		writel(val & config, td->sfr_addr + GPIOE0_OFFSET);
 	} else {
-		config = ~(1 << (gpio_pin - GPIO_32));
+		/* Second bank */
+		config = ~(1 << (gpio_pin - 32));
 		val = readl(td->sfr_addr + GPIOE1_OFFSET);
 		writel(val & config, td->sfr_addr + GPIOE1_OFFSET);
 	}
@@ -840,7 +843,8 @@ static int tc956x_gpio_restore_configuration(struct stmmac_priv *priv)
 		out_value = td->saved_gpio_config[gpio_pin].out_val;
 
 		/* Write data to GPIO pin */
-		if (gpio_pin < GPIO_32) {
+		if (gpio_pin < 32) {
+			/* First bank */
 			config = 1 << gpio_pin;
 			val = readl(td->sfr_addr + GPIOO0_OFFSET);
 			val &= ~config;
@@ -849,7 +853,8 @@ static int tc956x_gpio_restore_configuration(struct stmmac_priv *priv)
 
 			writel(val, td->sfr_addr + GPIOO0_OFFSET);
 		}  else {
-			config = 1 << (gpio_pin - GPIO_32);
+			/* Second bank */
+			config = 1 << (gpio_pin - 32);
 			val = readl(td->sfr_addr + GPIOO1_OFFSET);
 			val &= ~config;
 			if (out_value)
@@ -859,12 +864,14 @@ static int tc956x_gpio_restore_configuration(struct stmmac_priv *priv)
 		}
 
 		/* Configure the GPIO pin in output direction */
-		if (gpio_pin < GPIO_32) {
+		if (gpio_pin < 32) {
+			/* First bank */
 			config = ~(1 << gpio_pin);
 			val = readl(td->sfr_addr + GPIOE0_OFFSET);
-		writel(val & config, td->sfr_addr + GPIOE0_OFFSET);
+			writel(val & config, td->sfr_addr + GPIOE0_OFFSET);
 		} else {
-			config = ~(1 << (gpio_pin - GPIO_32));
+			/* Second bank */
+			config = ~(1 << (gpio_pin - 32));
 			val = readl(td->sfr_addr + GPIOE1_OFFSET);
 			writel(val & config, td->sfr_addr + GPIOE1_OFFSET);
 		}
