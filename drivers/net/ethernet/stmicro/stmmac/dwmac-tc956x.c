@@ -54,7 +54,7 @@ struct tc956x_gpio_config {
  */
 struct tc956x_data {
 	/** @dev: Device pointer */
-	struct device *device;
+	struct device *dev;
 
 	/** @dev: Back-pointer to our plat structure */
 	struct plat_stmmacenet_data *plat;
@@ -704,7 +704,7 @@ static int tc956x_GPIO_OutputConfigPin(struct tc956x_data *td, u8 out_value)
 		writel(val, td->sfr_addr + NFUNCEN7_OFFSET);
 		break;
 	default:
-		dev_err(td->device, "Invalid GPIO pin - %d\n", gpio_pin);
+		dev_err(td->dev, "Invalid GPIO pin - %d\n", gpio_pin);
 		return -EPERM;
 	}
 
@@ -1116,10 +1116,10 @@ static void tc956x_xpcs_ctrl_ane(struct tc956x_data *td, bool ane)
 	reg_value = tc956x_xpcs_read(xpcsaddr, XGMAC_SR_MII_CTRL);
 	if (ane) {
 		reg_value |= XGMAC_AN_37_ENABLE;
-		dev_dbg(td->device, "%s Enable AN", __func__);
+		dev_dbg(td->dev, "%s Enable AN", __func__);
 	} else {
 		reg_value &= (~XGMAC_AN_37_ENABLE);
-		dev_dbg(td->device, "%s Disable AN", __func__);
+		dev_dbg(td->dev, "%s Disable AN", __func__);
 	}
 
 	tc956x_xpcs_write(xpcsaddr, XGMAC_SR_MII_CTRL, reg_value);
@@ -1321,19 +1321,19 @@ static int tc956x_phy_power_on(struct tc956x_data *td)
 
 	ret = regulator_enable(td->phy_supply);
 	if (ret) {
-		dev_err(td->device, "Failed to enable PHY supply with error %d\n", ret);
+		dev_err(td->dev, "Failed to enable PHY supply with error %d\n", ret);
 		return ret;
 	}
 
 	ret = tc956x_deassert_phy_reset(td);
 	if (ret) {
-		dev_err(td->device, "Failed to deassert QPS615 GPIO0%d\n",
+		dev_err(td->dev, "Failed to deassert QPS615 GPIO0%d\n",
 			td->phy_reset_gpio);
 		if (regulator_disable(td->phy_supply))
-			dev_err(td->device, "Failed to disable regulator\n");
+			dev_err(td->dev, "Failed to disable regulator\n");
 	}
 
-	dev_dbg(td->device,"QPS615 PHY out of reset delay %d", td->phy_reset_delay);
+	dev_dbg(td->dev,"QPS615 PHY out of reset delay %d", td->phy_reset_delay);
 	msleep(td->phy_reset_delay);
 
 	return ret;
@@ -1345,16 +1345,16 @@ static int tc956x_phy_power_off(struct tc956x_data *td)
 
 	ret = tc956x_assert_phy_reset(td);
 	if (ret) {
-		dev_err(td->device, "Failed to assert QPS615 GPIO%02d\n",
+		dev_err(td->dev, "Failed to assert QPS615 GPIO%02d\n",
 			td->phy_reset_gpio);
 			return ret;
 	}
 
 	ret = regulator_disable(td->phy_supply);
 	if (ret) {
-		dev_err(td->device, "Failed to disable PHY supply with error %d\n", ret);
+		dev_err(td->dev, "Failed to disable PHY supply with error %d\n", ret);
 		if (tc956x_deassert_phy_reset(td))
-			dev_err(td->device, "Failed to deassert PHY\n");
+			dev_err(td->dev, "Failed to deassert PHY\n");
 	}
 
 	return ret;
@@ -1416,32 +1416,32 @@ static int tc956x_platform_probe(struct tc956x_data *td,
 {
 	int ret = 0;
 
-	dev_dbg(td->device, "QPS615 platform probing has started\n");
+	dev_dbg(td->dev, "QPS615 platform probing has started\n");
 
-	ret = tc956x_platform_of_parse(td->device, td);
+	ret = tc956x_platform_of_parse(td->dev, td);
 	if (ret)
 		return ret;
 
 	ret = tc956x_assert_phy_reset(td);
 	if (ret) {
-		dev_err(td->device, "Failed to assert the PHY reset with error %d\n", ret);
+		dev_err(td->dev, "Failed to assert the PHY reset with error %d\n", ret);
 		goto err_assert_phy_rst;
 	}
 
 	ret = pinctrl_select_state(td->pinctrl, td->pinctrl_default);
 	if (ret) {
-		dev_err(td->device, "Failed to select the 'default' pincrl state\n");
+		dev_err(td->dev, "Failed to select the 'default' pincrl state\n");
 		goto err_pinctrl_select_state;
 	}
 
 	ret = tc956x_phy_power_on(td);
 	if (ret) {
-		dev_err(td->device, "Failed to power on PHY with error %d\n", ret);
+		dev_err(td->dev, "Failed to power on PHY with error %d\n", ret);
 		goto err_power_on;
 	}
 
 	res->wol_irq = td->wol_irq;
-	dev_dbg(td->device, "QPS615 platform probing has finished successfully\n");
+	dev_dbg(td->dev, "QPS615 platform probing has finished successfully\n");
 
 	return 0;
 
@@ -1456,11 +1456,11 @@ static int tc956x_platform_remove(struct tc956x_data *td)
 {
 	int ret = 0;
 
-	dev_dbg(td->device, "Freeing QPS615 platform resources\n");
+	dev_dbg(td->dev, "Freeing QPS615 platform resources\n");
 
 	ret = tc956x_phy_power_off(td);
 	if (ret)
-		dev_err(td->device, "Failed to power off PHY with error %d\n", ret);
+		dev_err(td->dev, "Failed to power off PHY with error %d\n", ret);
 
 	devm_regulator_put(td->phy_supply);
 
@@ -2354,7 +2354,7 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 							 NEMAC1CTL_OFFSET),
 				 val, val & NEMACCTL_INIT_DONE, 50, 1000000);
 	if (ret < 0)
-		dev_err(td->device, "PMA/XPCS failed to come out of reset\n");
+		dev_err(td->dev, "PMA/XPCS failed to come out of reset\n");
 
 	if ((plat->phy_interface == PHY_INTERFACE_MODE_SGMII) &&
 	    (speed == SPEED_2500)) {
@@ -2370,7 +2370,7 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 
 	ret = tc956x_xpcs_init(td->plat);
 	if (ret < 0)
-		dev_err(td->device, "XPCS initialization error\n");
+		dev_err(td->dev, "XPCS initialization error\n");
 
 	if (td->port_interface == ENABLE_USXGMII_INTERFACE) {
 		reg_value = tc956x_xpcs_read(xpcsaddr, XGMAC_VR_XS_PCS_KR_CTRL);
@@ -2520,7 +2520,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	td->port_num = readl(td->bridge_cfg_addr + RSCMNG_ID_REG); /* Resource Manager ID */
 	td->port_num &= RSCMNG_PFN;
 
-	td->device = &pdev->dev;
+	td->dev = &pdev->dev;
 
 	res.addr = td->sfr_addr +
 		   (td->port_num == 0 ? MAC0_BASE_OFFSET : MAC1_BASE_OFFSET);
