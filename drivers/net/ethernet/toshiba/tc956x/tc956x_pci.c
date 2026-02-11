@@ -3020,11 +3020,32 @@ static int tc956xmac_pci_probe(struct pci_dev *pdev,
 	NDBGPR_L1(&(pdev->dev), "BAR2 virtual address = %p\n", res.tc956x_SRAM_pci_base_addr);
 	NDBGPR_L1(&(pdev->dev), "BAR4 virtual address = %p\n", res.tc956x_SFR_pci_base_addr);
 
+#if IS_ENABLED(CONFIG_TRACE_MMIO_ACCESS)
+	log_mmio_register_range(res.tc956x_BRIDGE_CFG_pci_base_addr, pci_resource_len(pdev, 0), "bridge_cfg");
+	//log_mmio_register_range(res.tc956x_SRAM_pci_base_addr, pci_resource_len(pdev, 2), "sram");
+	log_mmio_register_range(res.tc956x_SFR_pci_base_addr, pci_resource_len(pdev, 4), "sfr");
+#endif
+
 	res.addr = res.tc956x_SFR_pci_base_addr;
 
 #ifdef TC956X
 	res.port_num = readl(res.tc956x_BRIDGE_CFG_pci_base_addr + RSCMNG_ID_REG); /* Resource Manager ID */
 	res.port_num &= RSCMNG_PFN;
+#endif
+
+#if 0
+	// Don't log simple MDIO peek/pokes
+#if IS_ENABLED(CONFIG_TRACE_MMIO_ACCESS)
+	if (res.port_num == RM_PF0_ID) {
+		log_mmio_register_block(res.addr + 0x040200);
+		log_mmio_register_block(res.addr + 0x040204);
+		log_mmio_register_block(res.addr + 0x040220);
+	} else {
+		log_mmio_register_block(res.addr + 0x048200);
+		log_mmio_register_block(res.addr + 0x048204);
+		log_mmio_register_block(res.addr + 0x048220);
+	}
+#endif
 #endif
 
 #ifndef TC956X_SRIOV_VF
