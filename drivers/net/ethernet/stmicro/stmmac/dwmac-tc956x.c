@@ -39,10 +39,6 @@
 // * TC956x has support for phy interrupts. Should that be re-enabled?
 //
 
-struct tc956x_gpio_config {
-	u8 out_val; /* 0 or 1 */
-};
-
 /**
  * Used to store toshiba-specific context.
  *
@@ -69,9 +65,6 @@ struct tc956x_data {
 
 	/** @port_num: Indicates which eMAC is assigned to this driver */
 	int port_num;
-
-	/** @saved_gpio_config: Either GPIO00 or GPIO01 is used */
-	struct tc956x_gpio_config saved_gpio_config;
 
 	/**
 	 * @is_sgmii_2p5g: Controls XPCS AN enablement
@@ -109,6 +102,7 @@ struct tc956x_data {
 	struct regulator *phy_supply;
 	u32 phy_reset_gpio;
 	u32 phy_reset_delay;
+	u32 saved_phy_reset_value;
 	int wol_irq;
 };
 
@@ -643,7 +637,7 @@ static int tc956x_GPIO_OutputConfigPin(struct tc956x_data *td, u8 out_value)
 
 	writel(val, td->sfr_addr + GPIOO0_OFFSET);
 
-	td->saved_gpio_config.out_val = out_value;
+	td->saved_phy_reset_value = out_value;
 
 	/* Configure the GPIO pin in output direction */
 	config = ~(1 << gpio_pin);
@@ -665,7 +659,7 @@ static int tc956x_gpio_restore_configuration(struct stmmac_priv *priv)
 	u32 config, val, out_value;
 
 	dev_dbg(priv->device, "%s : Restoring GPIO configuration for pin: %d, val: %d",
-			__func__, gpio_pin, td->saved_gpio_config.out_val);
+			__func__, gpio_pin, td->saved_phy_reset_value);
 
 	/* Only GPIO00 and GPIO01 are ever used */
 	if (gpio_pin) {
@@ -680,7 +674,7 @@ static int tc956x_gpio_restore_configuration(struct stmmac_priv *priv)
 		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 	}
 
-	out_value = td->saved_gpio_config.out_val;
+	out_value = td->saved_phy_reset_value;
 
 	/* Write data to GPIO pin */
 	config = 1 << gpio_pin;
