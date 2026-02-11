@@ -71,8 +71,8 @@ struct tc956x_data {
 	/** @port_num: Indicates which eMAC is assigned to this driver */
 	int port_num;
 
-	/** @saved_gpio_config: Only GPIO00 and GPIO01 are allowed */
-	struct tc956x_gpio_config saved_gpio_config[2];
+	/** @saved_gpio_config: Either GPIO00 or GPIO01 is used */
+	struct tc956x_gpio_config saved_gpio_config;
 
 	/**
 	 * @is_sgmii_2p5g: Controls XPCS AN enablement
@@ -635,7 +635,7 @@ static int tc956x_GPIO_OutputConfigPin(struct tc956x_data *td, u8 out_value)
 		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 	}
 
-	td->saved_gpio_config[gpio_pin].config = 1;
+	td->saved_gpio_config.config = 1;
 
 	/* Write data to GPIO pin */
 	config = 1 << gpio_pin;
@@ -646,7 +646,7 @@ static int tc956x_GPIO_OutputConfigPin(struct tc956x_data *td, u8 out_value)
 
 	writel(val, td->sfr_addr + GPIOO0_OFFSET);
 
-	td->saved_gpio_config[gpio_pin].out_val = out_value;
+	td->saved_gpio_config.out_val = out_value;
 
 	/* Configure the GPIO pin in output direction */
 	config = ~(1 << gpio_pin);
@@ -664,46 +664,45 @@ static int tc956x_GPIO_OutputConfigPin(struct tc956x_data *td, u8 out_value)
 static int tc956x_gpio_restore_configuration(struct stmmac_priv *priv)
 {
 	struct tc956x_data *td = priv->plat->bsp_priv;
-	u32 config, val, gpio_pin, out_value;
+	u32 gpio_pin = td->phy_reset_gpio;
+	u32 config, val, out_value;
 
-	for (gpio_pin = 0; gpio_pin < ARRAY_SIZE(td->saved_gpio_config); gpio_pin++) {
+	/* Restore only the GPIOs which were configured/saved */
+	if (!(td->saved_gpio_config.config))
+		continue;
 
-		/* Restore only the GPIOs which were configured/saved */
-		if (!(td->saved_gpio_config[gpio_pin].config))
-			continue;
+	dev_dbg(priv->device, "%s : Restoring GPIO configuration for pin: %d, val: %d",
+			__func__, gpio_pin, td->saved_gpio_config.out_val);
 
-		dev_dbg(priv->device, "%s : Restoring GPIO configuration for pin: %d, val: %d",
-				__func__, gpio_pin, td->saved_gpio_config[gpio_pin].out_val);
-
-		/* Only GPIO00 and GPIO01 are ever used */
-		if (gpio_pin) {
-			val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
-			val &= ~NFUNCEN4_GPIO_01;
-			val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_01_SHIFT);
-			writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
-		} else {
-			val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
-			val &= ~NFUNCEN4_GPIO_00;
-			val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_00_SHIFT);
-			writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
-		}
-
-		out_value = td->saved_gpio_config[gpio_pin].out_val;
-
-		/* Write data to GPIO pin */
-		config = 1 << gpio_pin;
-		val = readl(td->sfr_addr + GPIOO0_OFFSET);
-		val &= ~config;
-		if (out_value)
-			val |= config;
-
-		writel(val, td->sfr_addr + GPIOO0_OFFSET);
-
-		/* Configure the GPIO pin in output direction */
-		config = ~(1 << gpio_pin);
-		val = readl(td->sfr_addr + GPIOE0_OFFSET);
-		writel(val & config, td->sfr_addr + GPIOE0_OFFSET);
+	/* Only GPIO00 and GPIO01 are ever used */
+	if (gpio_pin) {
+		val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
+		val &= ~NFUNCEN4_GPIO_01;
+		val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_01_SHIFT);
+		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
+	} else {
+		val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
+		val &= ~NFUNCEN4_GPIO_00;
+		val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_00_SHIFT);
+		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 	}
+
+	out_value = td->saved_gpio_config.out_val;
+
+	/* Write data to GPIO pin */
+	config = 1 << gpio_pin;
+	val = readl(td->sfr_addr + GPIOO0_OFFSET);
+	val &= ~config;
+	if (out_value)
+		val |= config;
+
+	writel(val, td->sfr_addr + GPIOO0_OFFSET);
+
+	/* Configure the GPIO pin in output direction */
+	config = ~(1 << gpio_pin);
+	val = readl(td->sfr_addr + GPIOE0_OFFSET);
+	writel(val & config, td->sfr_addr + GPIOE0_OFFSET);
+
 	return 0;
 }
 
