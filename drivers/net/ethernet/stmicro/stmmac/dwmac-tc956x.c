@@ -1360,11 +1360,13 @@ static int tc956x_phy_power_off(struct tc956x_data *td)
 	return ret;
 }
 
-static int tc956x_platform_of_parse(struct device *dev, struct tc956x_data *td)
+static int tc956x_platform_of_parse(struct tc956x_data *td)
 {
-	struct device_node *np = dev_of_node(dev);
+	struct device *dev = td->dev;
+	struct device_node *np;
 	int ret;
 
+	np = dev_of_node(dev);
 	if (!np)
 		return -EINVAL;
 
@@ -1418,7 +1420,7 @@ static int tc956x_platform_probe(struct tc956x_data *td,
 
 	dev_dbg(td->dev, "QPS615 platform probing has started\n");
 
-	ret = tc956x_platform_of_parse(td->dev, td);
+	ret = tc956x_platform_of_parse(td);
 	if (ret)
 		return ret;
 
