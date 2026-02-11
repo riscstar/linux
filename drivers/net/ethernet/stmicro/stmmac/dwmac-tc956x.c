@@ -1036,6 +1036,7 @@ static void tc956x_interrupt_en(struct stmmac_priv *priv, struct net_device *dev
 	u8 pf_no = td->port_num;
 	u8 vf_no = 0;
 
+#if 0
 	// This table is copied from tc956xmac_main.c and is almost certainly
 	// wrong in some way (subtle or otherwise)
 	u32 tx_ch_in_use[8];
@@ -1056,6 +1057,7 @@ static void tc956x_interrupt_en(struct stmmac_priv *priv, struct net_device *dev
 	rx_ch_in_use[5] = TC956X_ENABLE_CHNL;
 	rx_ch_in_use[6] = TC956X_ENABLE_CHNL;
 	rx_ch_in_use[7] = TC956X_ENABLE_CHNL;
+#endif
 
 	if (en) {
 		/*
@@ -2237,9 +2239,9 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	u32 val;
 	/* use signal from EMSPHY */
 	uint8_t SgmSigPol = 0;
-	int ret, reg;
 	u32 interface;
 	u32 mdc_clk;
+	int ret;
 
 	u32 pcie_mode; /* Read Setting A/B */
 	uint16_t sh_mem_offset;
@@ -2359,7 +2361,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 	// NCID_OFFSET gives the revision ID (and early revisions are limited
 	// to 2.5G)
-	reg = readl(td->sfr_addr + NCID_OFFSET);
 	pr_debug("NCID Register value: %x\n", readl(td->sfr_addr + NCID_OFFSET));
 
 	if (td->port_num == RM_PF0_ID) {
