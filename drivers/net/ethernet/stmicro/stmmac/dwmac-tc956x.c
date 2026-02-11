@@ -109,7 +109,7 @@ struct tc956x_data {
 	struct pinctrl_state *pinctrl_default;
 	struct regulator *phy_supply;
 	u32 phy_reset_gpio;
-	u32 phy_rst_delay_us;
+	u32 phy_reset_delay;
 	int wol_irq;
 };
 
@@ -1333,8 +1333,8 @@ static int tc956x_phy_power_on(struct tc956x_data *td)
 			dev_err(td->device, "Failed to disable regulator\n");
 	}
 
-	dev_dbg(td->device,"QPS615 PHY out of reset delay %d", td->phy_rst_delay_us);
-	usleep_range(td->phy_rst_delay_us, td->phy_rst_delay_us);
+	dev_dbg(td->device,"QPS615 PHY out of reset delay %d", td->phy_reset_delay);
+	msleep(td->phy_reset_delay);
 
 	return ret;
 }
@@ -1369,7 +1369,8 @@ static int tc956x_platform_of_parse(struct device *dev,
 		return -EINVAL;
 	}
 
-	if (of_property_read_u32(dev->of_node, "qcom,phy-rst-delay-us", &td->phy_rst_delay_us)) {
+	if (of_property_read_u32(dev->of_node, "qcom,phy-reset-delay",
+				&td->phy_reset_delay)) {
 		dev_err(dev, "Failed to get PHY reset delay time\n");
 			return -EINVAL;
 	}
