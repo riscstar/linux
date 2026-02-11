@@ -1419,10 +1419,8 @@ static int tc956x_platform_probe(struct tc956x_data *td,
 	dev_dbg(td->device, "QPS615 platform probing has started\n");
 
 	ret = tc956x_platform_of_parse(td->device, td);
-	if (ret) {
-		dev_err(td->device, "Failed to parse platform device tree\n");
-		goto err_parse_properties;
-	}
+	if (ret)
+		return ret;
 
 	ret = tc956x_assert_phy_reset(td);
 	if (ret) {
@@ -1451,7 +1449,6 @@ err_power_on:
 	irq_set_irq_wake(td->wol_irq, 0);
 err_pinctrl_select_state:
 err_assert_phy_rst:
-err_parse_properties:
 	return -EINVAL;
 }
 
