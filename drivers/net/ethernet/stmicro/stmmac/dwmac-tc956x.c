@@ -2444,7 +2444,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		goto err_out_enb_failed;
 	}
 
-	td = devm_kzalloc(&pdev->dev, sizeof(*plat), GFP_KERNEL);
+	td = devm_kzalloc(&pdev->dev, sizeof(*td), GFP_KERNEL);
 	plat->bsp_priv = td;
 	td->plat = plat;
 
