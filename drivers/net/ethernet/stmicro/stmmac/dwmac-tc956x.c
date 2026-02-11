@@ -629,12 +629,12 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 /**
  *  tc956x_GPIO_OutputConfigPin - to configure GPIO as output and write the value
  *  @priv: driver private structure
- *  @gpio_pin: GPIO pin number
  *  @out_value : value to write to the GPIO pin. Can be 0 or 1
  *  @remarks : Only GPIO0- GPIO06, GPI010-GPIO12 are allowed
  */
-static int tc956x_GPIO_OutputConfigPin(struct tc956x_data *td, u32 gpio_pin, u8 out_value)
+static int tc956x_GPIO_OutputConfigPin(struct tc956x_data *td, u8 out_value)
 {
+	u32 gpio_pin = td->phy_rst_gpio;
 	u32 config, val;
 
 	/* Only GPIO0- GPIO06, GPI010-GPIO12 are allowed */
@@ -1309,12 +1309,12 @@ const struct tc956x_msi_ops tc956x_msigen_ops = {
 
 static int tc956x_assert_phy_reset(struct tc956x_data *td)
 {
-	return tc956x_GPIO_OutputConfigPin(td, td->phy_rst_gpio, 0);
+	return tc956x_GPIO_OutputConfigPin(td, 0);
 }
 
 static int tc956x_deassert_phy_reset(struct tc956x_data *td)
 {
-	return tc956x_GPIO_OutputConfigPin(td, td->phy_rst_gpio, 1);
+	return tc956x_GPIO_OutputConfigPin(td, 1);
 }
 
 static int tc956x_phy_power_on(struct tc956x_data *td)
