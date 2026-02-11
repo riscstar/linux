@@ -111,8 +111,6 @@ struct tc956x_data {
 	u32 phy_rst_gpio;
 	u32 phy_rst_delay_us;
 	int wol_irq;
-	bool has_always_on_supplies;
-	struct gpio_desc *phy_rst_gpio_som;
 };
 
 /* XXX TC9564? Also, this is a physical function; virtual is 0x0221 */
@@ -1321,21 +1319,18 @@ static int tc956x_phy_power_on(struct tc956x_data *td)
 {
 	int ret = 0;
 
-	if(!td->has_always_on_supplies) {
-		ret = regulator_enable(td->phy_supply);
-		if (ret) {
-			dev_err(td->device, "Failed to enable PHY supply with error %d\n", ret);
-			return ret;
-		}
+	ret = regulator_enable(td->phy_supply);
+	if (ret) {
+		dev_err(td->device, "Failed to enable PHY supply with error %d\n", ret);
+		return ret;
+	}
 
-		ret = tc956x_deassert_phy_reset(td);
-		if (ret) {
-			dev_err(td->device, "Failed to deassert QPS615 GPIO0%d\n", td->phy_rst_gpio);
-			if (regulator_disable(td->phy_supply))
-				dev_err(td->device, "Failed to disable regulator\n");
-		}
-	} else
-		gpiod_set_value(td->phy_rst_gpio_som, 1);
+	ret = tc956x_deassert_phy_reset(td);
+	if (ret) {
+		dev_err(td->device, "Failed to deassert QPS615 GPIO0%d\n", td->phy_rst_gpio);
+		if (regulator_disable(td->phy_supply))
+			dev_err(td->device, "Failed to disable regulator\n");
+	}
 
 	dev_dbg(td->device,"QPS615 PHY out of reset delay %d", td->phy_rst_delay_us);
 	usleep_range(td->phy_rst_delay_us, td->phy_rst_delay_us);
@@ -1347,21 +1342,18 @@ static int tc956x_phy_power_off(struct tc956x_data *td)
 {
 	int ret = 0;
 
-	if(!td->has_always_on_supplies) {
-		ret = tc956x_assert_phy_reset(td);
-		if (ret) {
-			dev_err(td->device, "Failed to assert QPS615 GPIO%02d\n", td->phy_rst_gpio);
-				return ret;
-		}
+	ret = tc956x_assert_phy_reset(td);
+	if (ret) {
+		dev_err(td->device, "Failed to assert QPS615 GPIO%02d\n", td->phy_rst_gpio);
+			return ret;
+	}
 
-		ret = regulator_disable(td->phy_supply);
-		if (ret) {
-			dev_err(td->device, "Failed to disable PHY supply with error %d\n", ret);
-			if (tc956x_deassert_phy_reset(td))
-				dev_err(td->device, "Failed to deassert PHY\n");
-		}
-	} else
-		gpiod_set_value(td->phy_rst_gpio_som, 0);
+	ret = regulator_disable(td->phy_supply);
+	if (ret) {
+		dev_err(td->device, "Failed to disable PHY supply with error %d\n", ret);
+		if (tc956x_deassert_phy_reset(td))
+			dev_err(td->device, "Failed to deassert PHY\n");
+	}
 
 	return ret;
 }
@@ -1369,20 +1361,10 @@ static int tc956x_phy_power_off(struct tc956x_data *td)
 static int tc956x_platform_of_parse(struct device *dev,
 				    struct tc956x_data *td)
 {
-	td->has_always_on_supplies = of_property_read_bool(dev->of_node, "qcom,always-on-supply");
-
-	if(!td->has_always_on_supplies) {
-		if (of_property_read_u32(dev->of_node,"qcom,phy-rst-gpio", &td->phy_rst_gpio)) {
-			if (of_property_read_u32(dev->of_node, "qcom,phy-rst-gpio-id",
-				&td->phy_rst_gpio)) {
-				dev_err(dev, "Failed to get PHY reset GPIO\n");
-				return -EINVAL;
-			}
-		}
-	} else {
-		td->phy_rst_gpio_som = devm_gpiod_get(dev, "phy-rst-som", GPIOD_OUT_LOW);
-		if (IS_ERR(td->phy_rst_gpio_som)) {
-			dev_err(dev, "Failed to get PHY reset GPIO: %ld\n", PTR_ERR(td->phy_rst_gpio_som));
+	if (of_property_read_u32(dev->of_node,"qcom,phy-rst-gpio", &td->phy_rst_gpio)) {
+		if (of_property_read_u32(dev->of_node, "qcom,phy-rst-gpio-id",
+			&td->phy_rst_gpio)) {
+			dev_err(dev, "Failed to get PHY reset GPIO\n");
 			return -EINVAL;
 		}
 	}
@@ -1398,12 +1380,10 @@ static int tc956x_platform_of_parse(struct device *dev,
 		return -EINVAL;
 	}
 
-	if(!td->has_always_on_supplies) {
-		td->phy_supply = devm_regulator_get(dev, "phy");
-		if (IS_ERR(td->phy_supply)) {
-			dev_err(dev, "Failed to acquire supply 'phy-supply': %ld\n", PTR_ERR(td->phy_supply));
-			return -EINVAL;
-		}
+	td->phy_supply = devm_regulator_get(dev, "phy");
+	if (IS_ERR(td->phy_supply)) {
+		dev_err(dev, "Failed to acquire supply 'phy-supply': %ld\n", PTR_ERR(td->phy_supply));
+		return -EINVAL;
 	}
 
 	td->pinctrl = devm_pinctrl_get(dev);
@@ -1440,15 +1420,11 @@ static int tc956x_platform_probe(struct tc956x_data *td,
 		goto err_parse_properties;
 	}
 
-	if(!td->has_always_on_supplies) {
-
-		ret = tc956x_assert_phy_reset(td);
-		if (ret) {
-			dev_err(td->device, "Failed to assert the PHY reset with error %d\n", ret);
-			goto err_assert_phy_rst;
-		}
-	} else
-		gpiod_set_value(td->phy_rst_gpio_som, 0);
+	ret = tc956x_assert_phy_reset(td);
+	if (ret) {
+		dev_err(td->device, "Failed to assert the PHY reset with error %d\n", ret);
+		goto err_assert_phy_rst;
+	}
 
 	ret = pinctrl_select_state(td->pinctrl, td->pinctrl_default);
 	if (ret) {
@@ -1485,8 +1461,7 @@ static int tc956x_platform_remove(struct tc956x_data *td)
 	if (ret)
 		dev_err(td->device, "Failed to power off PHY with error %d\n", ret);
 
-	if (!td->has_always_on_supplies)
-		devm_regulator_put(td->phy_supply);
+	devm_regulator_put(td->phy_supply);
 
 	devm_pinctrl_put(td->pinctrl);
 
