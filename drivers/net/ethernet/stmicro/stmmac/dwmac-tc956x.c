@@ -1375,9 +1375,9 @@ static int tc956x_platform_of_parse(struct device *dev,
 			return -EINVAL;
 	}
 
-	td->wol_irq = of_irq_get_byname(dev->of_node, "wol_irq");
+	td->wol_irq = of_irq_get_byname(dev->of_node, "wake-on-lan");
 	if (td->wol_irq <= 0) {
-		dev_err(dev, "Failed to get 'wol_irq' IRQ with error %d\n", td->wol_irq);
+		dev_err(dev, "Failed to get 'wake-on-lan' IRQ with error %d\n", td->wol_irq);
 		return -EINVAL;
 	}
 
