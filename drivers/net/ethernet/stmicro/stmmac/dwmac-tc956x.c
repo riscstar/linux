@@ -40,7 +40,6 @@
 //
 
 struct tc956x_gpio_config {
-	u8 config; /* 1: configured, 0: not configured*/
 	u8 out_val; /* 0 or 1 */
 };
 
@@ -635,8 +634,6 @@ static int tc956x_GPIO_OutputConfigPin(struct tc956x_data *td, u8 out_value)
 		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 	}
 
-	td->saved_gpio_config.config = 1;
-
 	/* Write data to GPIO pin */
 	config = 1 << gpio_pin;
 	val = readl(td->sfr_addr + GPIOO0_OFFSET);
@@ -666,10 +663,6 @@ static int tc956x_gpio_restore_configuration(struct stmmac_priv *priv)
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	u32 gpio_pin = td->phy_reset_gpio;
 	u32 config, val, out_value;
-
-	/* Restore only the GPIOs which were configured/saved */
-	if (!(td->saved_gpio_config.config))
-		continue;
 
 	dev_dbg(priv->device, "%s : Restoring GPIO configuration for pin: %d, val: %d",
 			__func__, gpio_pin, td->saved_gpio_config.out_val);
