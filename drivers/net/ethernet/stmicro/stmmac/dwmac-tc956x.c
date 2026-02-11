@@ -71,8 +71,8 @@ struct tc956x_data {
 	/** @port_num: Indicates which eMAC is assigned to this driver */
 	int port_num;
 
-	/** @saved_gpio_config: Only GPIO0- GPIO06, GPI010-GPIO13 are used */
-	struct tc956x_gpio_config saved_gpio_config[13 + 1];
+	/** @saved_gpio_config: Only GPIO00 and GPIO01 are allowed */
+	struct tc956x_gpio_config saved_gpio_config[2];
 
 	/**
 	 * @is_sgmii_2p5g: Controls XPCS AN enablement
@@ -622,116 +622,36 @@ static int tc956x_GPIO_OutputConfigPin(struct tc956x_data *td, u8 out_value)
 	u32 gpio_pin = td->phy_reset_gpio;
 	u32 config, val;
 
-	/* Only GPIO0- GPIO06, GPI010-GPIO12 are allowed */
-	switch (gpio_pin) {
-	case 0:
-		val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
-		val &= ~NFUNCEN4_GPIO_00;
-		val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_00_SHIFT);
-		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
-		break;
-	case 1:
+	/* Only GPIO00 and GPIO01 are ever used */
+	if (gpio_pin) {
 		val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
 		val &= ~NFUNCEN4_GPIO_01;
 		val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_01_SHIFT);
 		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
-		break;
-	case 2:
+	} else {
 		val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
-		val &= ~NFUNCEN4_GPIO_02;
-		val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_02_SHIFT);
+		val &= ~NFUNCEN4_GPIO_00;
+		val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_00_SHIFT);
 		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
-		break;
-	case 3:
-		val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
-		val &= ~NFUNCEN4_GPIO_03;
-		val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_03_SHIFT);
-		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
-		break;
-	case 4:
-		val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
-		val &= ~NFUNCEN4_GPIO_04;
-		val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_04_SHIFT);
-		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
-		break;
-	case 5:
-		val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
-		val &= ~NFUNCEN4_GPIO_05;
-		val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_05_SHIFT);
-		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
-		break;
-	case 6:
-		val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
-		val &= ~NFUNCEN4_GPIO_06;
-		val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_06_SHIFT);
-		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
-		break;
-	case 10:
-		val = readl(td->sfr_addr + NFUNCEN5_OFFSET);
-		val &= ~NFUNCEN5_GPIO_10;
-		val |= (NFUNCEN_FUNC0 << NFUNCEN5_GPIO_10_SHIFT);
-		writel(val, td->sfr_addr + NFUNCEN5_OFFSET);
-		break;
-	case 11:
-		val = readl(td->sfr_addr + NFUNCEN5_OFFSET);
-		val &= ~NFUNCEN5_GPIO_11;
-		val |= (NFUNCEN_FUNC0 << NFUNCEN5_GPIO_11_SHIFT);
-		writel(val, td->sfr_addr + NFUNCEN5_OFFSET);
-		break;
-	case 12:
-		val = readl(td->sfr_addr + NFUNCEN6_OFFSET);
-		val &= ~NFUNCEN6_GPIO_12;
-		val |= (NFUNCEN_FUNC0 << NFUNCEN6_GPIO_12_SHIFT);
-		writel(val, td->sfr_addr + NFUNCEN6_OFFSET);
-		break;
-	case 13:
-		val = readl(td->sfr_addr + NFUNCEN7_OFFSET);
-		val &= ~NFUNCEN7_GPIO_13;
-		val |= (NFUNCEN_FUNC2 << NFUNCEN7_GPIO_13_SHIFT);
-		writel(val, td->sfr_addr + NFUNCEN7_OFFSET);
-		break;
-	default:
-		dev_err(td->dev, "Invalid GPIO pin - %d\n", gpio_pin);
-		return -EPERM;
 	}
 
 	td->saved_gpio_config[gpio_pin].config = 1;
 
 	/* Write data to GPIO pin */
-	if (gpio_pin < 32) {
-		/* First bank */
-		config = 1 << gpio_pin;
-		val = readl(td->sfr_addr + GPIOO0_OFFSET);
-		val &= ~config;
-		if (out_value)
-			val |= config;
+	config = 1 << gpio_pin;
+	val = readl(td->sfr_addr + GPIOO0_OFFSET);
+	val &= ~config;
+	if (out_value)
+		val |= config;
 
-		writel(val, td->sfr_addr + GPIOO0_OFFSET);
-	}  else {
-		/* Second bank */
-		config = 1 << (gpio_pin - 32);
-		val = readl(td->sfr_addr + GPIOO1_OFFSET);
-		val &= ~config;
-		if (out_value)
-			val |= config;
-
-		writel(val, td->sfr_addr + GPIOO1_OFFSET);
-	}
+	writel(val, td->sfr_addr + GPIOO0_OFFSET);
 
 	td->saved_gpio_config[gpio_pin].out_val = out_value;
 
 	/* Configure the GPIO pin in output direction */
-	if (gpio_pin < 32) {
-		/* First bank */
-		config = ~(1 << gpio_pin);
-		val = readl(td->sfr_addr + GPIOE0_OFFSET);
-		writel(val & config, td->sfr_addr + GPIOE0_OFFSET);
-	} else {
-		/* Second bank */
-		config = ~(1 << (gpio_pin - 32));
-		val = readl(td->sfr_addr + GPIOE1_OFFSET);
-		writel(val & config, td->sfr_addr + GPIOE1_OFFSET);
-	}
+	config = ~(1 << gpio_pin);
+	val = readl(td->sfr_addr + GPIOE0_OFFSET);
+	writel(val & config, td->sfr_addr + GPIOE0_OFFSET);
 
 	return 0;
 }
@@ -755,114 +675,34 @@ static int tc956x_gpio_restore_configuration(struct stmmac_priv *priv)
 		dev_dbg(priv->device, "%s : Restoring GPIO configuration for pin: %d, val: %d",
 				__func__, gpio_pin, td->saved_gpio_config[gpio_pin].out_val);
 
-		/* Only GPIO0- GPIO06, GPI010-GPIO12 are allowed */
-		switch (gpio_pin) {
-		case 0:
-			val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
-			val &= ~NFUNCEN4_GPIO_00;
-			val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_00_SHIFT);
-			writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
-			break;
-		case 1:
+		/* Only GPIO00 and GPIO01 are ever used */
+		if (gpio_pin) {
 			val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
 			val &= ~NFUNCEN4_GPIO_01;
 			val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_01_SHIFT);
 			writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
-			break;
-		case 2:
+		} else {
 			val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
-			val &= ~NFUNCEN4_GPIO_02;
-			val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_02_SHIFT);
+			val &= ~NFUNCEN4_GPIO_00;
+			val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_00_SHIFT);
 			writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
-			break;
-		case 3:
-			val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
-			val &= ~NFUNCEN4_GPIO_03;
-			val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_03_SHIFT);
-			writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
-			break;
-		case 4:
-			val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
-			val &= ~NFUNCEN4_GPIO_04;
-			val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_04_SHIFT);
-			writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
-			break;
-		case 5:
-			val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
-			val &= ~NFUNCEN4_GPIO_05;
-			val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_05_SHIFT);
-			writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
-			break;
-		case 6:
-			val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
-			val &= ~NFUNCEN4_GPIO_06;
-			val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_06_SHIFT);
-			writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
-			break;
-		case 10:
-			val = readl(td->sfr_addr + NFUNCEN5_OFFSET);
-			val &= ~NFUNCEN5_GPIO_10;
-			val |= (NFUNCEN_FUNC0 << NFUNCEN5_GPIO_10_SHIFT);
-			writel(val, td->sfr_addr + NFUNCEN5_OFFSET);
-			break;
-		case 11:
-			val = readl(td->sfr_addr + NFUNCEN5_OFFSET);
-			val &= ~NFUNCEN5_GPIO_11;
-			val |= (NFUNCEN_FUNC0 << NFUNCEN5_GPIO_11_SHIFT);
-			writel(val, td->sfr_addr + NFUNCEN5_OFFSET);
-			break;
-		case 12:
-			val = readl(td->sfr_addr + NFUNCEN6_OFFSET);
-			val &= ~NFUNCEN6_GPIO_12;
-			val |= (NFUNCEN_FUNC0 << NFUNCEN6_GPIO_12_SHIFT);
-			writel(val, td->sfr_addr + NFUNCEN6_OFFSET);
-			break;
-		case 13:
-			val = readl(td->sfr_addr + NFUNCEN7_OFFSET);
-			val &= ~NFUNCEN7_GPIO_13;
-			val |= (NFUNCEN_FUNC2 << NFUNCEN7_GPIO_13_SHIFT);
-			writel(val, td->sfr_addr + NFUNCEN7_OFFSET);
-			break;
-		default:
-			netdev_err(priv->dev, "Invalid GPIO pin - %d\n", gpio_pin);
-			return -EPERM;
 		}
 
 		out_value = td->saved_gpio_config[gpio_pin].out_val;
 
 		/* Write data to GPIO pin */
-		if (gpio_pin < 32) {
-			/* First bank */
-			config = 1 << gpio_pin;
-			val = readl(td->sfr_addr + GPIOO0_OFFSET);
-			val &= ~config;
-			if (out_value)
-				val |= config;
+		config = 1 << gpio_pin;
+		val = readl(td->sfr_addr + GPIOO0_OFFSET);
+		val &= ~config;
+		if (out_value)
+			val |= config;
 
-			writel(val, td->sfr_addr + GPIOO0_OFFSET);
-		}  else {
-			/* Second bank */
-			config = 1 << (gpio_pin - 32);
-			val = readl(td->sfr_addr + GPIOO1_OFFSET);
-			val &= ~config;
-			if (out_value)
-				val |= config;
-
-			writel(val, td->sfr_addr + GPIOO1_OFFSET);
-		}
+		writel(val, td->sfr_addr + GPIOO0_OFFSET);
 
 		/* Configure the GPIO pin in output direction */
-		if (gpio_pin < 32) {
-			/* First bank */
-			config = ~(1 << gpio_pin);
-			val = readl(td->sfr_addr + GPIOE0_OFFSET);
-			writel(val & config, td->sfr_addr + GPIOE0_OFFSET);
-		} else {
-			/* Second bank */
-			config = ~(1 << (gpio_pin - 32));
-			val = readl(td->sfr_addr + GPIOE1_OFFSET);
-			writel(val & config, td->sfr_addr + GPIOE1_OFFSET);
-		}
+		config = ~(1 << gpio_pin);
+		val = readl(td->sfr_addr + GPIOE0_OFFSET);
+		writel(val & config, td->sfr_addr + GPIOE0_OFFSET);
 	}
 	return 0;
 }
@@ -1322,7 +1162,7 @@ static int tc956x_phy_power_on(struct tc956x_data *td)
 
 	ret = tc956x_deassert_phy_reset(td);
 	if (ret) {
-		dev_err(td->dev, "Failed to deassert QPS615 GPIO0%d\n",
+		dev_err(td->dev, "Failed to deassert QPS615 GPIO0%u\n",
 			td->phy_reset_gpio);
 		if (regulator_disable(td->phy_supply))
 			dev_err(td->dev, "Failed to disable regulator\n");
@@ -1340,7 +1180,7 @@ static int tc956x_phy_power_off(struct tc956x_data *td)
 
 	ret = tc956x_assert_phy_reset(td);
 	if (ret) {
-		dev_err(td->dev, "Failed to assert QPS615 GPIO%02d\n",
+		dev_err(td->dev, "Failed to assert QPS615 GPIO0%u\n",
 			td->phy_reset_gpio);
 			return ret;
 	}
@@ -1369,6 +1209,12 @@ static int tc956x_platform_of_parse(struct tc956x_data *td)
 				   &td->phy_reset_gpio);
 	if (ret) {
 		dev_err(dev, "failed to get qcom,phy-reset-gpio property\n");
+		return ret;
+	}
+	/* The only values used are 0 and 1 */
+	if (td->phy_reset_gpio && td->phy_reset_gpio != 1) {
+		dev_err(dev, "bad qcom,phy-reset-gpio property (%u)\n",
+			td->phy_reset_gpio);
 		return ret;
 	}
 
