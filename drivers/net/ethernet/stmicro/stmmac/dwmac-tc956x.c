@@ -1363,19 +1363,24 @@ static int tc956x_phy_power_off(struct tc956x_data *td)
 static int tc956x_platform_of_parse(struct device *dev,
 				    struct tc956x_data *td)
 {
-	if (of_property_read_u32(dev->of_node,"qcom,phy-reset-gpio",
+	struct device_node *np = dev_of_node(dev);
+
+	if (!np)
+		return -EINVAL;
+
+	if (of_property_read_u32(np, "qcom,phy-reset-gpio",
 				 &td->phy_reset_gpio)) {
 		dev_err(dev, "Failed to get PHY reset GPIO\n");
 		return -EINVAL;
 	}
 
-	if (of_property_read_u32(dev->of_node, "qcom,phy-reset-delay",
+	if (of_property_read_u32(np, "qcom,phy-reset-delay",
 				&td->phy_reset_delay)) {
 		dev_err(dev, "Failed to get PHY reset delay time\n");
 			return -EINVAL;
 	}
 
-	td->wol_irq = of_irq_get_byname(dev->of_node, "wake-on-lan");
+	td->wol_irq = of_irq_get_byname(np, "wake-on-lan");
 	if (td->wol_irq <= 0) {
 		dev_err(dev, "Failed to get 'wake-on-lan' IRQ with error %d\n", td->wol_irq);
 		return -EINVAL;
