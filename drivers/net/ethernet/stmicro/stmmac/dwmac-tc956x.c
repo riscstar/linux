@@ -746,7 +746,7 @@ static int tc956x_gpio_restore_configuration(struct stmmac_priv *priv)
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	u32 config, val, gpio_pin, out_value;
 
-	for (gpio_pin = 0; gpio_pin <= 13; gpio_pin++) {
+	for (gpio_pin = 0; gpio_pin < ARRAY_SIZE(td->saved_gpio_config); gpio_pin++) {
 
 		/* Restore only the GPIOs which were configured/saved */
 		if (!(td->saved_gpio_config[gpio_pin].config))
