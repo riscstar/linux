@@ -108,7 +108,7 @@ struct tc956x_data {
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *pinctrl_default;
 	struct regulator *phy_supply;
-	u32 phy_rst_gpio;
+	u32 phy_reset_gpio;
 	u32 phy_rst_delay_us;
 	int wol_irq;
 };
@@ -632,7 +632,7 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
  */
 static int tc956x_GPIO_OutputConfigPin(struct tc956x_data *td, u8 out_value)
 {
-	u32 gpio_pin = td->phy_rst_gpio;
+	u32 gpio_pin = td->phy_reset_gpio;
 	u32 config, val;
 
 	/* Only GPIO0- GPIO06, GPI010-GPIO12 are allowed */
@@ -1327,7 +1327,8 @@ static int tc956x_phy_power_on(struct tc956x_data *td)
 
 	ret = tc956x_deassert_phy_reset(td);
 	if (ret) {
-		dev_err(td->device, "Failed to deassert QPS615 GPIO0%d\n", td->phy_rst_gpio);
+		dev_err(td->device, "Failed to deassert QPS615 GPIO0%d\n",
+			td->phy_reset_gpio);
 		if (regulator_disable(td->phy_supply))
 			dev_err(td->device, "Failed to disable regulator\n");
 	}
@@ -1344,7 +1345,8 @@ static int tc956x_phy_power_off(struct tc956x_data *td)
 
 	ret = tc956x_assert_phy_reset(td);
 	if (ret) {
-		dev_err(td->device, "Failed to assert QPS615 GPIO%02d\n", td->phy_rst_gpio);
+		dev_err(td->device, "Failed to assert QPS615 GPIO%02d\n",
+			td->phy_reset_gpio);
 			return ret;
 	}
 
@@ -1361,12 +1363,10 @@ static int tc956x_phy_power_off(struct tc956x_data *td)
 static int tc956x_platform_of_parse(struct device *dev,
 				    struct tc956x_data *td)
 {
-	if (of_property_read_u32(dev->of_node,"qcom,phy-rst-gpio", &td->phy_rst_gpio)) {
-		if (of_property_read_u32(dev->of_node, "qcom,phy-rst-gpio-id",
-			&td->phy_rst_gpio)) {
-			dev_err(dev, "Failed to get PHY reset GPIO\n");
-			return -EINVAL;
-		}
+	if (of_property_read_u32(dev->of_node,"qcom,phy-reset-gpio",
+				 &td->phy_reset_gpio)) {
+		dev_err(dev, "Failed to get PHY reset GPIO\n");
+		return -EINVAL;
 	}
 
 	if (of_property_read_u32(dev->of_node, "qcom,phy-rst-delay-us", &td->phy_rst_delay_us)) {
