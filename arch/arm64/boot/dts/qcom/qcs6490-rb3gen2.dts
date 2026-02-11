@@ -928,7 +928,7 @@
 				interrupts-extended = <&tlmm 141 IRQ_TYPE_EDGE_FALLING>;
 				interrupt-names = "wol_irq";
 				//phy-supply = <&aqr_vreg>;
-				qcom,phy-rst-delay-us = <221000>;
+				qcom,phy-reset-delay = <221>;
 				//#address-cells = <1>;
 				//#size-cells = <1>;
 			};
@@ -960,7 +960,7 @@
 				interrupts-extended = <&tlmm 101 IRQ_TYPE_EDGE_FALLING>;
 				interrupt-names = "wol_irq";
 				//phy-supply = <&qep_vreg>;
-				qcom,phy-rst-delay-us = <20000>;
+				qcom,phy-reset-delay = <20>;
 				//#address-cells = <1>;
 				//#size-cells = <1>;
 			};
