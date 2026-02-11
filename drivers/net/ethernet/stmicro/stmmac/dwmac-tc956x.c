@@ -115,6 +115,9 @@ struct tc956x_data {
 	struct gpio_desc *phy_rst_gpio_som;
 };
 
+/* XXX TC9564? Also, this is a physical function; virtual is 0x0221 */
+#define PCI_DEVICE_ID_TOSHIBA_TC956X		0x0220
+
 //
 // Definitions taken from tc956xmac.h in vendor driver
 //
@@ -3408,13 +3411,9 @@ err:
 	return ret;
 }
 
-#define TC956XMAC_DEVICE(vendor_id, dev_id, info) \
-	{ PCI_VDEVICE(vendor_id, dev_id),         \
-	  .driver_data = (kernel_ulong_t) & info }
-
 static const struct pci_device_id tc956x_id_table[] = {
-	TC956XMAC_DEVICE(TOSHIBA, 0x0220, tc956x_xgmac3_pci_info),
-	{}
+	{ PCI_DEVICE_DATA(TOSHIBA, TC956X, &tc956x_xgmac3_pci_info), },
+	{ },
 };
 
 // TODO: During development it is very convenient to avoid auto-loading the
