@@ -1360,57 +1360,55 @@ static int tc956x_phy_power_off(struct tc956x_data *td)
 	return ret;
 }
 
-static int tc956x_platform_of_parse(struct device *dev,
-				    struct tc956x_data *td)
+static int tc956x_platform_of_parse(struct device *dev, struct tc956x_data *td)
 {
 	struct device_node *np = dev_of_node(dev);
+	int ret;
 
 	if (!np)
 		return -EINVAL;
 
-	if (of_property_read_u32(np, "qcom,phy-reset-gpio",
-				 &td->phy_reset_gpio)) {
-		dev_err(dev, "Failed to get PHY reset GPIO\n");
-		return -EINVAL;
+	ret = of_property_read_u32(np, "qcom,phy-reset-gpio",
+				   &td->phy_reset_gpio);
+	if (ret) {
+		dev_err(dev, "failed to get qcom,phy-reset-gpio property\n");
+		return ret;
 	}
 
-	if (of_property_read_u32(np, "qcom,phy-reset-delay",
-				&td->phy_reset_delay)) {
-		dev_err(dev, "Failed to get PHY reset delay time\n");
-			return -EINVAL;
+	ret = of_property_read_u32(np, "qcom,phy-reset-delay",
+				   &td->phy_reset_delay);
+	if (ret) {
+		dev_err(dev, "failed to get qcom,phy-reset-delay property\n");
+		return ret;
 	}
 
-	td->wol_irq = of_irq_get_byname(np, "wake-on-lan");
-	if (td->wol_irq <= 0) {
-		dev_err(dev, "Failed to get 'wake-on-lan' IRQ with error %d\n", td->wol_irq);
-		return -EINVAL;
+	ret = of_irq_get_byname(np, "wake-on-lan");
+	if (ret <= 0) {
+		dev_err(dev, "failed to get wake-on-lan property\n");
+		return ret;
 	}
+	td->wol_irq = ret;
 
 	td->phy_supply = devm_regulator_get(dev, "phy");
 	if (IS_ERR(td->phy_supply)) {
-		dev_err(dev, "Failed to acquire supply 'phy-supply': %ld\n", PTR_ERR(td->phy_supply));
-		return -EINVAL;
+		dev_err(dev, "failed to get phy-supply\n");
+		return PTR_ERR(td->phy_supply);
 	}
 
 	td->pinctrl = devm_pinctrl_get(dev);
 	if (IS_ERR(td->pinctrl)) {
-		dev_err(dev, "Failed to get pinctrl handle\n");
-		goto err_pinctrl_get;
+		dev_err(dev, "failed to get pinctrl handle\n");
+		return PTR_ERR(td->pinctrl);
 	}
 
-	td->pinctrl_default = pinctrl_lookup_state(td->pinctrl, PINCTRL_STATE_DEFAULT);
+	td->pinctrl_default = pinctrl_lookup_state(td->pinctrl,
+						   PINCTRL_STATE_DEFAULT);
 	if (IS_ERR(td->pinctrl_default)) {
-		dev_err(dev, "Failed to look up '%s' pinctrl state\n", PINCTRL_STATE_DEFAULT);
-		goto err_pinctrl_lookup_state;
+		dev_err(dev, "failed to look up default pinctrl state\n");
+		return PTR_ERR(td->pinctrl_default);
 	}
 
 	return 0;
-
-err_pinctrl_lookup_state:
-	devm_pinctrl_put(td->pinctrl);
-err_pinctrl_get:
-	devm_regulator_put(td->phy_supply);
-	return -EINVAL;
 }
 
 static int tc956x_platform_probe(struct tc956x_data *td,
