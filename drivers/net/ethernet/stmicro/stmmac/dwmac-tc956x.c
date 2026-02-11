@@ -2229,6 +2229,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 			    const struct pci_device_id *id)
 {
 	struct tc956x_pci_info *info = (struct tc956x_pci_info *)id->driver_data;
+	struct device *dev = &pdev->dev;
 	struct plat_stmmacenet_data *plat;
 	struct tc956x_data *td;
 	struct stmmac_resources res;
@@ -2244,26 +2245,24 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 	mutex_lock(&tc956x_pm_suspend_lock);
 
-	plat = stmmac_plat_dat_alloc(&pdev->dev);
+	plat = stmmac_plat_dat_alloc(dev);
 	if (!plat) {
 		ret = -ENOMEM;
 		goto err_out_enb_failed;
 	}
 
-	td = devm_kzalloc(&pdev->dev, sizeof(*td), GFP_KERNEL);
+	td = devm_kzalloc(dev, sizeof(*td), GFP_KERNEL);
 	plat->bsp_priv = td;
 	td->plat = plat;
 
-	plat->mdio_bus_data = devm_kzalloc(&pdev->dev,
-					   sizeof(*plat->mdio_bus_data),
+	plat->mdio_bus_data = devm_kzalloc(dev, sizeof(*plat->mdio_bus_data),
 					   GFP_KERNEL);
 	if (!plat->mdio_bus_data) {
 		ret = -ENOMEM;
 		goto err_out_enb_failed;
 	}
 
-	plat->dma_cfg = devm_kzalloc(&pdev->dev, sizeof(*plat->dma_cfg),
-				     GFP_KERNEL);
+	plat->dma_cfg = devm_kzalloc(dev, sizeof(*plat->dma_cfg), GFP_KERNEL);
 	if (!plat->dma_cfg) {
 		ret = -ENOMEM;
 		goto err_out_enb_failed;
@@ -2272,15 +2271,13 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	/* Enable pci device */
 	ret = pci_enable_device(pdev);
 	if (ret) {
-		dev_err(&pdev->dev, "%s: ERROR: failed to enable device\n",
-			__func__);
+		dev_err(dev, "%s: ERROR: failed to enable device\n", __func__);
 		goto err_out_enb_failed;
 	}
 
 	/* Request the PCI IO Memory for the device */
 	if (pci_request_regions(pdev, DRIVER_NAME)) {
-		dev_err(&(pdev->dev), "%s:Failed to get PCI regions\n",
-			DRIVER_NAME);
+		dev_err(dev, "%s:Failed to get PCI regions\n", DRIVER_NAME);
 		ret = -ENODEV;
 		goto err_out_req_reg_failed;
 	}
@@ -2289,24 +2286,24 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	/* Enable the bus mastering */
 	pci_set_master(pdev);
 
-	dev_dbg(&(pdev->dev),
+	dev_dbg(dev,
 		"BAR0 length = %lld bytes\n", (u64)pci_resource_len(pdev, 0));
-	dev_dbg(&(pdev->dev),
+	dev_dbg(dev,
 		"BAR2 length = %lld bytes\n", (u64)pci_resource_len(pdev, 2));
-	dev_dbg(&(pdev->dev),
+	dev_dbg(dev,
 		"BAR4 length = %lld bytes\n", (u64)pci_resource_len(pdev, 4));
-	dev_dbg(&(pdev->dev),
+	dev_dbg(dev,
 		"BAR0 physical address = 0x%llx\n", (u64)pci_resource_start(pdev, 0));
-	dev_dbg(&(pdev->dev),
+	dev_dbg(dev,
 		"BAR2 physical address = 0x%llx\n", (u64)pci_resource_start(pdev, 2));
-	dev_dbg(&(pdev->dev),
+	dev_dbg(dev,
 		"BAR4 physical address = 0x%llx\n", (u64)pci_resource_start(pdev, 4));
 
 	// TODO: devm_pci_iomap?
 	td->bridge_cfg_addr = ioremap(pci_resource_start(pdev, TC956X_BAR0),
 				      pci_resource_len(pdev, TC956X_BAR0));
 	if (!td->bridge_cfg_addr) {
-		dev_err(&(pdev->dev), "%s: cannot map TC956X BAR0, aborting", pci_name(pdev));
+		dev_err(dev, "%s: cannot map TC956X BAR0, aborting", pci_name(pdev));
 		ret = -EIO;
 		goto err_out_map_failed;
 	}
@@ -2314,7 +2311,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 				pci_resource_len(pdev, TC956X_BAR2));
 	if (!td->sram_addr) {
 		pci_iounmap(pdev, td->bridge_cfg_addr);
-		dev_err(&(pdev->dev), "%s: cannot map TC956X BAR2, aborting", pci_name(pdev));
+		dev_err(dev, "%s: cannot map TC956X BAR2, aborting", pci_name(pdev));
 		ret = -EIO;
 		goto err_out_map_failed;
 	}
@@ -2323,14 +2320,14 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	if (!td->sfr_addr) {
 		pci_iounmap(pdev, td->bridge_cfg_addr);
 		pci_iounmap(pdev, td->sram_addr);
-		dev_err(&(pdev->dev), "%s: cannot map TC956X BAR4, aborting", pci_name(pdev));
+		dev_err(dev, "%s: cannot map TC956X BAR4, aborting", pci_name(pdev));
 		ret = -EIO;
 		goto err_out_map_failed;
 	}
 
-	dev_dbg(&(pdev->dev), "BAR0 virtual address = %p\n", td->bridge_cfg_addr);
-	dev_dbg(&(pdev->dev), "BAR2 virtual address = %p\n", td->sram_addr);
-	dev_dbg(&(pdev->dev), "BAR4 virtual address = %p\n", td->sfr_addr);
+	dev_dbg(dev, "BAR0 virtual address = %p\n", td->bridge_cfg_addr);
+	dev_dbg(dev, "BAR2 virtual address = %p\n", td->sram_addr);
+	dev_dbg(dev, "BAR4 virtual address = %p\n", td->sfr_addr);
 
 #if IS_ENABLED(CONFIG_TRACE_MMIO_ACCESS)
 	/*
@@ -2347,7 +2344,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	td->port_num = readl(td->bridge_cfg_addr + RSCMNG_ID_REG); /* Resource Manager ID */
 	td->port_num &= RSCMNG_PFN;
 
-	td->dev = &pdev->dev;
+	td->dev = dev;
 
 	res.addr = td->sfr_addr +
 		   (td->port_num == 0 ? MAC0_BASE_OFFSET : MAC1_BASE_OFFSET);
@@ -2368,16 +2365,16 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 	}
 
-	if (of_property_read_u32(pdev->dev.of_node, "qcom,phy-port-interface", &interface)) {
-		dev_err(&pdev->dev, "Failed to get phy port interface\n");
+	if (of_property_read_u32(dev->of_node, "qcom,phy-port-interface", &interface)) {
+		dev_err(dev, "Failed to get phy port interface\n");
 	} else {
-		dev_err(&pdev->dev, "Set phy port interface to %d from %d\n", interface, td->port_interface);
+		dev_err(dev, "Set phy port interface to %d from %d\n", interface, td->port_interface);
 		td->port_interface = interface;
 
-		if (of_property_read_u32(pdev->dev.of_node, "qcom,mdc-clk", &mdc_clk)) {
-			dev_err(&pdev->dev, "Failed to get mdc clk\n");
+		if (of_property_read_u32(dev->of_node, "qcom,mdc-clk", &mdc_clk)) {
+			dev_err(dev, "Failed to get mdc clk\n");
 		} else {
-			dev_err(&pdev->dev, "Set mdc clk overlay to %d\n", mdc_clk);
+			dev_err(dev, "Set mdc clk overlay to %d\n", mdc_clk);
 			td->mdc_clk = mdc_clk;
 		}
 
@@ -2387,8 +2384,8 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	if (ret)
 		goto err_out_enb_failed;
 
-	dev_dbg(&pdev->dev, "port_interface = %d\n", td->port_interface);
-	dev_dbg(&pdev->dev, "mdc_clk = 0x%x\n", td->mdc_clk);
+	dev_dbg(dev, "port_interface = %d\n", td->port_interface);
+	dev_dbg(dev, "mdc_clk = 0x%x\n", td->mdc_clk);
 
 	if (td->port_num == RM_PF0_ID) {
 		ret = readl(td->sfr_addr + NRSTCTRL0_OFFSET);
@@ -2406,29 +2403,28 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		/* Configure Address Transslation block
 		 * Bridge Base address to be passed for TC956X
 		 */
-		tc956x_config_tamap(&pdev->dev, td->bridge_cfg_addr);
+		tc956x_config_tamap(dev, td->bridge_cfg_addr);
 	}
-	dev_dbg(&(pdev->dev), "Initialising eMAC Port %d bus number-%x\n", td->port_num, pdev->bus->number);
+	dev_dbg(dev, "Initialising eMAC Port %d bus number-%x\n", td->port_num, pdev->bus->number);
 	/* Enable MSI  and Allocate Vectors */
 	ret = pci_alloc_irq_vectors(pdev, TC956X_TOT_MSI_VEC,
 				TC956X_TOT_MSI_VEC, PCI_IRQ_MSI);
 
 	if (ret < TC956X_TOT_MSI_VEC) {
-		dev_err(&(pdev->dev),
-		"%s:Enable MSI error\n", DRIVER_NAME);
+		dev_err(dev, "%s:Enable MSI error\n", DRIVER_NAME);
 		goto err_out_msi_failed;
 	}
 
-	dev_dbg(&(pdev->dev), "%s : Allocated MSI Vectors : %d", __func__, ret);
-	dev_dbg(&(pdev->dev), "%s : pdev->irq %d  pci_irq_vector %d\n",
+	dev_dbg(dev, "%s : Allocated MSI Vectors : %d", __func__, ret);
+	dev_dbg(dev, "%s : pdev->irq %d  pci_irq_vector %d\n",
 		__func__, pdev->irq, pci_irq_vector(pdev, 0));
 	pci_write_config_dword(pdev, pdev->msi_cap + PCI_MSI_MASK_64, 0);
 
 
 	if (td->port_num == RM_PF0_ID) {
-		ret = tc956x_load_firmware(&pdev->dev, td);
+		ret = tc956x_load_firmware(dev, td);
 		if (ret)
-			dev_err(&(pdev->dev), "Firmware load failed\n");
+			dev_err(dev, "Firmware load failed\n");
 	}
 
 	if (td->port_num == RM_PF0_ID) {
@@ -2439,7 +2435,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 		writel(ret, td->sfr_addr + NRSTCTRL0_OFFSET);
 
-		dev_dbg(&pdev->dev, "Enabling all eMAC clocks for Port 0 Bus number %x\n", pdev->bus->number);
+		dev_dbg(dev, "Enabling all eMAC clocks for Port 0 Bus number %x\n", pdev->bus->number);
 		/* Enable all clocks to eMAC Port0 */
 		ret = readl(td->sfr_addr + NCLKCTRL0_OFFSET);
 
@@ -2490,7 +2486,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		ret |= NRSTCTRL1_MAC1RST1;
 		writel(ret, td->sfr_addr + NRSTCTRL1_OFFSET);
 
-		dev_dbg(&pdev->dev, "Enabling all eMAC clocks for Port 1 Bus number-%x\n", pdev->bus->number);
+		dev_dbg(dev, "Enabling all eMAC clocks for Port 1 Bus number-%x\n", pdev->bus->number);
 		/* Enable all clocks to eMAC Port1 */
 		ret = readl(td->sfr_addr + NCLKCTRL1_OFFSET);
 
@@ -2545,13 +2541,13 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	if (sh_mem_offset < TC956X_TOT_CASCADE_DEV)
 		td->pci_bd  = sh_mem_offset;
 	else {
-		dev_err(&(pdev->dev), "Error finding shared memory\n");
+		dev_err(dev, "Error finding shared memory\n");
 		goto err_out_msi_failed;
 	}
 
 	ret = tc956x_platform_probe(td, &res);
 	if (ret) {
-		dev_err(&pdev->dev, "Platform (DT) code failed\n");
+		dev_err(dev, "Platform (DT) code failed\n");
 		goto err_platform_probe;
 	}
 
@@ -2592,13 +2588,13 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 							 NEMAC1CTL_OFFSET),
 				 val, val & NEMACCTL_INIT_DONE, 50, 1000000);
 	if (ret < 0)
-		dev_err(&pdev->dev, "PMA/XPCS failed to come out of reset\n");
+		dev_err(dev, "PMA/XPCS failed to come out of reset\n");
 
 	ret = tc956x_xpcs_init(plat);
 	if (ret < 0)
-		dev_err(&pdev->dev, "XPCS initialization error\n");
+		dev_err(dev, "XPCS initialization error\n");
 
-	ret = stmmac_dvr_probe(&pdev->dev, plat, &res);
+	ret = stmmac_dvr_probe(dev, plat, &res);
 	if (ret) {
 		void *nrst_reg = NULL, *nclk_reg = NULL;
 		u32 nrst_val = 0, nclk_val = 0;
@@ -2619,11 +2615,11 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		writel(nclk_val, nclk_reg);
 
 		if (ret == -ENODEV) {
-			dev_dbg(&(pdev->dev), "Port%d Bus%x will be registered as PCIe device only", td->port_num, pdev->bus->number);
+			dev_dbg(dev, "Port%d Bus%x will be registered as PCIe device only", td->port_num, pdev->bus->number);
 			/* Make sure probe() succeeds by returning 0 to caller of probe() */
 			ret = 0;
 		} else {
-			dev_err(&(pdev->dev), "<--%s : ret: %d\n", __func__, ret);
+			dev_err(dev, "<--%s : ret: %d\n", __func__, ret);
 			goto err_dvr_probe;
 		}
 	}
@@ -2635,7 +2631,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		writel(0xF300F300, td->sfr_addr + 0x107C);
 	}
 
-	dev_dbg(&(pdev->dev), "<--%s : Adding DSP Cut Through Settings", __func__);
+	dev_dbg(dev, "<--%s : Adding DSP Cut Through Settings", __func__);
 	/* Read mode setting register
 	 * Mode settings values 0:Setting A: x4x1x1, 1:Setting B: x2x2x1
 	 */
@@ -2644,7 +2640,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 	switch (pcie_mode) {
 	case TC956X_PCIE_SETTING_A: /* 0:Setting A: x4x1x1 mode */
-		dev_dbg(&(pdev->dev), "%s : Setting A : Adding DSP Cut Through Settings for DSP1 & DSP2", __func__);
+		dev_dbg(dev, "%s : Setting A : Adding DSP Cut Through Settings for DSP1 & DSP2", __func__);
 		/*DSP1 & DSP2 is selected*/
 		val = readl(td->sfr_addr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
 		val &= ~(SW_DSP1_ENABLE|SW_DSP2_ENABLE);
@@ -2660,7 +2656,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		writel(val, td->sfr_addr + TC956X_SSREG_K_PCICONF_022_022);
 		break;
 	case TC956X_PCIE_SETTING_B: /* 1:Setting B: x2x2x1 mode */
-		dev_dbg(&(pdev->dev), "%s : Setting B : Adding DSP Cut Through Settings for DSP2", __func__);
+		dev_dbg(dev, "%s : Setting B : Adding DSP Cut Through Settings for DSP2", __func__);
 		/*DSP2 is selected*/
 		val = readl(td->sfr_addr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
 		val &= ~(SW_DSP2_ENABLE);
@@ -2700,7 +2696,7 @@ err_out_map_failed:
 err_out_req_reg_failed:
 	pci_disable_device(pdev);
 err_out_enb_failed:
-	dev_dbg(&(pdev->dev), "<--%s Error return: %d\n", __func__, ret);
+	dev_dbg(dev, "<--%s Error return: %d\n", __func__, ret);
 	mutex_unlock(&tc956x_pm_suspend_lock);
 
 	return ret;
