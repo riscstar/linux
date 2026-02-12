@@ -1861,10 +1861,6 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 	return 0;
 }
 
-static const struct tc956x_pci_info tc956x_xgmac3_pci_info = {
-	.setup = tc956x_xgmac3_default_data,
-};
-
 /*!
  * \brief API to Reset SRAM Region.
  *
@@ -2239,7 +2235,6 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 static int tc956x_pci_probe(struct pci_dev *pdev,
 			    const struct pci_device_id *id)
 {
-	struct tc956x_pci_info *info = (struct tc956x_pci_info *)id->driver_data;
 	struct plat_stmmacenet_data *plat;
 	struct device *dev = &pdev->dev;
 	struct stmmac_resources res;
@@ -2390,7 +2385,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 	}
 
-	ret = info->setup(pdev, plat);
+	ret = tc956x_xgmac3_default_data(pdev, plat);
 	if (ret)
 		goto err_out_enb_failed;
 
@@ -3219,7 +3214,7 @@ err:
 }
 
 static const struct pci_device_id tc956x_id_table[] = {
-	{ PCI_DEVICE_DATA(TOSHIBA, TC956X, &tc956x_xgmac3_pci_info), },
+	{ PCI_DEVICE(PCI_VENDOR_ID_TOSHIBA, PCI_DEVICE_ID_TOSHIBA_TC956X), },
 	{ },
 };
 
