@@ -2243,7 +2243,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	uint8_t SgmSigPol = 0;
 	u32 interface;
 	u32 pcie_mode; /* Read Setting A/B */
-	u32 mdc_clk;
 	u32 pfn;
 	u32 val;
 	int ret;
@@ -2379,14 +2378,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	} else {
 		dev_err(dev, "Set phy port interface to %d from %d\n", interface, td->port_interface);
 		td->port_interface = interface;
-
-		if (of_property_read_u32(dev->of_node, "qcom,mdc-clk", &mdc_clk)) {
-			dev_err(dev, "Failed to get mdc clk\n");
-		} else {
-			dev_err(dev, "Set mdc clk overlay to %d\n", mdc_clk);
-			td->mdc_clk = mdc_clk;
-		}
-
 	}
 
 	ret = tc956x_xgmac3_default_data(pdev, plat);
