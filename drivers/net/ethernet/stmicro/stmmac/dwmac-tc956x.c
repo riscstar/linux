@@ -77,9 +77,6 @@ struct tc956x_data {
 	/** @port_interface: Operating mode of the port (SGMII, XII, etc) */
 	u32 port_interface;
 
-	/** @mdc_clk: TODO */
-	u8 mdc_clk;
-
 	/** @tc956x_port_pm_suspend: Port Suspend Status (true if port suspended */
 	bool tc956x_port_pm_suspend;
 
@@ -196,22 +193,6 @@ struct tc956x_version {
 //
 // Definitions taken from tc956xmac_inc.h in vendor driver
 //
-
-/* For TC956X, clk_scr_i = 125MHz */
-#define TC956XMAC_XGMAC_MDC_CSR_4		0x0 /*clk_csr_i/4 */
-#define TC956XMAC_XGMAC_MDC_CSR_6		0x1 /* clk_csr_i/6 */
-#define TC956XMAC_XGMAC_MDC_CSR_8		0x2 /* clk_csr_i/8 */
-#define TC956XMAC_XGMAC_MDC_CSR_10		0x3 /* clk_csr_i/10 */
-#define TC956XMAC_XGMAC_MDC_CSR_12		0x4 /* clk_csr_i/12 */
-#define TC956XMAC_XGMAC_MDC_CSR_14		0x5 /* clk_csr_i/14 */
-#define TC956XMAC_XGMAC_MDC_CSR_16		0x6 /* clk_csr_i/16 */
-#define TC956XMAC_XGMAC_MDC_CSR_18		0x7 /* clk_csr_i/18 */
-#define TC956XMAC_XGMAC_MDC_CSR_62		0x8 /* clk_csr_i/62 */
-#define TC956XMAC_XGMAC_MDC_CSR_102		0x9 /* clk_csr_i/102 */
-#define TC956XMAC_XGMAC_MDC_CSR_122		0xA /* clk_csr_i/122 */
-#define TC956XMAC_XGMAC_MDC_CSR_142		0xB /* clk_csr_i/142 */
-#define TC956XMAC_XGMAC_MDC_CSR_162		0xC /* clk_csr_i/162 */
-#define TC956XMAC_XGMAC_MDC_CSR_202		0xD /* clk_csr_i/202 */
 
 struct tx956x_shrd_mem {
 	uint16_t pci_bd;
@@ -1552,50 +1533,11 @@ static void xgmac_default_data(struct plat_stmmacenet_data *plat)
 	plat->flags |= STMMAC_FLAG_TSO_EN;
 	plat->mdio_bus_data->phy_mask = 0;
 
-	switch (td->mdc_clk) {
-	case TC956XMAC_XGMAC_MDC_CSR_4:
-		plat->clk_csr = 0x0;
-		break;
-	case TC956XMAC_XGMAC_MDC_CSR_6:
-		plat->clk_csr = 0x1;
-		break;
-	case TC956XMAC_XGMAC_MDC_CSR_8:
-		plat->clk_csr = 0x2;
-		break;
-	case TC956XMAC_XGMAC_MDC_CSR_10:
-		plat->clk_csr = 0x3;
-		break;
-	case TC956XMAC_XGMAC_MDC_CSR_12:
-		plat->clk_csr = 0x4;
-		break;
-	case TC956XMAC_XGMAC_MDC_CSR_14:
-		plat->clk_csr = 0x5;
-		break;
-	case TC956XMAC_XGMAC_MDC_CSR_16:
-		plat->clk_csr = 0x6;
-		break;
-	case TC956XMAC_XGMAC_MDC_CSR_18:
-		plat->clk_csr = 0x7;
-		break;
-	case TC956XMAC_XGMAC_MDC_CSR_62:
-		plat->clk_csr = 0x0;
-		break;
-	case TC956XMAC_XGMAC_MDC_CSR_102:
-		plat->clk_csr = 0x1;
-		break;
-	case TC956XMAC_XGMAC_MDC_CSR_122:
-		plat->clk_csr = 0x2;
-		break;
-	case TC956XMAC_XGMAC_MDC_CSR_142:
-		plat->clk_csr = 0x3;
-		break;
-	case TC956XMAC_XGMAC_MDC_CSR_162:
-		plat->clk_csr = 0x4;
-		break;
-	case TC956XMAC_XGMAC_MDC_CSR_202:
-		plat->clk_csr = 0x5;
-		break;
-	};
+	/* For TC956X, clk_csr_i = 125MHz XXX any standard XGMAC values? */
+	if (td->emac0)			/* emac0: XFI */
+		plat->clk_csr = 0x4;	/* clk_csr_i / 12 XXX set CRS bit? */
+	else				/* emac1: SGMII */
+		plat->clk_csr = 0x0;	/* clk_csr_i / 62 */
 
 	plat->force_thresh_dma_mode  = 0;
 	plat->mdio_bus_data->needs_reset = false;
@@ -2364,14 +2306,8 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	// to 2.5G)
 	pr_debug("NCID Register value: %x\n", readl(td->sfr_addr + NCID_OFFSET));
 
-	if (td->emac0) {
-		td->port_interface = ENABLE_XFI_INTERFACE;
-		td->mdc_clk = TC956XMAC_XGMAC_MDC_CSR_12;
-	} else {
-		td->port_interface = ENABLE_SGMII_INTERFACE;
-		td->mdc_clk = TC956XMAC_XGMAC_MDC_CSR_62;
-
-	}
+	td->port_interface = td->emac0 ? ENABLE_XFI_INTERFACE
+				       : ENABLE_SGMII_INTERFACE;
 
 	if (of_property_read_u32(dev->of_node, "qcom,phy-port-interface", &interface)) {
 		dev_err(dev, "Failed to get phy port interface\n");
@@ -2385,7 +2321,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		goto err_out_enb_failed;
 
 	dev_dbg(dev, "port_interface = %d\n", td->port_interface);
-	dev_dbg(dev, "mdc_clk = 0x%x\n", td->mdc_clk);
 
 	if (td->emac0) {
 		ret = readl(td->sfr_addr + NRSTCTRL0_OFFSET);
