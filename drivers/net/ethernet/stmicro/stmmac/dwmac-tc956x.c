@@ -171,10 +171,6 @@ struct tc956x_data {
 
 #define ENABLE_XFI_INTERFACE			1 /* XFI/SFI, this is same as USXGMII, except XPCS autoneg disabled */
 #define ENABLE_SGMII_INTERFACE			4
-#define ENABLE_2500BASE_X_INTERFACE		5
-#define ENABLE_USXGMII_10G_INTERFACE	6
-#define ENABLE_USXGMII_5G_INTERFACE		7 /* This value is passed to TSB AQR Sample driver as dev_flags, when this changed, AQR sample driver needs change */
-#define ENABLE_USXGMII_2_5G_INTERFACE	8
 
 #define MAX_CM3_TAMAP_ENTRIES		3
 
@@ -826,10 +822,6 @@ static int tc956x_xpcs_init(struct plat_stmmacenet_data *plat)
 
 		reg_value = tc956x_xpcs_read(xpcsaddr, XGMAC_VR_XS_PCS_KR_CTRL);
 		reg_value &= ~XGMAC_USXG_MODE;/*USXG_MODE : 0x000*/
-		if (td->port_interface == ENABLE_USXGMII_5G_INTERFACE)
-			reg_value |= XPCS_USX_5G_MODE;
-		else if (td->port_interface == ENABLE_USXGMII_2_5G_INTERFACE)
-			reg_value |= XPCS_USX_2_5G_MODE;
 		tc956x_xpcs_write(xpcsaddr, XGMAC_VR_XS_PCS_KR_CTRL, reg_value);
 
 		reg_value = tc956x_xpcs_read(xpcsaddr, XGMAC_VR_XS_PCS_DIG_CTRL1);
@@ -1538,20 +1530,11 @@ static void xgmac_default_data(struct plat_stmmacenet_data *plat)
 
 	plat->force_thresh_dma_mode  = 0;
 	plat->mdio_bus_data->needs_reset = false;
-	if ((td->port_interface == ENABLE_XFI_INTERFACE) ||
-	    (td->port_interface == ENABLE_USXGMII_10G_INTERFACE))
+	if (td->port_interface == ENABLE_XFI_INTERFACE)
 		plat->mac_port_sel_speed = 10000;
 
-	if (td->port_interface == ENABLE_USXGMII_5G_INTERFACE)
-		plat->mac_port_sel_speed = 5000;
-
-	if (td->port_interface == ENABLE_USXGMII_2_5G_INTERFACE)
+	if (td->port_interface == ENABLE_SGMII_INTERFACE)
 		plat->mac_port_sel_speed = 2500;
-
-	if ((td->port_interface == ENABLE_SGMII_INTERFACE) ||
-	    (td->port_interface == ENABLE_2500BASE_X_INTERFACE)) {
-		plat->mac_port_sel_speed = 2500;
-	}
 
 	plat->riwt_off = 0;
 	plat->rss_en = 0;
@@ -1570,27 +1553,11 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 	plat->phy_addr = -1;
 	plat->pdev = pdev;
 
-	if ((td->port_interface == ENABLE_USXGMII_10G_INTERFACE)) {
-		plat->phy_interface = PHY_INTERFACE_MODE_USXGMII;
-		plat->max_speed = 10000;
-	}
-
-	if (td->port_interface == ENABLE_USXGMII_5G_INTERFACE) {
-		plat->phy_interface = PHY_INTERFACE_MODE_USXGMII;
-		plat->max_speed = 5000;
-	}
-
-	if (td->port_interface == ENABLE_USXGMII_2_5G_INTERFACE) {
-		plat->phy_interface = PHY_INTERFACE_MODE_USXGMII;
-		plat->max_speed = 2500;
-	}
-
 	if (td->port_interface == ENABLE_XFI_INTERFACE) {
 		plat->phy_interface = PHY_INTERFACE_MODE_10GBASER;
 		plat->max_speed = 10000;
 	}
-	if ((td->port_interface == ENABLE_SGMII_INTERFACE) ||
-	    (td->port_interface == ENABLE_2500BASE_X_INTERFACE)) {
+	if (td->port_interface == ENABLE_SGMII_INTERFACE) {
 		plat->phy_interface = PHY_INTERFACE_MODE_SGMII;
 		plat->max_speed = 2500;
 	}
@@ -2006,58 +1973,8 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 			else
 				ret |= NEMACCTL_SP_SEL_SGMII_1000M;
 		} else {
-			if (td->port_interface == ENABLE_USXGMII_10G_INTERFACE) {
-				if (speed == SPEED_10000)
-					ret |= NEMACCTL_SP_SEL_USXGMII_10G_10G;
-				else if (speed == SPEED_5000)
-					ret |= NEMACCTL_SP_SEL_USXGMII_5G_10G;
-				else if (speed == SPEED_2500)
-					ret |= NEMACCTL_SP_SEL_USXGMII_2_5G_10G;
-				else if (speed == SPEED_1000) {
-					ret |= NEMACCTL_SP_SEL_USXGMII_1G_10G;
-					reg |= SP_ETH_1G << SP_ETH1_SHIFT;
-				} else if (speed == SPEED_100) {
-					ret |= NEMACCTL_SP_SEL_USXGMII_100M_10G;
-					reg |= SP_ETH_100M << SP_ETH1_SHIFT;
-				} else if (speed == SPEED_10) {
-					ret |= NEMACCTL_SP_SEL_USXGMII_10M_10G;
-					reg |= SP_ETH_10M << SP_ETH1_SHIFT;
-				}
-			} else if (td->port_interface == ENABLE_USXGMII_5G_INTERFACE) {
-				if (speed == SPEED_5000)
-					ret |= NEMACCTL_SP_SEL_USXGMII_5G_5G;
-				else if (speed == SPEED_2500)
-					ret |= NEMACCTL_SP_SEL_USXGMII_2_5G_5G;
-				else if (speed == SPEED_1000) {
-					ret |= NEMACCTL_SP_SEL_USXGMII_1G_5G;
-					reg |= SP_ETH_1G << SP_ETH1_SHIFT;
-				} else if (speed == SPEED_100) {
-					ret |= NEMACCTL_SP_SEL_USXGMII_100M_5G;
-					reg |= SP_ETH_100M << SP_ETH1_SHIFT;
-				} else if (speed == SPEED_10) {
-					ret |= NEMACCTL_SP_SEL_USXGMII_10M_5G;
-					reg |= SP_ETH_10M << SP_ETH1_SHIFT;
-				}
-			} else if (td->port_interface == ENABLE_USXGMII_2_5G_INTERFACE) {
-				if (speed == SPEED_2500)
-					ret |= NEMACCTL_SP_SEL_USXGMII_2_5G_2_5G;
-				else if (speed == SPEED_1000) {
-					ret |= NEMACCTL_SP_SEL_USXGMII_1G_2_5G;
-					reg |= SP_ETH_1G << SP_ETH1_SHIFT;
-				} else if (speed == SPEED_100) {
-					ret |= NEMACCTL_SP_SEL_USXGMII_100M_2_5G;
-					reg |= SP_ETH_100M << SP_ETH1_SHIFT;
-				} else if (speed == SPEED_10) {
-					ret |= NEMACCTL_SP_SEL_USXGMII_10M_2_5G;
-					reg |= SP_ETH_10M << SP_ETH1_SHIFT;
-				}
-			}
 			reg_value = tc956x_xpcs_read(xpcsaddr, XGMAC_VR_XS_PCS_KR_CTRL);
 			reg_value &= ~XGMAC_USXG_MODE; /*USXG_MODE : 0x000*/
-			if (td->port_interface == ENABLE_USXGMII_5G_INTERFACE)
-				reg_value |= XPCS_USX_5G_MODE;
-			else if ((td->port_interface == ENABLE_USXGMII_2_5G_INTERFACE))
-				reg_value |= XPCS_USX_2_5G_MODE;
 			tc956x_xpcs_write(xpcsaddr, XGMAC_VR_XS_PCS_KR_CTRL, reg_value);
 		}
 
@@ -2331,8 +2248,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 		ret |= ((NCLKCTRL0_MAC0TXCEN | NCLKCTRL0_MAC0ALLCLKEN | NCLKCTRL0_MAC0RXCEN));
 		/* Only if "current" port is SGMII 2.5G, configure below clocks. */
-		if ((td->port_interface == ENABLE_SGMII_INTERFACE) ||
-		    (td->port_interface == ENABLE_2500BASE_X_INTERFACE)) {
+		if (td->port_interface == ENABLE_SGMII_INTERFACE) {
 			ret &= ~NCLKCTRL0_POEPLLCEN;
 			ret &= ~NCLKCTRL0_SGMPCIEN;
 			ret &= ~NCLKCTRL0_REFCLKOCEN;
@@ -2344,16 +2260,10 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		/* Interface configuration for port0*/
 		ret = readl(td->sfr_addr + NEMAC0CTL_OFFSET);
 		ret &= ~(NEMACCTL_SP_SEL_MASK | NEMACCTL_PHY_INF_SEL_MASK);
-		if ((td->port_interface == ENABLE_SGMII_INTERFACE) ||
-		    (td->port_interface == ENABLE_2500BASE_X_INTERFACE))
+		if (td->port_interface == ENABLE_SGMII_INTERFACE)
 			ret |= NEMACCTL_SP_SEL_SGMII_2500M;
-		else if ((td->port_interface == ENABLE_USXGMII_10G_INTERFACE) ||
-			 (td->port_interface == ENABLE_XFI_INTERFACE))
+		else if (td->port_interface == ENABLE_XFI_INTERFACE)
 			ret |= NEMACCTL_SP_SEL_USXGMII_10G_10G;
-		else if (td->port_interface == ENABLE_USXGMII_5G_INTERFACE)
-			ret |= NEMACCTL_SP_SEL_USXGMII_5G_5G;
-		else if (td->port_interface == ENABLE_USXGMII_2_5G_INTERFACE)
-			ret |= NEMACCTL_SP_SEL_USXGMII_2_5G_2_5G;
 
 		ret &= ~(0x00000040); /* Mask Polarity */
 		if (SgmSigPol == 1)
@@ -2381,8 +2291,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 		ret |= ((NCLKCTRL1_MAC1TXCEN | NCLKCTRL1_MAC1RXCEN |
 		NCLKCTRL1_MAC1ALLCLKEN1 | 1 << 15));
-		if ((td->port_interface == ENABLE_SGMII_INTERFACE) ||
-		    (td->port_interface == ENABLE_2500BASE_X_INTERFACE)) {
+		if (td->port_interface == ENABLE_SGMII_INTERFACE) {
 			ret &= ~NCLKCTRL1_MAC1125CLKEN1;
 			ret &= ~NCLKCTRL1_MAC1312CLKEN1;
 		}
@@ -2391,16 +2300,10 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		/* Interface configuration for port1*/
 		ret = readl(td->sfr_addr + NEMAC1CTL_OFFSET);
 		ret &= ~(NEMACCTL_SP_SEL_MASK | NEMACCTL_PHY_INF_SEL_MASK);
-		if ((td->port_interface == ENABLE_SGMII_INTERFACE) ||
-			 (td->port_interface == ENABLE_2500BASE_X_INTERFACE))
+		if (td->port_interface == ENABLE_SGMII_INTERFACE)
 			ret |= NEMACCTL_SP_SEL_SGMII_2500M;
-		else if ((td->port_interface == ENABLE_USXGMII_10G_INTERFACE) ||
-			 (td->port_interface == ENABLE_XFI_INTERFACE))
+		else if (td->port_interface == ENABLE_XFI_INTERFACE)
 			ret |= NEMACCTL_SP_SEL_USXGMII_10G_10G;
-		else if (td->port_interface == ENABLE_USXGMII_5G_INTERFACE)
-			ret |= NEMACCTL_SP_SEL_USXGMII_5G_5G;
-		else if (td->port_interface == ENABLE_USXGMII_2_5G_INTERFACE)
-			ret |= NEMACCTL_SP_SEL_USXGMII_2_5G_2_5G;
 
 		ret &= ~(0x00000040); /* Mask Polarity */
 		if (SgmSigPol == 1)
@@ -2876,8 +2779,7 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 		ret = readl(td->sfr_addr + NCLKCTRL0_OFFSET);
 
 		ret |= ((NCLKCTRL0_MAC0TXCEN | NCLKCTRL0_MAC0ALLCLKEN | NCLKCTRL0_MAC0RXCEN));
-		if ((td->port_interface == ENABLE_SGMII_INTERFACE) ||
-		    (td->port_interface == ENABLE_2500BASE_X_INTERFACE)) {
+		if (td->port_interface == ENABLE_SGMII_INTERFACE) {
 			/* Disable Clocks for 2.5Gbps SGMII */
 			ret &= ~NCLKCTRL0_POEPLLCEN;
 			ret &= ~NCLKCTRL0_SGMPCIEN;
@@ -2890,16 +2792,10 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 		/* Interface configuration for port0*/
 		ret = readl(td->sfr_addr + NEMAC0CTL_OFFSET);
 		ret &= ~(NEMACCTL_SP_SEL_MASK | NEMACCTL_PHY_INF_SEL_MASK);
-		if ((td->port_interface == ENABLE_SGMII_INTERFACE) ||
-		    (td->port_interface == ENABLE_2500BASE_X_INTERFACE))
+		if (td->port_interface == ENABLE_SGMII_INTERFACE)
 			ret |= NEMACCTL_SP_SEL_SGMII_2500M;
-		else if ((td->port_interface == ENABLE_USXGMII_10G_INTERFACE) ||
-			 (td->port_interface == ENABLE_XFI_INTERFACE))
+		else if (td->port_interface == ENABLE_XFI_INTERFACE)
 			ret |= NEMACCTL_SP_SEL_USXGMII_10G_10G;
-		else if (td->port_interface == ENABLE_USXGMII_5G_INTERFACE)
-			ret |= NEMACCTL_SP_SEL_USXGMII_5G_5G;
-		else if (td->port_interface == ENABLE_USXGMII_2_5G_INTERFACE)
-			ret |= NEMACCTL_SP_SEL_USXGMII_2_5G_2_5G;
 
 		ret &= ~(0x00000040); /* Mask Polarity */
 		if (SgmSigPol == 1)
@@ -2927,8 +2823,7 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 
 		ret |= ((NCLKCTRL1_MAC1TXCEN | NCLKCTRL1_MAC1RXCEN |
 		NCLKCTRL1_MAC1ALLCLKEN1 | 1 << 15));
-		if ((td->port_interface == ENABLE_SGMII_INTERFACE) ||
-		    (td->port_interface == ENABLE_2500BASE_X_INTERFACE)) {
+		if (td->port_interface == ENABLE_SGMII_INTERFACE) {
 			ret &= ~NCLKCTRL1_MAC1125CLKEN1;
 			ret &= ~NCLKCTRL1_MAC1312CLKEN1;
 		}
@@ -2937,16 +2832,10 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 		/* Interface configuration for port1*/
 		ret = readl(td->sfr_addr + NEMAC1CTL_OFFSET);
 		ret &= ~(NEMACCTL_SP_SEL_MASK | NEMACCTL_PHY_INF_SEL_MASK);
-		if ((td->port_interface == ENABLE_SGMII_INTERFACE) ||
-			 (td->port_interface == ENABLE_2500BASE_X_INTERFACE))
+		if (td->port_interface == ENABLE_SGMII_INTERFACE)
 			ret |= NEMACCTL_SP_SEL_SGMII_2500M;
-		else if ((td->port_interface == ENABLE_USXGMII_10G_INTERFACE) ||
-			 (td->port_interface == ENABLE_XFI_INTERFACE))
+		else if (td->port_interface == ENABLE_XFI_INTERFACE)
 			ret |= NEMACCTL_SP_SEL_USXGMII_10G_10G;
-		else if (td->port_interface == ENABLE_USXGMII_5G_INTERFACE)
-			ret |= NEMACCTL_SP_SEL_USXGMII_5G_5G;
-		else if (td->port_interface == ENABLE_USXGMII_2_5G_INTERFACE)
-			ret |= NEMACCTL_SP_SEL_USXGMII_2_5G_2_5G;
 
 		ret &= ~(0x00000040); /* Mask Polarity */
 		if (SgmSigPol == 1)
