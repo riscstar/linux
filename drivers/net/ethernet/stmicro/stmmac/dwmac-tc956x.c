@@ -2183,7 +2183,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	/* use signal from EMSPHY */
 	uint16_t sh_mem_offset;
 	uint8_t SgmSigPol = 0;
-	u32 interface;
 	u32 pcie_mode; /* Read Setting A/B */
 	u32 pfn;
 	u32 val;
@@ -2308,13 +2307,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 	td->port_interface = td->emac0 ? ENABLE_XFI_INTERFACE
 				       : ENABLE_SGMII_INTERFACE;
-
-	if (of_property_read_u32(dev->of_node, "qcom,phy-port-interface", &interface)) {
-		dev_err(dev, "Failed to get phy port interface\n");
-	} else {
-		dev_err(dev, "Set phy port interface to %d from %d\n", interface, td->port_interface);
-		td->port_interface = interface;
-	}
 
 	ret = tc956x_xgmac3_default_data(pdev, plat);
 	if (ret)
