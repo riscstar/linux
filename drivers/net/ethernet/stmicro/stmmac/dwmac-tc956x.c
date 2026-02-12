@@ -63,8 +63,8 @@ struct tc956x_data {
 	/** @sfr_addr: SFR base address (BAR4) */
 	void __iomem *sfr_addr;
 
-	/** @port_num: Indicates which eMAC is assigned to this driver */
-	int port_num;
+	/** @emac0: Indicates which eMAC is assigned to this driver */
+	bool emac0;		/* true: eMAC port 0; false: eMAC port 1 */
 
 	/**
 	 * @is_sgmii_2p5g: Controls XPCS AN enablement
@@ -247,10 +247,6 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 // TODO: this was unifdef'ed (some build options result in the value being two)
 #define TC956X_TOT_MSI_VEC	1
 
-/*	Dual Port related Macros	*/
-#define RM_PF0_ID		(0)
-#define RM_PF1_ID		(1)
-
 #define TC956X_AVB_PRIORITY_CLASS_A	(3)
 #define TC956X_AVB_PRIORITY_CLASS_B	(2)
 #define TC956X_PRIORITY_CLASS_CDT	(7)
@@ -386,8 +382,8 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 #define TC956X_TARGET_PTP_CLK	50000000
 
 #define RSC_MNG_OFFSET		0x2000
-#define RSCMNG_ID_REG		((RSC_MNG_OFFSET) + 0x00000000)
-#define RSCMNG_PFN		GENMASK(3, 0)
+#define RSCMNG_ID_REG		(RSC_MNG_OFFSET + 0x00000000)
+#define RSCMNG_PFN_MASK		GENMASK(3, 0)
 
 /*	Configuration Register Address	*/
 #define NCID_OFFSET			(0x0000) /* TC956X Chip and revision ID */
@@ -799,10 +795,9 @@ static int tc956x_xpcs_init(struct plat_stmmacenet_data *plat)
 {
 	struct tc956x_data *td = plat->bsp_priv;
 	void __iomem *xpcsaddr = td->sfr_addr +
-				 (td->port_num == RM_PF0_ID ?
-					  MAC0_BASE_OFFSET :
-					  MAC1_BASE_OFFSET) +
-				 XPCS_XGMAC_OFFSET;
+					(td->emac0 ? MAC0_BASE_OFFSET
+						   : MAC1_BASE_OFFSET) +
+					 XPCS_XGMAC_OFFSET;
 	u32 reg_value;
 
 	reg_value = tc956x_xpcs_read(xpcsaddr, XGMAC_SR_MII_CTRL);
@@ -931,10 +926,9 @@ static int tc956x_xpcs_init(struct plat_stmmacenet_data *plat)
 static void tc956x_xpcs_ctrl_ane(struct tc956x_data *td, bool ane)
 {
 	void __iomem *xpcsaddr = td->sfr_addr +
-				 (td->port_num == RM_PF0_ID ?
-					  MAC0_BASE_OFFSET :
-					  MAC1_BASE_OFFSET) +
-				 XPCS_XGMAC_OFFSET;
+					(td->emac0 ? MAC0_BASE_OFFSET
+						   : MAC1_BASE_OFFSET) +
+					 XPCS_XGMAC_OFFSET;
 	u32 reg_value;
 
 	reg_value = tc956x_xpcs_read(xpcsaddr, XGMAC_SR_MII_CTRL);
@@ -968,7 +962,7 @@ static void tc956x_xpcs_ctrl_ane(struct tc956x_data *td, bool ane)
 static void tc956x_msigen_init(struct stmmac_priv *priv, struct net_device *dev)
 {
 	struct tc956x_data *td = priv->plat->bsp_priv;
-	u8 pf_no = td->port_num, vf_no = 0;
+	u8 pf_no = td->emac0 ? 0 : 1, vf_no = 0;
 	u32 rd_val;
 
 	// TODO: this is the #ifdef EEE_MAC_CONTROLLED_MODE stanza from
@@ -977,9 +971,8 @@ static void tc956x_msigen_init(struct stmmac_priv *priv, struct net_device *dev)
 	//       things turned on in the same order we see in the vendor
 	//       driver
 	rd_val = readl(td->sfr_addr + NCLKCTRL0_OFFSET);
-	if (td->port_num == RM_PF0_ID) {
+	if (td->emac0)
 		rd_val |= (NCLKCTRL0_MAC0312CLKEN | NCLKCTRL0_MAC0125CLKEN);
-	}
 	rd_val |= (NCLKCTRL0_POEPLLCEN | NCLKCTRL0_SGMPCIEN | NCLKCTRL0_REFCLKOCEN);
 	writel(rd_val, td->sfr_addr + NCLKCTRL0_OFFSET);
 
@@ -1012,8 +1005,7 @@ static void tc956x_msigen_init(struct stmmac_priv *priv, struct net_device *dev)
 static u32 tc956x_interrupt_sts(struct stmmac_priv *priv, struct net_device *dev)
 {
 	struct tc956x_data *td = priv->plat->bsp_priv;
-
-	u8 pf_no = td->port_num;
+	u8 pf_no = td->emac0 ? 0 : 1;
 	u8 vf_no = 0;
 
 	return readl(td->sfr_addr + TC956X_MSI_INT_STS_OFFSET(pf_no, vf_no));
@@ -1034,9 +1026,8 @@ static u32 tc956x_interrupt_sts(struct stmmac_priv *priv, struct net_device *dev
 static void tc956x_interrupt_en(struct stmmac_priv *priv, struct net_device *dev, u32 en)
 {
 	struct tc956x_data *td = priv->plat->bsp_priv;
+	u8 pf_no = td->emac0 ? 0 : 1;
 	u32 mask_val = 0;
-
-	u8 pf_no = td->port_num;
 	u8 vf_no = 0;
 
 #if 0
@@ -1112,8 +1103,7 @@ static void tc956x_interrupt_en(struct stmmac_priv *priv, struct net_device *dev
 static void tc956x_interrupt_clr(struct stmmac_priv *priv, struct net_device *dev, u32 vector)
 {
 	struct tc956x_data *td = priv->plat->bsp_priv;
-
-	u8 pf_no = td->port_num;
+	u8 pf_no = td->emac0 ? 0 : 1;
 	u8 vf_no = 0;
 
 	writel((1<<vector), td->sfr_addr + TC956X_MSI_MASK_CLR_OFFSET(pf_no, vf_no));
@@ -1476,9 +1466,10 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, enum TC956X_PORT_PM_ST
 	void *nrst_reg = NULL, *nclk_reg = NULL, *commonclk_reg = NULL;
 	u32 nrst_val = 0, nclk_val = 0, commonclk_val = 0;
 
-	pr_debug("-->%s : Port %d interface %s", __func__, td->port_num, priv->dev->name);
+	pr_debug("-->%s : Port %d interface %s", __func__, td->emac0 ? 0 : 1,
+		 priv->dev->name);
 	/* Select register address by port */
-	if (td->port_num == 0) {
+	if (td->emac0) {
 		nrst_reg = td->sfr_addr + NRSTCTRL0_OFFSET;
 		nclk_reg = td->sfr_addr + NCLKCTRL0_OFFSET;
 	} else {
@@ -1487,12 +1478,14 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, enum TC956X_PORT_PM_ST
 	}
 
 	if (state == SUSPEND) {
-		pr_debug("%s : Port %d interface %s Set Power for Suspend", __func__, td->port_num, priv->dev->name);
+		pr_debug("%s : Port %d interface %s Set Power for Suspend",
+			 __func__, td->emac0 ? 0 : 1, priv->dev->name);
 		/* Modify register for reset, clock and MSI_OUTEN */
 		nrst_val = readl(nrst_reg);
 		nclk_val = readl(nclk_reg);
-		pr_debug("%s : Port %d interface %s Rd RST Reg:%x, CLK Reg:%x", __func__, td->port_num, priv->dev->name,
-			nrst_val, nclk_val);
+		pr_debug("%s : Port %d interface %s Rd RST Reg:%x, CLK Reg:%x",
+			 __func__, td->emac0 ? 0 : 1, priv->dev->name,
+			 nrst_val, nclk_val);
 		/* Save values before Asserting reset and Clock Disable */
 		td->pm_saved_emac_rst = nrst_val & NRSTCTRL_EMAC_MASK;
 		td->pm_saved_emac_clk = nclk_val & NCLKCTRL_EMAC_MASK;
@@ -1503,42 +1496,51 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, enum TC956X_PORT_PM_ST
 		if (tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt == TC956X_ALL_MAC_PORT_SUSPENDED) {
 			commonclk_reg = td->sfr_addr + NCLKCTRL0_OFFSET;
 			commonclk_val = readl(commonclk_reg);
-			pr_debug("%s : Port %d interface %s Common CLK Rd Reg:%x", __func__, td->port_num, priv->dev->name,
-				commonclk_val);
+			pr_debug("%s : Port %d interface %s Common CLK Rd Reg:%x",
+				 __func__, td->emac0 ? 0 : 1,
+				 priv->dev->name, commonclk_val);
 			/* Clear Common Clocks only when both port suspends */
 			commonclk_val = commonclk_val & ~NCLKCTRL0_COMMON_EMAC_MASK;
 			writel(commonclk_val, commonclk_reg);
-			pr_debug("%s : Port %d interface %s Common CLK Wr Reg:%x", __func__, td->port_num, priv->dev->name,
-				commonclk_val);
+			pr_debug("%s : Port %d interface %s Common CLK Wr Reg:%x",
+				 __func__, td->emac0 ? 0 : 1,
+				 priv->dev->name, commonclk_val);
 		}
 	} else if (state == RESUME) {
-		pr_debug("%s : Port %d interface %s Set Power for Resume", __func__, td->port_num, priv->dev->name);
+		pr_debug("%s : Port %d interface %s Set Power for Resume",
+			 __func__, td->emac0 ? 0 : 1, priv->dev->name);
 		if (tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt == TC956X_ALL_MAC_PORT_SUSPENDED) {
 			commonclk_reg = td->sfr_addr + NCLKCTRL0_OFFSET;
 			commonclk_val = readl(commonclk_reg);
-			pr_debug("%s : Port %d interface %s Common CLK Rd Reg:%x", __func__, td->port_num, priv->dev->name,
-				commonclk_val);
+			pr_debug("%s : Port %d interface %s Common CLK Rd Reg:%x",
+				 __func__, td->emac0 ? 0 : 1, priv->dev->name,
+				 commonclk_val);
 			/* Clear Common Clocks only when both port suspends */
 			commonclk_val = commonclk_val | NCLKCTRL0_COMMON_EMAC_MASK;
 			writel(commonclk_val, commonclk_reg);
-			pr_debug("%s : Port %d interface %s Common CLK WR Reg:%x", __func__, td->port_num, priv->dev->name,
-				commonclk_val);
+			pr_debug("%s : Port %d interface %s Common CLK WR Reg:%x",
+				 __func__, td->emac0 ? 0 : 1,
+				 priv->dev->name, commonclk_val);
 		}
 		nrst_val = readl(nrst_reg);
 		nclk_val = readl(nclk_reg);
-		pr_debug("%s : Port %d interface %s Rd RST Reg:%x, CLK Reg:%x", __func__, td->port_num, priv->dev->name,
-			nrst_val, nclk_val);
+		pr_debug("%s : Port %d interface %s Rd RST Reg:%x, CLK Reg:%x",
+			 __func__, td->emac0 ? 0 : 1, priv->dev->name,
+			 nrst_val, nclk_val);
 		/* Restore values same as before suspend */
 		nrst_val = (nrst_val & ~NRSTCTRL_EMAC_MASK) | td->pm_saved_emac_rst;
 		nclk_val = nclk_val | td->pm_saved_emac_clk; /* Restore Clock */
 		writel(nclk_val, nclk_reg);
 		writel(nrst_val, nrst_reg);
 	}
-	pr_debug("%s : Port %d interface %s td->pm_saved_emac_rst %x td->pm_saved_emac_clk %x", __func__,
-		td->port_num, priv->dev->name, td->pm_saved_emac_rst, td->pm_saved_emac_clk);
-	pr_debug("%s : Port %d %s Wr RST Reg:%x, CLK Reg:%x", __func__, td->port_num, priv->dev->name,
+	pr_debug("%s : Port %d interface %s td->pm_saved_emac_rst %x td->pm_saved_emac_clk %x",
+		 __func__, td->emac0 ? 0 : 1, priv->dev->name,
+		 td->pm_saved_emac_rst, td->pm_saved_emac_clk);
+	pr_debug("%s : Port %d %s Wr RST Reg:%x, CLK Reg:%x", __func__,
+		td->emac0 ? 0 : 1, priv->dev->name,
 		readl(nrst_reg), readl(nclk_reg));
-	pr_debug("<--%s : Port %d interface %s", __func__, td->port_num, priv->dev->name);
+	pr_debug("<--%s : Port %d interface %s", __func__, td->emac0 ? 0 : 1,
+		 priv->dev->name);
 }
 
 static void xgmac_default_data(struct plat_stmmacenet_data *plat)
@@ -2047,14 +2049,14 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 	int ret, reg = 0, val, reg_value;
 	void __iomem *ioaddr =
 		td->sfr_addr +
-		(td->port_num == 0 ? MAC0_BASE_OFFSET : MAC1_BASE_OFFSET);
+		(td->emac0 ? MAC0_BASE_OFFSET : MAC1_BASE_OFFSET);
 	void __iomem *xpcsaddr = ioaddr + XPCS_XGMAC_OFFSET;
 	bool enable_an = true;
 
 	// TODO: copied from vendor drivers customizations in
 	//       tc956x_speed_change_init_mac()
 
-	if (td->port_num == RM_PF0_ID) {
+	if (td->emac0) {
 		// TODO
 		BUG();
 	} else {
@@ -2152,13 +2154,12 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 
 	}
 
-	if (td->port_num == RM_PF0_ID) {
+	if (td->emac0) {
 		/* Assertion of PMA & XPCS reset software Reset*/
 		ret = readl(td->sfr_addr + NRSTCTRL0_OFFSET);
 		ret |= (NRSTCTRL0_MAC0PMARST | NRSTCTRL0_MAC0PONRST);
 		writel(ret, td->sfr_addr + NRSTCTRL0_OFFSET);
 	} else {
-		BUG_ON(td->port_num != RM_PF1_ID);
 		/* Assertion of PMA &  XPCS reset  software Reset*/
 		ret = readl(td->sfr_addr + NRSTCTRL1_OFFSET);
 		ret |= (NRSTCTRL1_MAC1PMARST1 | NRSTCTRL1_MAC1PONRST1);
@@ -2169,7 +2170,7 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 	if (ret < 0)
 		pr_info("PMA switching to internal clock Failed\n");
 
-	if (td->port_num == RM_PF0_ID) {
+	if (td->emac0) {
 		/* De-assertion of PMA & XPCS reset software Reset*/
 		ret = readl(td->sfr_addr + NRSTCTRL0_OFFSET);
 		ret &= ~(NRSTCTRL0_MAC0PMARST | NRSTCTRL0_MAC0PONRST);
@@ -2177,16 +2178,14 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 
 		writel(ret, td->sfr_addr + NRSTCTRL0_OFFSET);
 	} else {
-		BUG_ON(td->port_num != RM_PF1_ID);
 		/* De-assertion of PMA &  XPCS reset software Reset*/
 		ret = readl(td->sfr_addr + NRSTCTRL1_OFFSET);
 		ret &= ~(NRSTCTRL1_MAC1PMARST1 | NRSTCTRL1_MAC1PONRST1);
 		writel(ret, td->sfr_addr + NRSTCTRL1_OFFSET);
 	}
 
-	ret = readl_poll_timeout(td->sfr_addr + (td->port_num == RM_PF0_ID ?
-							 NEMAC0CTL_OFFSET :
-							 NEMAC1CTL_OFFSET),
+	ret = readl_poll_timeout(td->sfr_addr + (td->emac0 ? NEMAC0CTL_OFFSET
+						           : NEMAC1CTL_OFFSET),
 				 val, val & NEMACCTL_INIT_DONE, 50, 1000000);
 	if (ret < 0)
 		dev_err(td->dev, "PMA/XPCS failed to come out of reset\n");
@@ -2245,6 +2244,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	u32 interface;
 	u32 pcie_mode; /* Read Setting A/B */
 	u32 mdc_clk;
+	u32 pfn;
 	u32 val;
 	int ret;
 
@@ -2346,13 +2346,17 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	log_mmio_register_range(td->sfr_addr, pci_resource_len(pdev, 4), "sfr");
 #endif
 
-	td->port_num = readl(td->bridge_cfg_addr + RSCMNG_ID_REG); /* Resource Manager ID */
-	td->port_num &= RSCMNG_PFN;
+	/* Determine physical port number from the resource manager */
+	val = readl(td->bridge_cfg_addr + RSCMNG_ID_REG);
+	pfn = FIELD_GET(RSCMNG_PFN_MASK, val);
+	if (WARN_ON(pfn > 1))
+		return -EINVAL;
+	td->emac0 = pfn == 0;
 
 	td->dev = dev;
 
 	res.addr = td->sfr_addr +
-		   (td->port_num == 0 ? MAC0_BASE_OFFSET : MAC1_BASE_OFFSET);
+		   (td->emac0 ? MAC0_BASE_OFFSET : MAC1_BASE_OFFSET);
 
 	plat->mac_setup = &tc956x_dwmac_setup;
 	plat->fix_mac_speed = &tc956x_fix_mac_speed;
@@ -2361,7 +2365,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	// to 2.5G)
 	pr_debug("NCID Register value: %x\n", readl(td->sfr_addr + NCID_OFFSET));
 
-	if (td->port_num == RM_PF0_ID) {
+	if (td->emac0) {
 		td->port_interface = ENABLE_XFI_INTERFACE;
 		td->mdc_clk = TC956XMAC_XGMAC_MDC_CSR_12;
 	} else {
@@ -2392,7 +2396,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	dev_dbg(dev, "port_interface = %d\n", td->port_interface);
 	dev_dbg(dev, "mdc_clk = 0x%x\n", td->mdc_clk);
 
-	if (td->port_num == RM_PF0_ID) {
+	if (td->emac0) {
 		ret = readl(td->sfr_addr + NRSTCTRL0_OFFSET);
 		ret |= (NRSTCTRL0_INTRST);
 		writel(ret, td->sfr_addr + NRSTCTRL0_OFFSET);
@@ -2410,7 +2414,8 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		 */
 		tc956x_config_tamap(dev, td->bridge_cfg_addr);
 	}
-	dev_dbg(dev, "Initialising eMAC Port %d bus number-%x\n", td->port_num, pdev->bus->number);
+	dev_dbg(dev, "Initialising eMAC Port %d bus number-%x\n",
+		 td->emac0 ? 0 : 1, pdev->bus->number);
 	/* Enable MSI  and Allocate Vectors */
 	ret = pci_alloc_irq_vectors(pdev, TC956X_TOT_MSI_VEC,
 				TC956X_TOT_MSI_VEC, PCI_IRQ_MSI);
@@ -2426,13 +2431,13 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	pci_write_config_dword(pdev, pdev->msi_cap + PCI_MSI_MASK_64, 0);
 
 
-	if (td->port_num == RM_PF0_ID) {
+	if (td->emac0) {
 		ret = tc956x_load_firmware(dev, td);
 		if (ret)
 			dev_err(dev, "Firmware load failed\n");
 	}
 
-	if (td->port_num == RM_PF0_ID) {
+	if (td->emac0) {
 		ret = readl(td->sfr_addr + NRSTCTRL0_OFFSET);
 
 		/* Assertion of EMAC Port0 software Reset */
@@ -2484,7 +2489,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		writel(ret, td->sfr_addr + NRSTCTRL0_OFFSET);
 	}
 
-	if (td->port_num == RM_PF1_ID) {
+	if (!td->emac0) {
 		ret = readl(td->sfr_addr + NRSTCTRL1_OFFSET);
 
 		/* Assertion of EMAC Port1 software Reset*/
@@ -2540,7 +2545,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	res.irq = pdev->irq;
 	res.lpi_irq = pdev->irq;
 
-	plat->bus_id = ((pdev->bus->number<<4) | td->port_num);
+	plat->bus_id = ((pdev->bus->number<<4) | (td->emac0 ? 0 : 1));
 
 	sh_mem_offset = tc956x_get_shared_mem_offset(pdev, pci_dev_id(pdev) & TC956X_PCI_BD_MASK);
 	if (sh_mem_offset < TC956X_TOT_CASCADE_DEV)
@@ -2556,13 +2561,12 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		goto err_platform_probe;
 	}
 
-	if (td->port_num == RM_PF0_ID) {
+	if (td->emac0) {
 		/* Assertion of PMA & XPCS reset software Reset*/
 		ret = readl(td->sfr_addr + NRSTCTRL0_OFFSET);
 		ret |= (NRSTCTRL0_MAC0PMARST | NRSTCTRL0_MAC0PONRST);
 		writel(ret, td->sfr_addr + NRSTCTRL0_OFFSET);
 	} else {
-		BUG_ON(td->port_num != RM_PF1_ID);
 		/* Assertion of PMA &  XPCS reset  software Reset*/
 		ret = readl(td->sfr_addr + NRSTCTRL1_OFFSET);
 		ret |= (NRSTCTRL1_MAC1PMARST1 | NRSTCTRL1_MAC1PONRST1);
@@ -2573,7 +2577,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	if (ret < 0)
 		pr_info("PMA switching to internal clock Failed\n");
 
-	if (td->port_num == RM_PF0_ID) {
+	if (td->emac0) {
 		/* De-assertion of PMA & XPCS reset software Reset*/
 		ret = readl(td->sfr_addr + NRSTCTRL0_OFFSET);
 		ret &= ~(NRSTCTRL0_MAC0PMARST | NRSTCTRL0_MAC0PONRST);
@@ -2581,16 +2585,14 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 		writel(ret, td->sfr_addr + NRSTCTRL0_OFFSET);
 	} else {
-		BUG_ON(td->port_num != RM_PF1_ID);
 		/* De-assertion of PMA &  XPCS reset software Reset*/
 		ret = readl(td->sfr_addr + NRSTCTRL1_OFFSET);
 		ret &= ~(NRSTCTRL1_MAC1PMARST1 | NRSTCTRL1_MAC1PONRST1);
 		writel(ret, td->sfr_addr + NRSTCTRL1_OFFSET);
 	}
 
-	ret = readl_poll_timeout(td->sfr_addr + (td->port_num == RM_PF0_ID ?
-							 NEMAC0CTL_OFFSET :
-							 NEMAC1CTL_OFFSET),
+	ret = readl_poll_timeout(td->sfr_addr + (td->emac0 ? NEMAC0CTL_OFFSET :
+							     NEMAC1CTL_OFFSET),
 				 val, val & NEMACCTL_INIT_DONE, 50, 1000000);
 	if (ret < 0)
 		dev_err(dev, "PMA/XPCS failed to come out of reset\n");
@@ -2603,7 +2605,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	if (ret) {
 		void *nrst_reg = NULL, *nclk_reg = NULL;
 		u32 nrst_val = 0, nclk_val = 0;
-		if (td->port_num == 0) {
+		if (td->emac0) {
 			nrst_reg = td->sfr_addr + NRSTCTRL0_OFFSET;
 			nclk_reg = td->sfr_addr + NCLKCTRL0_OFFSET;
 		} else {
@@ -2620,7 +2622,8 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		writel(nclk_val, nclk_reg);
 
 		if (ret == -ENODEV) {
-			dev_dbg(dev, "Port%d Bus%x will be registered as PCIe device only", td->port_num, pdev->bus->number);
+			dev_dbg(dev, "Port%d Bus%x will be registered as PCIe device only",
+				 td->emac0 ? 0 : 1, pdev->bus->number);
 			/* Make sure probe() succeeds by returning 0 to caller of probe() */
 			ret = 0;
 		} else {
@@ -2629,7 +2632,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		}
 	}
 
-	if ((td->port_num == RM_PF1_ID) &&
+	if (!td->emac0 &&
 	    ((td->port_interface == ENABLE_RGMII_INTERFACE) ||
 	     (td->port_interface == ENABLE_RGMII_ID_INTERFACE))) {
 		writel(0x00000000, td->sfr_addr + 0x1050);
@@ -2746,7 +2749,7 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 	}
 
 	/* Set reset value for CLK control and RESET Control registers */
-	if (td->port_num == 0) {
+	if (td->emac0) {
 		nrst_reg = td->sfr_addr + NRSTCTRL0_OFFSET;
 		nclk_reg = td->sfr_addr + NCLKCTRL0_OFFSET;
 		nrst_val = readl(nrst_reg);
@@ -2773,8 +2776,9 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 		writel(nrst_val, nrst_reg);
 		writel(nclk_val, nclk_reg);
 	}
-	pr_debug("%s : Port %d %s Wr RST Reg:%x, CLK Reg:%x", __func__, td->port_num, priv->dev->name,
-		readl(nrst_reg), readl(nclk_reg));
+	pr_debug("%s : Port %d %s Wr RST Reg:%x, CLK Reg:%x", __func__,
+			td->emac0 ? 0 : 1, priv->dev->name,
+			readl(nrst_reg), readl(nclk_reg));
 
 	pdev->irq = 0;
 
@@ -2814,11 +2818,13 @@ static int tc956x_pcie_pm_disable_pci(struct pci_dev *pdev)
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	int ret = 0;
 
-	dev_dbg(&(pdev->dev), "---->%s : Port %d %s - PCI Save State, Disable Device, Prepare to sleep", __func__, td->port_num, ndev->name);
+	dev_dbg(&(pdev->dev), "---->%s : Port %d %s - PCI Save State, Disable Device, Prepare to sleep",
+		 __func__, td->emac0 ? 0 : 1, ndev->name);
 	pci_save_state(pdev);
 	pci_disable_device(pdev);
 	pci_prepare_to_sleep(pdev);
-	dev_dbg(&(pdev->dev), "<----%s : Port %d %s- PCI Save State, Disable Device, Prepare to sleep", __func__, td->port_num, ndev->name);
+	dev_dbg(&(pdev->dev), "<----%s : Port %d %s- PCI Save State, Disable Device, Prepare to sleep",
+		 __func__, td->emac0 ? 0 : 1, ndev->name);
 	return ret;
 }
 
@@ -2839,7 +2845,8 @@ static int tc956x_pcie_pm_enable_pci(struct pci_dev *pdev)
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	int ret = 0;
 
-	dev_dbg(&(pdev->dev), "---->%s : Port %d %s - PCI Set Power, Enable Device, Restore State & Set Master", __func__, td->port_num, ndev->name);
+	dev_dbg(&(pdev->dev), "---->%s : Port %d %s - PCI Set Power, Enable Device, Restore State & Set Master",
+		 __func__, td->emac0 ? 0 : 1, ndev->name);
 	pci_set_power_state(pdev, PCI_D0);
 	ret = pci_enable_device_mem(pdev);
 	if (ret) {
@@ -2850,7 +2857,8 @@ static int tc956x_pcie_pm_enable_pci(struct pci_dev *pdev)
 	}
 	pci_restore_state(pdev);
 	pci_set_master(pdev);
-	dev_dbg(&(pdev->dev), "<----%s : Port %d %s - PCI Set Power, Enable Device, Restore State & Set Master", __func__, td->port_num, ndev->name);
+	dev_dbg(&(pdev->dev), "<----%s : Port %d %s - PCI Set Power, Enable Device, Restore State & Set Master",
+		__func__, td->emac0 ? 0 : 1, ndev->name);
 	return ret;
 }
 
@@ -2922,7 +2930,8 @@ static int tc956x_pcie_suspend(struct device *dev)
 	int ret = 0;
 
 	if (td->tc956x_port_pm_suspend == true) {
-		dev_dbg(&(pdev->dev), "<--%s : Port %d interface %s already Suspended\n", __func__, td->port_num, priv->dev->name);
+		dev_dbg(&(pdev->dev), "<--%s : Port %d interface %s already Suspended\n",
+			 __func__, td->emac0 ? 0 : 1, priv->dev->name);
 		return -1;
 	}
 	/* Set flag to avoid queuing any more work */
@@ -2936,7 +2945,8 @@ static int tc956x_pcie_suspend(struct device *dev)
 
 	/* Call stmmac_suspend() */
 	stmmac_suspend(&pdev->dev);
-	dev_dbg(&(pdev->dev), "%s : Port %d %s- Platform Suspend", __func__, td->port_num, priv->dev->name);
+	dev_dbg(&(pdev->dev), "%s : Port %d %s- Platform Suspend",
+			__func__, td->emac0 ? 0 : 1, priv->dev->name);
 	ret = tc956x_platform_suspend(priv);
 	if (ret) {
 		dev_err(&(pdev->dev), "%s: error in calling tc956x_platform_suspend", pci_name(pdev));
@@ -2985,7 +2995,7 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 		}
 	}
 
-	if (td->port_num == RM_PF0_ID) {
+	if (td->emac0) {
 		ret = readl(td->sfr_addr + NRSTCTRL0_OFFSET);
 
 		/* Assertion of EMAC Port0 software Reset */
@@ -3037,7 +3047,7 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 		writel(ret, td->sfr_addr + NRSTCTRL0_OFFSET);
 	}
 
-	if (td->port_num == RM_PF1_ID) {
+	if (!td->emac0) {
 		ret = readl(td->sfr_addr + NRSTCTRL1_OFFSET);
 
 		/* Assertion of EMAC Port1 software Reset*/
@@ -3089,7 +3099,7 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 	}
 
 	if (priv->hw->xpcs) {
-		if (td->port_num == RM_PF0_ID) {
+		if (td->emac0) {
 			/* Assertion of PMA &  XPCS reset  software Reset*/
 			ret = readl(td->sfr_addr + NRSTCTRL0_OFFSET);
 			ret |= (NRSTCTRL0_MAC0PMARST | NRSTCTRL0_MAC0PONRST);
@@ -3105,7 +3115,7 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 		if (ret < 0)
 			pr_info("PMA switching to internal clock Failed\n");
 
-		if (td->port_num == RM_PF0_ID) {
+		if (td->emac0) {
 			/* De-assertion of PMA &  XPCS reset  software Reset*/
 			ret = readl(td->sfr_addr + NRSTCTRL0_OFFSET);
 			ret &= ~(NRSTCTRL0_MAC0PMARST | NRSTCTRL0_MAC0PONRST);
@@ -3119,7 +3129,7 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 		}
 
 		ret = readl_poll_timeout(
-			td->sfr_addr + (td->port_num == RM_PF0_ID ? NEMAC0CTL_OFFSET : NEMAC1CTL_OFFSET),
+			td->sfr_addr + (td->emac0 ? NEMAC0CTL_OFFSET : NEMAC1CTL_OFFSET),
 			val, val & NEMACCTL_INIT_DONE, 50, 1000000);
 		if (ret < 0)
 			dev_err(&pdev->dev, "PMA/XPCS failed to come out of reset\n");
@@ -3158,7 +3168,8 @@ static int tc956x_pcie_resume(struct device *dev)
 	int ret = 0;
 
 	if (td->tc956x_port_pm_suspend == false) {
-		dev_dbg(&(pdev->dev), "%s : Port %d %s already Resumed\n", __func__, td->port_num, priv->dev->name);
+		dev_dbg(&(pdev->dev), "%s : Port %d %s already Resumed\n",
+				__func__, td->emac0 ? 0 : 1, priv->dev->name);
 		return -1;
 	}
 	mutex_lock(&tc956x_pm_suspend_lock);
@@ -3174,7 +3185,8 @@ static int tc956x_pcie_resume(struct device *dev)
 	if (ret < 0)
 		pr_info("GPIO configuration restoration failed\n");
 
-	dev_dbg(&(pdev->dev), "%s : Port %d %s - Platform Resume", __func__, td->port_num, priv->dev->name);
+	dev_dbg(&(pdev->dev), "%s : Port %d %s - Platform Resume",
+			__func__, td->emac0 ? 0 : 1, priv->dev->name);
 	ret = tc956x_platform_resume(priv);
 	if (ret) {
 		dev_err(&(pdev->dev), "%s: error in calling tc956x_platform_resume", pci_name(pdev));
@@ -3194,7 +3206,7 @@ static int tc956x_pcie_resume(struct device *dev)
 
 	/* Call stmmac_resume() */
 	stmmac_resume(&pdev->dev);
-	if ((td->port_num == RM_PF1_ID) &&
+	if (!td->emac0 &&
 	    ((td->port_interface == ENABLE_RGMII_INTERFACE) ||
 	     (td->port_interface == ENABLE_RGMII_ID_INTERFACE))) {
 		writel(NEMACTXCDLY_DEFAULT, td->sfr_addr + TC9563_CFG_NEMACTXCDLY);
