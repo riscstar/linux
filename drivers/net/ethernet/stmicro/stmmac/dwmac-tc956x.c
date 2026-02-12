@@ -825,44 +825,43 @@ static int tc956x_xpcs_init(struct plat_stmmacenet_data *plat)
 			tc956x_xpcs_write(xpcsaddr, XGMAC_VR_XS_PCS_DIG_CTRL1,
 					  reg_value);
 		}
-		}
-		if ((plat->phy_interface == PHY_INTERFACE_MODE_USXGMII) ||
-			(plat->phy_interface == PHY_INTERFACE_MODE_10GKR)
+	}
+	if ((plat->phy_interface == PHY_INTERFACE_MODE_USXGMII) ||
+			(plat->phy_interface == PHY_INTERFACE_MODE_10GKR) ||
+			(plat->phy_interface == PHY_INTERFACE_MODE_10GBASER)) {
+		reg_value = tc956x_xpcs_read(xpcsaddr, XGMAC_SR_XS_PCS_CTRL2);
+		reg_value &= XGMAC_PCS_TYPE_SEL;/*PCS_TYPE_SEL as 10GBASE-R PCS */
+		tc956x_xpcs_write(xpcsaddr, XGMAC_SR_XS_PCS_CTRL2, reg_value);
+
+		reg_value = tc956x_xpcs_read(xpcsaddr, XGMAC_VR_XS_PCS_DIG_CTRL1);
+		if (plat->phy_interface == PHY_INTERFACE_MODE_10GKR
 			|| (plat->phy_interface == PHY_INTERFACE_MODE_10GBASER)
 			) {
-			reg_value = tc956x_xpcs_read(xpcsaddr, XGMAC_SR_XS_PCS_CTRL2);
-			reg_value &= XGMAC_PCS_TYPE_SEL;/*PCS_TYPE_SEL as 10GBASE-R PCS */
-			tc956x_xpcs_write(xpcsaddr, XGMAC_SR_XS_PCS_CTRL2, reg_value);
-
-			reg_value = tc956x_xpcs_read(xpcsaddr, XGMAC_VR_XS_PCS_DIG_CTRL1);
-			if (plat->phy_interface == PHY_INTERFACE_MODE_10GKR
-				|| (plat->phy_interface == PHY_INTERFACE_MODE_10GBASER)
-				) {
-				reg_value &= (~XGMAC_USXG_EN); /*Disable USXG_EN*/
-			} else {
-				reg_value |= XGMAC_USXG_EN; /*set USXG_EN*/
-			}
-
-			tc956x_xpcs_write(xpcsaddr, XGMAC_VR_XS_PCS_DIG_CTRL1, reg_value);
-
-			reg_value = tc956x_xpcs_read(xpcsaddr, XGMAC_VR_XS_PCS_KR_CTRL);
-			reg_value &= ~XGMAC_USXG_MODE;/*USXG_MODE : 0x000*/
-			if (td->port_interface == ENABLE_USXGMII_5G_INTERFACE)
-				reg_value |= XPCS_USX_5G_MODE;
-			else if (td->port_interface == ENABLE_USXGMII_2_5G_INTERFACE)
-				reg_value |= XPCS_USX_2_5G_MODE;
-			tc956x_xpcs_write(xpcsaddr, XGMAC_VR_XS_PCS_KR_CTRL, reg_value);
-
-			reg_value = tc956x_xpcs_read(xpcsaddr, XGMAC_VR_XS_PCS_DIG_CTRL1);
-			reg_value |= XGMAC_VR_RST;/*set VR_RST*/
-			tc956x_xpcs_write(xpcsaddr, XGMAC_VR_XS_PCS_DIG_CTRL1, reg_value);
-
-			/*Wait for Reset to clear*/
-			do {
-				reg_value = tc956x_xpcs_read(xpcsaddr, XGMAC_VR_XS_PCS_DIG_CTRL1);
-			} while ((XGMAC_VR_RST & reg_value) == XGMAC_VR_RST);
-
+			reg_value &= (~XGMAC_USXG_EN); /*Disable USXG_EN*/
+		} else {
+			reg_value |= XGMAC_USXG_EN; /*set USXG_EN*/
 		}
+
+		tc956x_xpcs_write(xpcsaddr, XGMAC_VR_XS_PCS_DIG_CTRL1, reg_value);
+
+		reg_value = tc956x_xpcs_read(xpcsaddr, XGMAC_VR_XS_PCS_KR_CTRL);
+		reg_value &= ~XGMAC_USXG_MODE;/*USXG_MODE : 0x000*/
+		if (td->port_interface == ENABLE_USXGMII_5G_INTERFACE)
+			reg_value |= XPCS_USX_5G_MODE;
+		else if (td->port_interface == ENABLE_USXGMII_2_5G_INTERFACE)
+			reg_value |= XPCS_USX_2_5G_MODE;
+		tc956x_xpcs_write(xpcsaddr, XGMAC_VR_XS_PCS_KR_CTRL, reg_value);
+
+		reg_value = tc956x_xpcs_read(xpcsaddr, XGMAC_VR_XS_PCS_DIG_CTRL1);
+		reg_value |= XGMAC_VR_RST;/*set VR_RST*/
+		tc956x_xpcs_write(xpcsaddr, XGMAC_VR_XS_PCS_DIG_CTRL1, reg_value);
+
+		/*Wait for Reset to clear*/
+		do {
+			reg_value = tc956x_xpcs_read(xpcsaddr, XGMAC_VR_XS_PCS_DIG_CTRL1);
+		} while ((XGMAC_VR_RST & reg_value) == XGMAC_VR_RST);
+
+	}
 	reg_value = tc956x_xpcs_read(xpcsaddr, XGMAC_SR_XS_PCS_CTRL1);
 	reg_value |= XGMAC_LPI_ENABLE;/* LPM : power down */
 	tc956x_xpcs_write(xpcsaddr, XGMAC_SR_XS_PCS_CTRL1, reg_value);
