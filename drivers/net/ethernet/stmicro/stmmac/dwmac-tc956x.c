@@ -1411,6 +1411,12 @@ static int tc956x_pma_init(struct stmmac_priv *priv, void __iomem *pmaaddr)
 // Code from tc956x_pci.c in vendor driver
 //
 
+/* XXX
+ * I don't think this mutex is needed at all.  It mutually excludes the
+ * probe, remove, suspend, and remove callbacks from being called
+ * concurrently, but the driver core core ought to guarantee that
+ * won't haeppn.
+ */
 static DEFINE_MUTEX(tc956x_pm_suspend_lock);
 
 struct tx956x_shrd_mem tx956x_pci_shrd_mem[TC956X_TOT_CASCADE_DEV];
@@ -2218,7 +2224,6 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 	tc956x_xpcs_ctrl_ane(td, enable_an);
 }
 
-
 /**
  * tc956x_pci_probe
  *
@@ -2235,19 +2240,18 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 			    const struct pci_device_id *id)
 {
 	struct tc956x_pci_info *info = (struct tc956x_pci_info *)id->driver_data;
-	struct device *dev = &pdev->dev;
 	struct plat_stmmacenet_data *plat;
-	struct tc956x_data *td;
+	struct device *dev = &pdev->dev;
 	struct stmmac_resources res;
-	u32 val;
+	struct tc956x_data *td;
 	/* use signal from EMSPHY */
+	uint16_t sh_mem_offset;
 	uint8_t SgmSigPol = 0;
 	u32 interface;
-	u32 mdc_clk;
-	int ret;
-
 	u32 pcie_mode; /* Read Setting A/B */
-	uint16_t sh_mem_offset;
+	u32 mdc_clk;
+	u32 val;
+	int ret;
 
 	mutex_lock(&tc956x_pm_suspend_lock);
 
@@ -2706,7 +2710,6 @@ err_out_enb_failed:
 	mutex_unlock(&tc956x_pm_suspend_lock);
 
 	return ret;
-
 }
 
 /**
