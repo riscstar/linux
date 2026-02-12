@@ -453,7 +453,6 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 
 #define TC956X_MSIGENCEN	18
 
-#define NEMAC0CTL_OFFSET	(0x1070) /* eMAC Port-0 Control */
 #define NMISCCTL_OFFSET		(0x1800)
 
 /* MSIGEN Registers */
@@ -501,31 +500,39 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 #define TC956X_MSI_SET6		(0x00000000)
 #define TC956X_MSI_SET7		(0x00000000)
 
-#define NEMAC1CTL_OFFSET	(0x1074) /* eMAC Port-1 Control */
+/* EMAC control registers for ports 0 and 1 */
+#define NEMAC0CTL_OFFSET	0x1070
+#define NEMAC1CTL_OFFSET	0x1074
 
+/* Fields and values for the NEMACxCTL registers */
 #define NEMACCTL_SP_SEL_MASK			GENMASK(3, 0)
-#define NEMACCTL_INIT_DONE			0x200000
-#define NEMACCTL_LPIHWCLKEN			(0x100)
+#define NEMACCTL_SP_SEL_RGMII_1000M		0x0	/* RGMII 1000M */
+#define NEMACCTL_SP_SEL_SGMII_2500M		0x4	/* SGMII 2500M */
+#define NEMACCTL_SP_SEL_SGMII_1000M		0x5	/* SGMII 1000M */
+#define NEMACCTL_SP_SEL_USXGMII_1G_10G		0x8	/* USXGMII 1G/10G */
+#define NEMACCTL_SP_SEL_USXGMII_10G_10G		0x8	/* USXGMII 10G/10G */
+#define NEMACCTL_SP_SEL_USXGMII_100M_10G	0x9	/* USXGMII 100M/10G */
+#define NEMACCTL_SP_SEL_USXGMII_10M_10G		0x9	/* USXGMII 10M/10G */
+#define NEMACCTL_SP_SEL_USXGMII_5G_10G		0x9	/* USXGMII 5G/10G */
+#define NEMACCTL_SP_SEL_USXGMII_5G_5G		0xa	/* USXGMII 5G/5G */
+#define NEMACCTL_SP_SEL_USXGMII_10M_5G		0xa	/* USXGMII 10M/5G */
+#define NEMACCTL_SP_SEL_USXGMII_2_5G_10G	0xb	/* USXGMII 2.5G/10G */
+#define NEMACCTL_SP_SEL_USXGMII_100M_5G		0xc	/* USXGMII 100M/5G */
+#define NEMACCTL_SP_SEL_USXGMII_1G_5G		0xc	/* USXGMII 1G/5G */
+#define NEMACCTL_SP_SEL_USXGMII_2_5G_5G		0xc	/* USXGMII 2.5G/5G */
+#define NEMACCTL_SP_SEL_USXGMII_10M_2_5G	0xd	/* USXGMII 10M/2.5G */
+#define NEMACCTL_SP_SEL_USXGMII_100M_2_5G	0xd	/* USXGMII 100M/2.5G */
+#define NEMACCTL_SP_SEL_USXGMII_1G_2_5G		0xd	/* USXGMII 1G/2.5G */
+#define NEMACCTL_SP_SEL_USXGMII_2_5G_2_5G	0xd	/* USXGMII 2.5G/2.5G */
+
 #define NEMACCTL_PHY_INF_SEL_MASK		GENMASK(5, 4)
-#define NEMACCTL_PHY_INF_SEL			(0x10)/* Phy_intf_sel : clock from PHY */
-#define NEMACCTL_SP_SEL_RGMII_1000M		(0x0) /* RGMII 1000M */
-#define NEMACCTL_SP_SEL_SGMII_1000M		(0x5) /* SGMII 1000M */
-#define NEMACCTL_SP_SEL_SGMII_2500M		(0x4) /* SGMII 2500M */
-#define NEMACCTL_SP_SEL_USXGMII_2_5G_2_5G	(0xD) /* USXGMII 2.5G/2.5G */
-#define NEMACCTL_SP_SEL_USXGMII_2_5G_5G		(0xC) /* USXGMII 2.5G/5G */
-#define NEMACCTL_SP_SEL_USXGMII_2_5G_10G	(0xB) /* USXGMII 2.5G/10G */
-#define NEMACCTL_SP_SEL_USXGMII_5G_5G		(0xA) /* USXGMII 5G/5G */
-#define NEMACCTL_SP_SEL_USXGMII_5G_10G		(0x9) /* USXGMII 5G/10G */
-#define NEMACCTL_SP_SEL_USXGMII_10G_10G		(0x8) /* USXGMII 10G/10G */
-#define NEMACCTL_SP_SEL_USXGMII_1G_10G		(0x8) /* USXGMII 1G/10G */
-#define NEMACCTL_SP_SEL_USXGMII_100M_10G	(0x9) /* USXGMII 100M/10G */
-#define NEMACCTL_SP_SEL_USXGMII_10M_10G		(0x9) /* USXGMII 10M/10G */
-#define NEMACCTL_SP_SEL_USXGMII_1G_5G		(0xC) /* USXGMII 1G/5G */
-#define NEMACCTL_SP_SEL_USXGMII_100M_5G		(0xC) /* USXGMII 100M/5G */
-#define NEMACCTL_SP_SEL_USXGMII_10M_5G		(0xA) /* USXGMII 10M/5G */
-#define NEMACCTL_SP_SEL_USXGMII_1G_2_5G		(0xD) /* USXGMII 1G/2.5G */
-#define NEMACCTL_SP_SEL_USXGMII_100M_2_5G	(0xD) /* USXGMII 100M/2.5G */
-#define NEMACCTL_SP_SEL_USXGMII_10M_2_5G	(0xD) /* USXGMII 10M/2.5G */
+/* XXX Fix this to use u32_assign_bits() */
+/*	NEMACCTL_PHY_INF_SEL_PLL		0x00	clock from internal PLL */
+#define NEMACCTL_PHY_INF_SEL_PHY		0x10	/* clock from PHY */
+
+#define NEMACCTL_LPIHWCLKEN			BIT(8)	/* 1 = low power mode */
+
+#define NEMACCTL_INIT_DONE			BIT(21)
 
 #define SP_ETH1_SHIFT			24
 #define SP_ETH_1G				1
@@ -2137,7 +2144,7 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 		}
 
 		ret &= ~(0x00000040); /* Mask Polarity */
-		ret |= (NEMACCTL_PHY_INF_SEL | NEMACCTL_LPIHWCLKEN);
+		ret |= NEMACCTL_PHY_INF_SEL_PHY | NEMACCTL_LPIHWCLKEN;
 		writel(ret, td->sfr_addr + NEMAC1CTL_OFFSET);
 		writel(reg, td->sfr_addr + NMISCCTL_OFFSET);
 
@@ -2469,7 +2476,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		if (SgmSigPol == 1)
 			ret |= 0x00000040; /* Set Active low */
 
-		ret |= NEMACCTL_PHY_INF_SEL | NEMACCTL_LPIHWCLKEN;
+		ret |= NEMACCTL_PHY_INF_SEL_PHY | NEMACCTL_LPIHWCLKEN;
 		writel(ret, td->sfr_addr + NEMAC0CTL_OFFSET);
 
 		/* De-assertion of EMAC Port0  software Reset*/
@@ -2520,7 +2527,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		if (SgmSigPol == 1)
 			ret |= 0x00000040; /* Set Active low */
 
-		ret |= NEMACCTL_PHY_INF_SEL | NEMACCTL_LPIHWCLKEN;
+		ret |= NEMACCTL_PHY_INF_SEL_PHY | NEMACCTL_LPIHWCLKEN;
 		writel(ret, td->sfr_addr + NEMAC1CTL_OFFSET);
 
 		/* De-assertion of EMAC Port1  software Reset */
@@ -3023,7 +3030,7 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 		if (SgmSigPol == 1)
 			ret |= 0x00000040; /* Set Active low */
 
-		ret |= NEMACCTL_PHY_INF_SEL | NEMACCTL_LPIHWCLKEN;
+		ret |= NEMACCTL_PHY_INF_SEL_PHY | NEMACCTL_LPIHWCLKEN;
 		writel(ret, td->sfr_addr + NEMAC0CTL_OFFSET);
 
 		/* De-assertion of EMAC Port0  software Reset*/
@@ -3074,7 +3081,7 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 		if (SgmSigPol == 1)
 			ret |= 0x00000040; /* Set Active low */
 
-		ret |= NEMACCTL_PHY_INF_SEL | NEMACCTL_LPIHWCLKEN;
+		ret |= NEMACCTL_PHY_INF_SEL_PHY | NEMACCTL_LPIHWCLKEN;
 		writel(ret, td->sfr_addr + NEMAC1CTL_OFFSET);
 
 		/* De-assertion of EMAC Port1  software Reset */
