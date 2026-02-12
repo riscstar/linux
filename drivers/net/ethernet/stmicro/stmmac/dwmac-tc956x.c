@@ -154,11 +154,6 @@ struct tc956x_data {
 #define TC956X_BAR2 2
 #define TC956X_BAR4 4
 
-#define NMODESTS_MODE2		0x400
-#define NMODESTS_MODE2_SHIFT	10
-#define TC956X_PCIE_SETTING_A	0 /* x4x1x1 mode */
-#define TC956X_PCIE_SETTING_B	1 /* x2x2x1 mode */
-
 #define TC9563_CFG_NEMACTXCDLY		0x1050U
 #define TC9563_CFG_NEMACIOCTL		0x107CU
 
@@ -362,6 +357,7 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 /*	Configuration Register Address	*/
 #define NCID_OFFSET			(0x0000) /* TC956X Chip and revision ID */
 #define NMODESTS_OFFSET		(0x0004) /* TC956X current operation mode */
+#define NMODESTS_MODE2		BIT(10)	/* PCIe lanes: 0:  x4x1x1; 1: x2x2x1 */
 
 #define NCLKCTRL0_OFFSET	(0x1004)  /* TC956X clock control Register-0 */
 #define NCLKCTRL0_MCUCEN	BIT(0)
@@ -2047,7 +2043,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	/* use signal from EMSPHY */
 	uint16_t sh_mem_offset;
 	uint8_t SgmSigPol = 0;
-	u32 pcie_mode; /* Read Setting A/B */
 	u32 pfn;
 	u32 val;
 	int ret;
@@ -2396,35 +2391,20 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	}
 
 	dev_dbg(dev, "<--%s : Adding DSP Cut Through Settings", __func__);
-	/* Read mode setting register
-	 * Mode settings values 0:Setting A: x4x1x1, 1:Setting B: x2x2x1
+
+	/*
+	 * Determine the switch configuration from the MODE2 bit in the
+	 * mode status register (number of lanes per port):
+	 *   0: setting A: upstream x4, downstream 1 x1, downstream 2 x1
+	 *   1: setting B: upstream x2, downstream 1 x2, downstream 2 x1
 	 */
 	val = readl(td->sfr_addr + NMODESTS_OFFSET);
-	pcie_mode = (val & NMODESTS_MODE2) >> NMODESTS_MODE2_SHIFT;
-
-	switch (pcie_mode) {
-	case TC956X_PCIE_SETTING_A: /* 0:Setting A: x4x1x1 mode */
-		dev_dbg(dev, "%s : Setting A : Adding DSP Cut Through Settings for DSP1 & DSP2", __func__);
-		/*DSP1 & DSP2 is selected*/
-		val = readl(td->sfr_addr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
-		val &= ~(SW_DSP1_ENABLE|SW_DSP2_ENABLE);
-		val |= (SW_DSP1_ENABLE|SW_DSP2_ENABLE);
-		writel(val, td->sfr_addr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
-		/*Set 0x0 to Rx Bit enable_cut_through_on_receive_path*/
-		val = readl(td->sfr_addr + TC956X_SSREG_K_PCICONF_021_021);
-		val &= ~(ENABLE_CUT_THROUGH_ON_RX_PATH_MASK);
-		writel(val, td->sfr_addr + TC956X_SSREG_K_PCICONF_021_021);
-		/*Set 0x00000000 to Tx Bit enable_cut_through_on_transmit_path*/
-		val = readl(td->sfr_addr + TC956X_SSREG_K_PCICONF_022_022);
-		val &= ~(ENABLE_CUT_THROUGH_ON_TX_PATH_MASK);
-		writel(val, td->sfr_addr + TC956X_SSREG_K_PCICONF_022_022);
-		break;
-	case TC956X_PCIE_SETTING_B: /* 1:Setting B: x2x2x1 mode */
+	if (val & NMODESTS_MODE2) {
 		dev_dbg(dev, "%s : Setting B : Adding DSP Cut Through Settings for DSP2", __func__);
-		/*DSP2 is selected*/
+		/* downstream port is selected*/
 		val = readl(td->sfr_addr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
-		val &= ~(SW_DSP2_ENABLE);
-		val |= (SW_DSP2_ENABLE);
+		val &= ~(SW_DSP2_ENABLE);	/* XXX Not needed */
+		val |= SW_DSP2_ENABLE;
 		writel(val, td->sfr_addr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
 		/*Set 0x0 to Rx Bit enable_cut_through_on_receive_path*/
 		val = readl(td->sfr_addr + TC956X_SSREG_K_PCICONF_021_021);
@@ -2434,7 +2414,21 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		val = readl(td->sfr_addr + TC956X_SSREG_K_PCICONF_022_022);
 		val &= ~(ENABLE_CUT_THROUGH_ON_TX_PATH_MASK);
 		writel(val, td->sfr_addr + TC956X_SSREG_K_PCICONF_022_022);
-		break;
+	} else {
+		dev_dbg(dev, "%s : Setting A : Adding DSP Cut Through Settings for DSP1 & DSP2", __func__);
+		/*DSP1 & DSP2 is selected*/
+		val = readl(td->sfr_addr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
+		val &= ~(SW_DSP1_ENABLE | SW_DSP2_ENABLE); /* XXX Not needed */
+		val |= SW_DSP1_ENABLE | SW_DSP2_ENABLE;
+		writel(val, td->sfr_addr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
+		/*Set 0x0 to Rx Bit enable_cut_through_on_receive_path*/
+		val = readl(td->sfr_addr + TC956X_SSREG_K_PCICONF_021_021);
+		val &= ~(ENABLE_CUT_THROUGH_ON_RX_PATH_MASK);
+		writel(val, td->sfr_addr + TC956X_SSREG_K_PCICONF_021_021);
+		/*Set 0x00000000 to Tx Bit enable_cut_through_on_transmit_path*/
+		val = readl(td->sfr_addr + TC956X_SSREG_K_PCICONF_022_022);
+		val &= ~(ENABLE_CUT_THROUGH_ON_TX_PATH_MASK);
+		writel(val, td->sfr_addr + TC956X_SSREG_K_PCICONF_022_022);
 	}
 
 	/* Increment device usage counter */
