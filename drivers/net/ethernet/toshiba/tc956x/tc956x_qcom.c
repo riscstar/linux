@@ -96,10 +96,12 @@ static int tc956x_platform_of_parse(struct device *dev,
 
 	if(!qpriv->has_always_on_supplies) {
 		if (of_property_read_u32(dev->of_node,"qcom,phy-rst-gpio", &qpriv->phy_rst_gpio)) {
-			if (of_property_read_u32(dev->of_node, "qcom,phy-rst-gpio-id",
-				&qpriv->phy_rst_gpio)) {
-				dev_err(dev, "Failed to get PHY reset GPIO\n");
-				return -EINVAL;
+			if (of_property_read_u32(dev->of_node, "qcom,phy-reset-gpio-id", &qpriv->phy_rst_gpio)) {
+				if (of_property_read_u32(dev->of_node, "qcom,phy-reset-gpio", &qpriv->phy_rst_gpio)) {
+					dev_err(dev,
+						"Failed to get PHY reset GPIO\n");
+					return -EINVAL;
+				}
 			}
 		}
 	} else {
@@ -111,14 +113,21 @@ static int tc956x_platform_of_parse(struct device *dev,
 	}
 
 	if (of_property_read_u32(dev->of_node, "qcom,phy-rst-delay-us", &qpriv->phy_rst_delay_us)) {
-		dev_err(dev, "Failed to get PHY reset delay time\n");
+		if (of_property_read_u32(dev->of_node, "qcom,phy-reset-delay", &qpriv->phy_rst_delay_us) == 0) {
+			qpriv->phy_rst_delay_us *= 1000;
+		} else {
+			dev_err(dev, "Failed to get PHY reset delay time\n");
 			return -EINVAL;
+		}
 	}
 
 	qpriv->wol_irq = of_irq_get_byname(dev->of_node, "wol_irq");
 	if (qpriv->wol_irq <= 0) {
-		dev_err(dev, "Failed to get 'wol_irq' IRQ with error %d\n", qpriv->wol_irq);
-		return -EINVAL;
+		qpriv->wol_irq = of_irq_get_byname(dev->of_node, "wake-on-lan");
+		if (qpriv->wol_irq <= 0) {
+			dev_err(dev, "Failed to get 'wol_irq' IRQ with error %d\n", qpriv->wol_irq);
+			return -EINVAL;
+		}
 	}
 
 	if(!qpriv->has_always_on_supplies) {
