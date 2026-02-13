@@ -1426,6 +1426,7 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 
 	plat->bus_id = 1;
 	plat->pdev = pdev;
+	plat->clk_ptp_rate = 50000000;
 
 	if (td->port_interface == ENABLE_XFI_INTERFACE) {
 		plat->phy_interface = PHY_INTERFACE_MODE_10GBASER;
@@ -1434,16 +1435,10 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 	if (td->port_interface == ENABLE_SGMII_INTERFACE) {
 		plat->phy_interface = PHY_INTERFACE_MODE_SGMII;
 		plat->max_speed = 2500;
+		td->is_sgmii_2p5g = true;
 	}
+
 	plat->get_interfaces = tc956x_get_interfaces;
-
-	/*
-	 * At this stage let's deconfigure AN until we find out what speed
-	 * the interface is operating at.
-	 */
-	td->is_sgmii_2p5g = plat->phy_interface == PHY_INTERFACE_MODE_SGMII;
-
-	plat->clk_ptp_rate = 50000000;
 
 	plat->unicast_filter_entries = 32;
 
