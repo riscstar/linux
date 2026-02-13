@@ -204,12 +204,6 @@ struct tx956x_shrd_mem {
 #define TC956X_TOT_CASCADE_DEV	7 /* Maximum number of devices for 2 Level cascade setup */
 #define TC956X_PCI_BD_MASK	0xFFF8
 
-/* Suspend-Resume Arguments */
-enum TC956X_PORT_PM_STATE {
-	SUSPEND = 0,
-	RESUME,
-};
-
 /* PHY/MDIO configurations */
 enum TC956X_PHY_MDIO_AVAILABILITY {
 	PHY_ON_MDIO_ON = 0, /* PHY and MDIO available */
@@ -1231,12 +1225,12 @@ struct tc956x_pci_info {
 /**
  * tc956x_pm_set_power() - Set clock and reset for suspend or resume
  * @priv:	STMMAC driver private data pointer
- * @state:	Whether we are being called during suspend
+ * @suspend:	Whether we are being called during suspend
  *
  * Save the eMAC clock and reset settings before suspend, or restore those
  * settings during resume.
  */
-static void tc956x_pm_set_power(struct stmmac_priv *priv, enum TC956X_PORT_PM_STATE state)
+static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 {
 	struct tc956x_data *td = priv->plat->bsp_priv;
 
@@ -1254,7 +1248,7 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, enum TC956X_PORT_PM_ST
 		nclk_reg = td->sfr_addr + NCLKCTRL1_OFFSET;
 	}
 
-	if (state == SUSPEND) {
+	if (suspend) {
 		pr_debug("%s : Port %d interface %s Set Power for Suspend",
 			 __func__, td->emac0 ? 0 : 1, priv->dev->name);
 		/* Modify register for reset, clock and MSI_OUTEN */
@@ -1283,7 +1277,7 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, enum TC956X_PORT_PM_ST
 				 __func__, td->emac0 ? 0 : 1,
 				 priv->dev->name, commonclk_val);
 		}
-	} else if (state == RESUME) {
+	} else {
 		pr_debug("%s : Port %d interface %s Set Power for Resume",
 			 __func__, td->emac0 ? 0 : 1, priv->dev->name);
 		if (tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt == TC956X_ALL_MAC_PORT_SUSPENDED) {
@@ -2264,13 +2258,13 @@ static void tc956x_pcie_pm_disable_pci(struct pci_dev *pdev)
 /**
  * tc956x_pcie_pm_pci() - Disable PCIe child devices
  * @pdev:	Pointer to the PCI device whose children are affected
- * @state:	Whether we are being called during suspend
+ * @suspend:	Whether we are being called during suspend
  *
  * Disable PCI devices that are children of the given PCI device.
  *
  * Return:	0 if successful, or an error code if an error occurs
  */
-static int tc956x_pcie_pm_pci(struct pci_dev *pdev, enum TC956X_PORT_PM_STATE state)
+static int tc956x_pcie_pm_pci(struct pci_dev *pdev, bool suspend)
 {
 	static struct pci_dev *tc956x_pd = NULL, *tc956x_dsp_ep = NULL, *tc956x_port_pdev[2] = {NULL};
 	struct pci_bus *bus = NULL;
@@ -2289,9 +2283,9 @@ static int tc956x_pcie_pm_pci(struct pci_dev *pdev, enum TC956X_PORT_PM_STATE st
 
 		for (p = 0; ((p < i) && (tc956x_port_pdev[p] != NULL)); p++) {
 			/* Enter only if at least 1 Port Suspended */
-			if (state == SUSPEND) {
+			if (suspend) {
 				tc956x_pcie_pm_disable_pci(tc956x_port_pdev[p]);
-			} else if (state == RESUME) {
+			} else {
 				ret = tc956x_pcie_pm_enable_pci(tc956x_port_pdev[p]);
 				if (ret < 0)
 					goto err;
@@ -2344,8 +2338,8 @@ static int tc956x_pcie_suspend(struct device *dev)
 		goto err;
 	}
 
-	tc956x_pm_set_power(priv, SUSPEND);
-	ret = tc956x_pcie_pm_pci(pdev, SUSPEND);
+	tc956x_pm_set_power(priv, true);
+	ret = tc956x_pcie_pm_pci(pdev, true);
 	if (ret < 0)
 		goto err;
 err:
@@ -2538,7 +2532,7 @@ static int tc956x_pcie_resume(struct device *dev)
 	if (ret < 0)
 		goto err;
 
-	tc956x_pm_set_power(priv, RESUME);
+	tc956x_pm_set_power(priv, false);
 
 	tc956x_restore_phy_reset(priv);
 
