@@ -1446,7 +1446,6 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 	plat->clk_ptp_rate = 50000000;
 
 	plat->unicast_filter_entries = 32;
-	plat->maxmtu = XGMAC_JUMBO_LEN;
 
 	plat->tx_fifo_size = 46 * SZ_1K;
 	plat->rx_fifo_size = 46 * SZ_1K;
