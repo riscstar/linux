@@ -162,6 +162,7 @@ struct tc956x_data {
 #define NEMACTXCDLY_DEFAULT		0x00000000U
 #define NEMACIOCTL_DEFAULT		0xF300F300
 
+/* XXX This stuff must be coordinated with firmware. */
 #define TC956X_M3_SRAM_EEPROM_OFFSET_ADDR	0x47050		/* DMEM addrs 0x20007050U */
 #define TC956X_M3_SRAM_EEPROM_MAC_COUNT		0x47051		/* DMEM addrs 0x20007051U */
 #define TC956X_M3_INIT_DONE			0x47054		/* DMEM addrs 0x20007054U */
@@ -1500,8 +1501,6 @@ static s32 tc956x_load_firmware(struct tc956x_data *td)
 	dev_dbg(dev,  "FW Size = %ld\n", (long)(pfw->size));
 
 	tc956x_m3_reset(td, true);
-
-	iowrite32(0, td->sram_addr + TC956X_M3_INIT_DONE);
 
 	tc956x_zero_sram(td);
 
