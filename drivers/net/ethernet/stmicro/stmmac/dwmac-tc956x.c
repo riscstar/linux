@@ -1463,6 +1463,8 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 
 	plat->tx_fifo_size = 46 * SZ_1K;
 	plat->rx_fifo_size = 46 * SZ_1K;
+	plat->dma_cfg->pbl = 32;
+	plat->dma_cfg->pblx8 = true;
 	/* Set default number of RX and TX queues to use */
 	plat->tx_queues_to_use = 2;
 	plat->rx_queues_to_use = 8;
@@ -1611,11 +1613,7 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 	plat->rx_queues_cfg[7].use_prio = false;
 	plat->rx_queues_cfg[7].prio = 0;
 
-	plat->dma_cfg->txpbl = 16;
-	plat->dma_cfg->rxpbl = 16;
 
-	plat->dma_cfg->pbl = 32;
-	plat->dma_cfg->pblx8 = true;
 
 	/* Axi Configuration */
 	plat->axi = devm_kzalloc(&pdev->dev, sizeof(*plat->axi), GFP_KERNEL);
