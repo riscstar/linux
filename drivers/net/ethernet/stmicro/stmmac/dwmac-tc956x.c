@@ -490,19 +490,15 @@ static void tc956x_deassert_phy_reset(struct tc956x_data *td)
 }
 
 /**
- *  tc956x_gpio_restore_configuration - to restore the saved configuration of GPIO
+ *  tc956x_restore_phy_reset - restore the saved PHY reset configuration
  *  @priv: driver private structure
- *  @remarks : Only GPIO0- GPIO06, GPI010-GPIO12 are allowed
  */
-static int tc956x_gpio_restore_configuration(struct stmmac_priv *priv)
+static void tc956x_restore_phy_reset(struct stmmac_priv *priv)
 {
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	u32 gpio_pin = td->phy_reset_gpio;
 	void __iomem *addr;
 	u32 out_value;
-
-	dev_dbg(priv->device, "%s : Restoring GPIO configuration for pin: %d, val: %d",
-			__func__, gpio_pin, td->saved_phy_reset_value);
 
 	tc956x_phy_reset_pin_config(td);
 
@@ -514,8 +510,6 @@ static int tc956x_gpio_restore_configuration(struct stmmac_priv *priv)
 	/* Configure the GPIO pin in output direction */
 	addr = td->sfr_addr + GPIOE0_OFFSET;
 	tc956x_reg_update(addr, BIT(gpio_pin), 0);
-
-	return 0;
 }
 
 //
@@ -2628,10 +2622,7 @@ static int tc956x_pcie_resume(struct device *dev)
 
 	tc956x_pm_set_power(priv, RESUME);
 
-	/* Restore the GPIO settings which was saved during GPIO configuration */
-	ret = tc956x_gpio_restore_configuration(priv);
-	if (ret < 0)
-		pr_info("GPIO configuration restoration failed\n");
+	tc956x_restore_phy_reset(priv);
 
 	dev_dbg(&(pdev->dev), "%s : Port %d %s - Platform Resume",
 			__func__, td->emac0 ? 0 : 1, priv->dev->name);
