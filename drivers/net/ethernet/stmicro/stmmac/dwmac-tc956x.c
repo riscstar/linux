@@ -2581,17 +2581,19 @@ static const struct pci_device_id tc956x_id_table[] = {
 MODULE_DEVICE_TABLE(pci, tc956x_id_table);
 #endif
 
-static SIMPLE_DEV_PM_OPS(tc956x_pm_ops, tc956x_pcie_suspend, tc956x_pcie_resume);
+static DEFINE_SIMPLE_DEV_PM_OPS(tc956x_pm_ops,
+				tc956x_pcie_suspend,
+				tc956x_pcie_resume);
 
 static struct pci_driver tc956x_pci_driver = {
-	.name = DRIVER_NAME,
-	.id_table = tc956x_id_table,
-	.probe = tc956x_pci_probe,
-	.remove = tc956x_pci_remove,
+	.name		= DRIVER_NAME,
+	.id_table	= tc956x_id_table,
+	.probe		= tc956x_pci_probe,
+	.remove		= tc956x_pci_remove,
 	.driver		= {
-		.name		= DRIVER_NAME,
-		.owner		= THIS_MODULE,
-		.pm		= &tc956x_pm_ops,
+		.name	= DRIVER_NAME,
+		.owner	= THIS_MODULE,
+		.pm	= pm_sleep_ptr(&tc956x_pm_ops),
 	},
 };
 
