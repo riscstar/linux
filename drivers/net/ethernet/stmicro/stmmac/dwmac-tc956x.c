@@ -1494,6 +1494,21 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, enum TC956X_PORT_PM_ST
 		 priv->dev->name);
 }
 
+static void tc956x_get_interfaces(struct stmmac_priv *priv, void *bsp_priv,
+				  unsigned long *interfaces)
+{
+	struct tc956x_data *td = bsp_priv;
+
+	/*
+	 * To handle 2.5G PHYs via (overclocked) SGMII then we need set both
+	 * SGMII and 2500BASEX are supported interfaces.
+	 */
+	if (td->port_interface == ENABLE_SGMII_INTERFACE) {
+		__set_bit(PHY_INTERFACE_MODE_SGMII, interfaces);
+		__set_bit(PHY_INTERFACE_MODE_2500BASEX, interfaces);
+	}
+}
+
 static void xgmac_default_data(struct plat_stmmacenet_data *plat)
 {
 	struct tc956x_data *td = plat->bsp_priv;
@@ -1542,6 +1557,7 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 		plat->phy_interface = PHY_INTERFACE_MODE_SGMII;
 		plat->max_speed = 2500;
 	}
+	plat->get_interfaces = tc956x_get_interfaces;
 
 	/*
 	 * At this stage let's deconfigure AN until we find out what speed
