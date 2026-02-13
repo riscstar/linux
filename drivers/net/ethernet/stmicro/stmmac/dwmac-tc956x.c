@@ -2227,24 +2227,12 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
  * @pdev:	Pointer to the PCI device to disable
  *
  * Disable the PCI device passed as argument.
- *
- * Return:	Always returns 0
  */
-static int tc956x_pcie_pm_disable_pci(struct pci_dev *pdev)
+static void tc956x_pcie_pm_disable_pci(struct pci_dev *pdev)
 {
-	struct net_device *ndev = dev_get_drvdata(&pdev->dev);
-	struct stmmac_priv *priv = netdev_priv(ndev);
-	struct tc956x_data *td = priv->plat->bsp_priv;
-	int ret = 0;
-
-	dev_dbg(&(pdev->dev), "---->%s : Port %d %s - PCI Save State, Disable Device, Prepare to sleep",
-		 __func__, td->emac0 ? 0 : 1, ndev->name);
 	pci_save_state(pdev);
 	pci_disable_device(pdev);
 	pci_prepare_to_sleep(pdev);
-	dev_dbg(&(pdev->dev), "<----%s : Port %d %s- PCI Save State, Disable Device, Prepare to sleep",
-		 __func__, td->emac0 ? 0 : 1, ndev->name);
-	return ret;
 }
 
 /**
@@ -2308,9 +2296,7 @@ static int tc956x_pcie_pm_pci(struct pci_dev *pdev, enum TC956X_PORT_PM_STATE st
 		for (p = 0; ((p < i) && (tc956x_port_pdev[p] != NULL)); p++) {
 			/* Enter only if at least 1 Port Suspended */
 			if (state == SUSPEND) {
-				ret = tc956x_pcie_pm_disable_pci(tc956x_port_pdev[p]);
-				if (ret < 0)
-					goto err;
+				tc956x_pcie_pm_disable_pci(tc956x_port_pdev[p]);
 			} else if (state == RESUME) {
 				ret = tc956x_pcie_pm_enable_pci(tc956x_port_pdev[p]);
 				if (ret < 0)
