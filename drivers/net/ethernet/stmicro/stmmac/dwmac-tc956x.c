@@ -429,6 +429,32 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 // Code from tc956x_main.c in vendor driver
 //
 
+static void tc956x_reg_update(void __iomem *addr, u32 mask, u32 new)
+{
+	u32 old;
+	u32 val;
+
+	val = readl(addr);
+	old = field_get(mask, val);
+	if (old != new) {
+		val &= ~mask;
+		val |= field_prep(mask, new);
+		writel(val, addr);
+	}
+}
+
+/* We only use GPIOs 00 and 01, which are managed by the NFUNCEN4 register */
+static void tc956x_phy_reset_pin_config(struct tc956x_data *td)
+{
+	void __iomem *addr = td->sfr_addr + NFUNCEN4_OFFSET;
+
+	if (td->emac0)
+		tc956x_reg_update(addr, NFUNCEN4_GPIO_00_MASK, GPIO_00_FUNC);
+	else
+		tc956x_reg_update(addr, NFUNCEN4_GPIO_01_MASK, GPIO_01_FUNC);
+
+}
+
 /**
  * __tc956x_assert_phy_reset - assert or deassert the PHY resetn output
  *  @td: driver private structure
@@ -440,16 +466,7 @@ static void __tc956x_assert_phy_reset(struct tc956x_data *td, bool assert)
 	u32 out_value = assert ? 0 : 1;
 	u32 config, val;
 
-	/* Set pin mode; only GPIO00 and GPIO01 are ever used */
-	if (gpio_pin) {
-		val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
-		FIELD_MODIFY(NFUNCEN4_GPIO_01_MASK, &val, GPIO_01_FUNC);
-		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
-	} else {
-		val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
-		FIELD_MODIFY(NFUNCEN4_GPIO_00_MASK, &val, GPIO_00_FUNC);
-		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
-	}
+	tc956x_phy_reset_pin_config(td);
 
 	/* Write data to GPIO pin */
 	config = 1 << gpio_pin;
@@ -492,16 +509,7 @@ static int tc956x_gpio_restore_configuration(struct stmmac_priv *priv)
 	dev_dbg(priv->device, "%s : Restoring GPIO configuration for pin: %d, val: %d",
 			__func__, gpio_pin, td->saved_phy_reset_value);
 
-	/* Set pin mode; only GPIO00 and GPIO01 are ever used */
-	if (gpio_pin) {
-		val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
-		FIELD_MODIFY(NFUNCEN4_GPIO_01_MASK, &val, GPIO_01_FUNC);
-		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
-	} else {
-		val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
-		FIELD_MODIFY(NFUNCEN4_GPIO_00_MASK, &val, GPIO_00_FUNC);
-		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
-	}
+	tc956x_phy_reset_pin_config(td);
 
 	out_value = td->saved_phy_reset_value;
 
