@@ -458,7 +458,7 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
  *  @td: driver private structure
  *  @assert: true is assert the reset signal (drive low); false is deassert
  */
-static int __tc956x_assert_phy_reset(struct tc956x_data *td, bool assert)
+static void __tc956x_assert_phy_reset(struct tc956x_data *td, bool assert)
 {
 	u32 gpio_pin = td->phy_reset_gpio;
 	u32 out_value = assert ? 0 : 1;
@@ -492,18 +492,20 @@ static int __tc956x_assert_phy_reset(struct tc956x_data *td, bool assert)
 	config = ~(1 << gpio_pin);
 	val = readl(td->sfr_addr + GPIOE0_OFFSET);
 	writel(val & config, td->sfr_addr + GPIOE0_OFFSET);
-
-	return 0;
 }
 
 static int tc956x_assert_phy_reset(struct tc956x_data *td)
 {
-	return __tc956x_assert_phy_reset(td, true);
+	__tc956x_assert_phy_reset(td, true);
+
+	return 0;
 }
 
 static int tc956x_deassert_phy_reset(struct tc956x_data *td)
 {
-	return __tc956x_assert_phy_reset(td, false);
+	__tc956x_assert_phy_reset(td, false);
+
+	return 0;
 }
 
 /**
