@@ -2334,13 +2334,13 @@ err:
 static int tc956x_pcie_suspend(struct device *dev)
 {
 	struct pci_dev *pdev = to_pci_dev(dev);
-	struct net_device *ndev = dev_get_drvdata(&pdev->dev);
+	struct net_device *ndev = dev_get_drvdata(dev);
 	struct stmmac_priv *priv = netdev_priv(ndev);
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	int ret = 0;
 
 	if (td->tc956x_port_pm_suspend == true) {
-		dev_dbg(&(pdev->dev), "<--%s : Port %d interface %s already Suspended\n",
+		dev_dbg(dev, "<--%s : Port %d interface %s already Suspended\n",
 			 __func__, td->emac0 ? 0 : 1, priv->dev->name);
 		return -1;
 	}
@@ -2351,15 +2351,15 @@ static int tc956x_pcie_suspend(struct device *dev)
 
 	/* Decrement device usage counter */
 	tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt--;
-	dev_dbg(&(pdev->dev), "%s : (Number of Ports Left to Suspend = [%d])\n", __func__, tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt);
+	dev_dbg(dev, "%s : (Number of Ports Left to Suspend = [%d])\n", __func__, tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt);
 
 	/* Call stmmac_suspend() */
-	stmmac_suspend(&pdev->dev);
-	dev_dbg(&(pdev->dev), "%s : Port %d %s- Platform Suspend",
+	stmmac_suspend(dev);
+	dev_dbg(dev, "%s : Port %d %s- Platform Suspend",
 			__func__, td->emac0 ? 0 : 1, priv->dev->name);
 	ret = tc956x_platform_suspend(priv);
 	if (ret) {
-		dev_err(&(pdev->dev), "%s: error in calling tc956x_platform_suspend", pci_name(pdev));
+		dev_err(dev, "%s: error in calling tc956x_platform_suspend", pci_name(pdev));
 		goto err;
 	}
 
@@ -2541,13 +2541,13 @@ err_phy_addr:
 static int tc956x_pcie_resume(struct device *dev)
 {
 	struct pci_dev *pdev = to_pci_dev(dev);
-	struct net_device *ndev = dev_get_drvdata(&pdev->dev);
+	struct net_device *ndev = dev_get_drvdata(dev);
 	struct stmmac_priv *priv = netdev_priv(ndev);
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	int ret = 0;
 
 	if (td->tc956x_port_pm_suspend == false) {
-		dev_dbg(&(pdev->dev), "%s : Port %d %s already Resumed\n",
+		dev_dbg(dev, "%s : Port %d %s already Resumed\n",
 				__func__, td->emac0 ? 0 : 1, priv->dev->name);
 		return -1;
 	}
@@ -2561,11 +2561,11 @@ static int tc956x_pcie_resume(struct device *dev)
 
 	tc956x_restore_phy_reset(priv);
 
-	dev_dbg(&(pdev->dev), "%s : Port %d %s - Platform Resume",
+	dev_dbg(dev, "%s : Port %d %s - Platform Resume",
 			__func__, td->emac0 ? 0 : 1, priv->dev->name);
 	ret = tc956x_platform_resume(priv);
 	if (ret) {
-		dev_err(&(pdev->dev), "%s: error in calling tc956x_platform_resume", pci_name(pdev));
+		dev_err(dev, "%s: error in calling tc956x_platform_resume", pci_name(pdev));
 		pci_disable_device(pdev);
 		goto err;
 	}
@@ -2573,19 +2573,19 @@ static int tc956x_pcie_resume(struct device *dev)
 	/* Configure TA map registers */
 
 	if (tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt == TC956X_ALL_MAC_PORT_SUSPENDED) {
-		dev_dbg(&(pdev->dev), "%s : Tamap Re-configuration", __func__);
-		tc956x_config_tamap(&pdev->dev, td->bridge_cfg_addr);
+		dev_dbg(dev, "%s : Tamap Re-configuration", __func__);
+		tc956x_config_tamap(dev, td->bridge_cfg_addr);
 	}
 
 	/* Configure EMAC Port */
 	tc956x_pcie_resume_config(pdev);
 
 	/* Call stmmac_resume() */
-	stmmac_resume(&pdev->dev);
+	stmmac_resume(dev);
 
 	/* Increment device usage counter */
 	tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt++;
-	dev_dbg(&(pdev->dev), "%s : (Number of Ports Resumed = [%d])\n", __func__, tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt);
+	dev_dbg(dev, "%s : (Number of Ports Resumed = [%d])\n", __func__, tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt);
 
 	td->tc956x_port_pm_suspend = false;
 
