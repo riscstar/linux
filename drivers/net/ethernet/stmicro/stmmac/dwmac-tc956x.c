@@ -2223,19 +2223,6 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 }
 
 /**
- * tc956x_pcie_pm_disable_pci() - Disable a PCI device
- * @pdev:	Pointer to the PCI device to disable
- *
- * Disable the PCI device passed as argument.
- */
-static void tc956x_pcie_pm_disable_pci(struct pci_dev *pdev)
-{
-	pci_save_state(pdev);
-	pci_disable_device(pdev);
-	pci_prepare_to_sleep(pdev);
-}
-
-/**
  * tc956x_pcie_pm_enable_pci() - Enable a PCI device
  * @pdev:	Pointer to the PCI device to enable
  *
@@ -2259,6 +2246,19 @@ static int tc956x_pcie_pm_enable_pci(struct pci_dev *pdev)
 	pci_set_master(pdev);
 
 	return 0;
+}
+
+/**
+ * tc956x_pcie_pm_disable_pci() - Disable a PCI device
+ * @pdev:	Pointer to the PCI device to disable
+ *
+ * Disable the PCI device passed as argument.
+ */
+static void tc956x_pcie_pm_disable_pci(struct pci_dev *pdev)
+{
+	pci_save_state(pdev);
+	pci_disable_device(pdev);
+	pci_prepare_to_sleep(pdev);
 }
 
 /**
