@@ -1746,8 +1746,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	u32 val;
 	int ret;
 
-	mutex_lock(&tc956x_pm_suspend_lock);
-
 	plat = stmmac_plat_dat_alloc(dev);
 	if (!plat) {
 		ret = -ENOMEM;
@@ -2132,7 +2130,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 	/* Increment device usage counter */
 	tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt++;
-	mutex_unlock(&tc956x_pm_suspend_lock);
 
 	return ret;
 
@@ -2154,7 +2151,6 @@ err_out_req_reg_failed:
 	pci_disable_device(pdev);
 err_out_enb_failed:
 	dev_dbg(dev, "<--%s Error return: %d\n", __func__, ret);
-	mutex_unlock(&tc956x_pm_suspend_lock);
 
 	return ret;
 }
@@ -2174,7 +2170,6 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	void *nrst_reg, *nclk_reg;
 	u32 nrst_val, nclk_val;
-	mutex_lock(&tc956x_pm_suspend_lock);
 
 	/* phy_addr == -1 indicates that PHY was not found and
 	 * device is registered as only PCIe device. So skip any
@@ -2240,7 +2235,6 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 
 	/* Decrement device usage counter */
 	tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt--;
-	mutex_unlock(&tc956x_pm_suspend_lock);
 }
 
 /**
