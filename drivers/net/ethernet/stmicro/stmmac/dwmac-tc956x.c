@@ -809,7 +809,6 @@ static void tc956x_msigen_reset_assert(struct tc956x_data *td)
 static void tc956x_msigen_init(struct stmmac_priv *priv, struct net_device *dev)
 {
 	struct tc956x_data *td = priv->plat->bsp_priv;
-	u8 pf_no = td->emac0 ? 0 : 1;
 	void __iomem *base;
 
 	tc956x_eee_clk_init(td);
@@ -820,7 +819,7 @@ static void tc956x_msigen_init(struct stmmac_priv *priv, struct net_device *dev)
 
 	/* Initialize MSIGEN */
 
-	base = td->sfr_addr + MSIGEN_BASE(pf_no);
+	base = td->sfr_addr + MSIGEN_BASE(td->emac0 ? 0 : 1);
 	writel(TC956X_MSI_OUT_EN_CLR, base + TC956X_MSI_OUT_EN_OFFSET);
 	writel(TC956X_MSI_MASK_SET, base + TC956X_MSI_MASK_SET_OFFSET);
 	writel(TC956X_MSI_MASK_CLR, base + TC956X_MSI_MASK_CLR_OFFSET);
@@ -840,10 +839,9 @@ static void tc956x_msigen_init(struct stmmac_priv *priv, struct net_device *dev)
 static u32 tc956x_interrupt_sts(struct stmmac_priv *priv, struct net_device *dev)
 {
 	struct tc956x_data *td = priv->plat->bsp_priv;
-	u8 pf_no = td->emac0 ? 0 : 1;
 	void __iomem *base;
 
-	base = td->sfr_addr + MSIGEN_BASE(pf_no);
+	base = td->sfr_addr + MSIGEN_BASE(td->emac0 ? 0 : 1);
 
 	return readl(base + TC956X_MSI_INT_STS_OFFSET);
 }
@@ -857,7 +855,6 @@ static u32 tc956x_interrupt_sts(struct stmmac_priv *priv, struct net_device *dev
 static void tc956x_interrupt_en(struct stmmac_priv *priv, struct net_device *dev, u32 en)
 {
 	struct tc956x_data *td = priv->plat->bsp_priv;
-	u8 pf_no = td->emac0 ? 0 : 1;
 	void __iomem *base;
 	u32 mask_val = 0;
 
@@ -884,7 +881,7 @@ static void tc956x_interrupt_en(struct stmmac_priv *priv, struct net_device *dev
 	rx_ch_in_use[7] = true;
 #endif
 
-	base = td->sfr_addr + MSIGEN_BASE(pf_no);
+	base = td->sfr_addr + MSIGEN_BASE(td->emac0 ? 0 : 1);
 	if (en) {
 		/*
 		 * TODO: This logic was intended to avoid enabling interrupts
@@ -931,9 +928,8 @@ static void tc956x_interrupt_clr(struct stmmac_priv *priv, struct net_device *de
 {
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	void __iomem *base;
-	u8 pf_no = td->emac0 ? 0 : 1;
 
-	base = td->sfr_addr + MSIGEN_BASE(pf_no);
+	base = td->sfr_addr + MSIGEN_BASE(td->emac0 ? 0 : 1);
 	writel((1<<vector), base + TC956X_MSI_MASK_CLR_OFFSET);
 }
 
