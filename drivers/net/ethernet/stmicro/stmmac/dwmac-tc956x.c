@@ -494,18 +494,14 @@ static void __tc956x_assert_phy_reset(struct tc956x_data *td, bool assert)
 	writel(val & config, td->sfr_addr + GPIOE0_OFFSET);
 }
 
-static int tc956x_assert_phy_reset(struct tc956x_data *td)
+static void tc956x_assert_phy_reset(struct tc956x_data *td)
 {
 	__tc956x_assert_phy_reset(td, true);
-
-	return 0;
 }
 
-static int tc956x_deassert_phy_reset(struct tc956x_data *td)
+static void tc956x_deassert_phy_reset(struct tc956x_data *td)
 {
 	__tc956x_assert_phy_reset(td, false);
-
-	return 0;
 }
 
 /**
@@ -987,15 +983,8 @@ static int tc956x_phy_power_on(struct tc956x_data *td)
 		return ret;
 	}
 
-	ret = tc956x_deassert_phy_reset(td);
-	if (ret) {
-		dev_err(td->dev, "Failed to deassert QPS615 GPIO0%u\n",
-			td->phy_reset_gpio);
-		if (regulator_disable(td->phy_supply))
-			dev_err(td->dev, "Failed to disable regulator\n");
-	}
+	tc956x_deassert_phy_reset(td);
 
-	dev_dbg(td->dev,"QPS615 PHY out of reset delay %d", td->phy_reset_delay);
 	msleep(td->phy_reset_delay);
 
 	return ret;
@@ -1005,18 +994,12 @@ static int tc956x_phy_power_off(struct tc956x_data *td)
 {
 	int ret = 0;
 
-	ret = tc956x_assert_phy_reset(td);
-	if (ret) {
-		dev_err(td->dev, "Failed to assert QPS615 GPIO0%u\n",
-			td->phy_reset_gpio);
-			return ret;
-	}
+	tc956x_assert_phy_reset(td);
 
 	ret = regulator_disable(td->phy_supply);
 	if (ret) {
 		dev_err(td->dev, "Failed to disable PHY supply with error %d\n", ret);
-		if (tc956x_deassert_phy_reset(td))
-			dev_err(td->dev, "Failed to deassert PHY\n");
+		tc956x_deassert_phy_reset(td);
 		/* XXX Any need for the phy_reset_delay here? */
 	}
 
@@ -1094,11 +1077,8 @@ static int tc956x_platform_probe(struct tc956x_data *td,
 	if (ret)
 		return ret;
 
-	ret = tc956x_assert_phy_reset(td);
-	if (ret) {
-		dev_err(td->dev, "Failed to assert the PHY reset with error %d\n", ret);
-		goto err_assert_phy_rst;
-	}
+	/* Hold the PHY in reset until we're ready */
+	tc956x_assert_phy_reset(td);
 
 	ret = pinctrl_select_state(td->pinctrl, td->pinctrl_default);
 	if (ret) {
@@ -1120,7 +1100,6 @@ static int tc956x_platform_probe(struct tc956x_data *td,
 err_power_on:
 	irq_set_irq_wake(td->wol_irq, 0);
 err_pinctrl_select_state:
-err_assert_phy_rst:
 	return -EINVAL;
 }
 
