@@ -1458,21 +1458,16 @@ static void tc956x_reset_SRAM(struct device *dev, struct tc956x_data *td)
 static s32 tc956x_load_firmware(struct tc956x_data *td)
 {
 	struct device *dev = td->dev;
-	u32 adrs = 0, val = 0;
+	const struct firmware *pfw;
 	u32 fw_init_sync;
-	const struct firmware *pfw = NULL;
+	u32 adrs;
+	u32 val;
 
 	dev_dbg(dev,  "FW Loading: .bin\n");
 
 	/* Get TC956X FW binary through kernel firmware interface request */
-	if (request_firmware(&pfw, FIRMWARE_NAME, dev) != 0) {
-		dev_err(dev,
-		"TC956X: Error in calling request_firmware");
-		return -EINVAL;
-	}
-
-	if (pfw == NULL) {
-		dev_err(dev, "TC956X: request_firmware: pfw == NULL");
+	if (request_firmware(&pfw, FIRMWARE_NAME, dev)) {
+		dev_err(dev, "TC956X: Error in calling request_firmware");
 		return -EINVAL;
 	}
 
