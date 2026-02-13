@@ -1455,8 +1455,14 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 		plat->rx_queues_cfg[i].mode_to_use = MTL_QUEUE_DCB;
 	}
 
-	/* TODO: ping stops working if we set tx_queues_to_use to 8? */
-	plat->tx_queues_to_use = 7;
+	/*
+	 * TODO: tx_queues_to_use would normally be set to 8
+	 *
+	 * 1. ping stops working if we set tx_queues_to_use to 8
+	 * 2. functional reliability is poor of tx_queues_to_use is >2
+	 *    (DHCP fails to get IP address)
+	 */
+	plat->tx_queues_to_use = 2;
 	plat->tx_sched_algorithm = MTL_TX_ALGORITHM_WRR;
 
 	for (int i = 0; i < plat->tx_queues_to_use; i++) {
@@ -2643,7 +2649,6 @@ err_phy_addr:
  *
  * \retval 0
  */
-
 static int tc956x_pcie_resume(struct device *dev)
 {
 	struct pci_dev *pdev = to_pci_dev(dev);
