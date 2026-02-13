@@ -311,7 +311,11 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 				 NCLKCTRL0_MAC0125CLKEN | NCLKCTRL0_MAC0312CLKEN | \
 				 NCLKCTRL0_MAC0ALLCLKEN)
 
-#define TC956X_MSIGENCEN	18
+/* Field in the NCLKCTRL0 register to enable the MSIGEN clock */
+#define TC956X_MSIGENCEN	BIT(18)
+
+/* Field in the NRSTCTRL0 register to assert the MSIGEN reset */
+#define TC956X_MSIGENSRST	BIT(18)
 
 #define NMISCCTL_OFFSET		(0x1800)
 
@@ -781,6 +785,28 @@ static void tc956x_eee_clk_init(struct tc956x_data *td)
 	writel(val, td->sfr_addr + NCLKCTRL0_OFFSET);
 }
 
+/* XXX Apparently this enables the clock and never disables? */
+static void tc956x_msigen_clock_enable(struct tc956x_data *td)
+{
+	void __iomem *addr = td->sfr_addr + NCLKCTRL0_OFFSET;
+	u32 val;
+
+	val = readl(addr);
+	val |= TC956X_MSIGENCEN;
+	writel(val, addr);
+}
+
+/* XXX Apparently this asserts reset and never deasserts? */
+static void tc956x_msigen_reset_assert(struct tc956x_data *td)
+{
+	void __iomem *addr = td->sfr_addr + NRSTCTRL0_OFFSET;
+	u32 val;
+
+	val = readl(addr);
+	val &= ~TC956X_MSIGENSRST;	/* XXX Does this DEassert? */
+	writel(val, addr);
+}
+
 /**
  * tc956x_msigen_init() - Initialize and configure the MSIGEN module
  * @priv:	STMMAC driver private data pointer
@@ -793,17 +819,12 @@ static void tc956x_msigen_init(struct stmmac_priv *priv, struct net_device *dev)
 {
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	u8 pf_no = td->emac0 ? 0 : 1, vf_no = 0;
-	u32 rd_val;
 
 	tc956x_eee_clk_init(td);
 
 	/* Enable MSIGEN Module */
-	rd_val = readl(td->sfr_addr + NCLKCTRL0_OFFSET);
-	rd_val |= (1 << TC956X_MSIGENCEN);
-	writel(rd_val, td->sfr_addr + NCLKCTRL0_OFFSET);
-	rd_val = readl(td->sfr_addr + NRSTCTRL0_OFFSET);
-	rd_val &= ~(1 << TC956X_MSIGENCEN);
-	writel(rd_val, td->sfr_addr + NRSTCTRL0_OFFSET);
+	tc956x_msigen_clock_enable(td);
+	tc956x_msigen_reset_assert(td);
 
 	/* Initialize MSIGEN */
 
