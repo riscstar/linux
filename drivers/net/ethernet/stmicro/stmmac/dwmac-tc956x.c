@@ -1442,8 +1442,14 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 
 	plat->unicast_filter_entries = 32;
 
-	plat->tx_fifo_size = 46 * SZ_1K;
-	plat->rx_fifo_size = 46 * SZ_1K;
+	/*
+	 * TODO:
+	 * These values come from the QPS615 TRM. Sadly setting them results
+	 * in a significant performance regression on iperf3 -R tests.
+	 */
+	//plat->tx_fifo_size = 46 * SZ_1K;
+	//plat->rx_fifo_size = 46 * SZ_1K;
+
 	plat->dma_cfg->pbl = 32;
 	plat->dma_cfg->pblx8 = true;
 
