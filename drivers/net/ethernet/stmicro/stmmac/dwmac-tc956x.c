@@ -1200,14 +1200,6 @@ static int tc956x_pma_init(struct stmmac_priv *priv, void __iomem *pmaaddr)
 // Code from tc956x_pci.c in vendor driver
 //
 
-/* XXX
- * I don't think this mutex is needed at all.  It mutually excludes the
- * probe, remove, suspend, and remove callbacks from being called
- * concurrently, but the driver core core ought to guarantee that
- * won't haeppn.
- */
-static DEFINE_MUTEX(tc956x_pm_suspend_lock);
-
 struct tx956x_shrd_mem tx956x_pci_shrd_mem[TC956X_TOT_CASCADE_DEV];
 
 static uint16_t tc956x_get_shared_mem_offset(struct pci_dev *pdev, uint16_t pci_bd)
@@ -2343,8 +2335,6 @@ static int tc956x_pcie_suspend(struct device *dev)
 	/* Set flag to avoid queuing any more work */
 	td->tc956x_port_pm_suspend = true;
 
-	mutex_lock(&tc956x_pm_suspend_lock);
-
 	/* Decrement device usage counter */
 	tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt--;
 	dev_dbg(dev, "%s : (Number of Ports Left to Suspend = [%d])\n", __func__, tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt);
@@ -2364,7 +2354,6 @@ static int tc956x_pcie_suspend(struct device *dev)
 	if (ret < 0)
 		goto err;
 err:
-	mutex_unlock(&tc956x_pm_suspend_lock);
 	return ret;
 }
 
@@ -2548,7 +2537,6 @@ static int tc956x_pcie_resume(struct device *dev)
 				__func__, td->emac0 ? 0 : 1, priv->dev->name);
 		return -1;
 	}
-	mutex_lock(&tc956x_pm_suspend_lock);
 
 	ret = tc956x_pcie_pm_enable_pci(pdev);
 	if (ret < 0)
@@ -2587,8 +2575,6 @@ static int tc956x_pcie_resume(struct device *dev)
 	td->tc956x_port_pm_suspend = false;
 
 err:
-	mutex_unlock(&tc956x_pm_suspend_lock);
-
 	return ret;
 }
 
