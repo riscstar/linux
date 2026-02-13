@@ -2281,10 +2281,11 @@ static int tc956x_pcie_pm_pci(struct pci_dev *pdev, bool suspend)
 {
 	static struct pci_dev *tc956x_pd = NULL, *tc956x_dsp_ep = NULL, *tc956x_port_pdev[2] = {NULL};
 	struct pci_bus *bus = NULL;
-	int ret = 0, i = 0, p = 0;
+	int i = 0, p = 0;
 	struct net_device *ndev = dev_get_drvdata(&pdev->dev);
 	struct stmmac_priv *priv = netdev_priv(ndev);
 	struct tc956x_data *td = priv->plat->bsp_priv;
+	int ret;
 
 	if (tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt == TC956X_ALL_MAC_PORT_SUSPENDED) {
 		tc956x_dsp_ep = pci_upstream_bridge(pdev);
@@ -2301,12 +2302,12 @@ static int tc956x_pcie_pm_pci(struct pci_dev *pdev, bool suspend)
 			} else {
 				ret = tc956x_pcie_pm_enable_pci(tc956x_port_pdev[p]);
 				if (ret < 0)
-					goto err;
+					return ret;
 			}
 		}
 	}
-err:
-	return ret;
+
+	return 0;
 }
 
 /**
@@ -2325,7 +2326,7 @@ static int tc956x_pcie_suspend(struct device *dev)
 	struct net_device *ndev = dev_get_drvdata(dev);
 	struct stmmac_priv *priv = netdev_priv(ndev);
 	struct tc956x_data *td = priv->plat->bsp_priv;
-	int ret = 0;
+	int ret;
 
 	if (td->tc956x_port_pm_suspend == true) {
 		dev_dbg(dev, "<--%s : Port %d interface %s already Suspended\n",
@@ -2346,15 +2347,12 @@ static int tc956x_pcie_suspend(struct device *dev)
 	ret = tc956x_platform_suspend(priv);
 	if (ret) {
 		dev_err(dev, "%s: error in calling tc956x_platform_suspend", pci_name(pdev));
-		goto err;
+		return ret;
 	}
 
 	tc956x_pm_set_power(priv, true);
-	ret = tc956x_pcie_pm_pci(pdev, true);
-	if (ret < 0)
-		goto err;
-err:
-	return ret;
+
+	return tc956x_pcie_pm_pci(pdev, true);
 }
 
 /**
@@ -2530,7 +2528,7 @@ static int tc956x_pcie_resume(struct device *dev)
 	struct net_device *ndev = dev_get_drvdata(dev);
 	struct stmmac_priv *priv = netdev_priv(ndev);
 	struct tc956x_data *td = priv->plat->bsp_priv;
-	int ret = 0;
+	int ret;
 
 	if (td->tc956x_port_pm_suspend == false) {
 		dev_dbg(dev, "%s : Port %d %s already Resumed\n",
@@ -2540,7 +2538,7 @@ static int tc956x_pcie_resume(struct device *dev)
 
 	ret = tc956x_pcie_pm_enable_pci(pdev);
 	if (ret < 0)
-		goto err;
+		return ret;
 
 	tc956x_pm_set_power(priv, false);
 
@@ -2552,7 +2550,8 @@ static int tc956x_pcie_resume(struct device *dev)
 	if (ret) {
 		dev_err(dev, "%s: error in calling tc956x_platform_resume", pci_name(pdev));
 		pci_disable_device(pdev);
-		goto err;
+
+		return ret;
 	}
 
 	/* Configure TA map registers */
@@ -2574,8 +2573,7 @@ static int tc956x_pcie_resume(struct device *dev)
 
 	td->tc956x_port_pm_suspend = false;
 
-err:
-	return ret;
+	return 0;
 }
 
 static const struct pci_device_id tc956x_id_table[] = {
