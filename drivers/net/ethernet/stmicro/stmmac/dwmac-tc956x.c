@@ -1715,6 +1715,32 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 	tc956x_xpcs_ctrl_ane(td, enable_an);
 }
 
+/* Assert or deassert the interrupt controller (INTC) */
+static void tc956x_intc_reset(struct tc956x_data *td, bool assert)
+{
+	void __iomem *addr = td->sfr_addr + NRSTCTRL0_OFFSET;
+	u32 val;
+
+	/* Note: 1 means assert */
+	val = readl(addr);
+	if (assert)
+		val |= NRSTCTRL0_INTRST;
+	else
+		val &= ~NRSTCTRL0_INTRST;
+	writel(val, addr);
+}
+
+/* XXX Apparently this enables the clock and never disables? */
+static void tc956x_intc_clock_enable(struct tc956x_data *td)
+{
+	void __iomem *addr = td->sfr_addr + NCLKCTRL0_OFFSET;
+	u32 val;
+
+	val = readl(addr);
+	val |= NCLKCTRL0_INTCEN;
+	writel(val, addr);
+}
+
 /**
  * tc956x_pci_probe() - PCI driver probe callback
  * @pdev:	PCI device pointer
@@ -1862,18 +1888,12 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 	dev_dbg(dev, "port_interface = %d\n", td->port_interface);
 
+	/* XXX eMAC0, or first one probed? */
 	if (td->emac0) {
-		ret = readl(td->sfr_addr + NRSTCTRL0_OFFSET);
-		ret |= (NRSTCTRL0_INTRST);
-		writel(ret, td->sfr_addr + NRSTCTRL0_OFFSET);
-
-		ret = readl(td->sfr_addr + NCLKCTRL0_OFFSET);
-		ret |= NCLKCTRL0_INTCEN;
-		writel(ret, td->sfr_addr + NCLKCTRL0_OFFSET);
-
-		ret = readl(td->sfr_addr + NRSTCTRL0_OFFSET);
-		ret &= (~(NRSTCTRL0_INTRST));
-		writel(ret, td->sfr_addr + NRSTCTRL0_OFFSET);
+		/* Enable the interrupt controller */
+		tc956x_intc_reset(td, true);
+		tc956x_intc_clock_enable(td);
+		tc956x_intc_reset(td, false);
 
 		/* Configure Address Transslation block
 		 * Bridge Base address to be passed for TC956X
