@@ -115,9 +115,9 @@ struct tc956x_data {
 // Definitions taken from tc956xmac.h in vendor driver
 //
 
-#define FIRMWARE_NAME "TC956X_Firmware_PCIeBridge.bin"
+#define FIRMWARE_NAME			"TC956X_Firmware_PCIeBridge.bin"
 
-#define TC956X_FW_MAX_SIZE	(64*1024)
+#define TC956X_FW_MAX_SIZE		(64 * 1024)
 
 #define ATR_AXI4_SLV_BASE		0x0800
 #define ATR_AXI4_SLAVE_OFFSET		0x0100
@@ -235,7 +235,7 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 #define BC_MC_PACKET		TC956X_DA_MAP
 
 #define EEPROM_OFFSET		0
-#define EEPROM_MAC_COUNT	14
+#define EEPROM_MAC_COUNT	14	/* XXX Why 14? */
 
 /************************* TC956X_SRIOV_PF Ends *************************/
 
@@ -1481,52 +1481,51 @@ static s32 tc956x_load_firmware(struct tc956x_data *td)
 {
 	struct device *dev = td->dev;
 	const struct firmware *pfw;
-	u32 fw_init_sync;
-
-	dev_dbg(dev,  "FW Loading: .bin\n");
+	void __iomem *addr;
+	u32 init_done;
+	int ret;
 
 	/* Get TC956X FW binary through kernel firmware interface request */
-	if (request_firmware(&pfw, FIRMWARE_NAME, dev)) {
-		dev_err(dev, "TC956X: Error in calling request_firmware");
-		return -EINVAL;
+	ret = request_firmware(&pfw, FIRMWARE_NAME, dev);
+	if (ret) {
+		dev_err(dev, "error %d requesting firmware\n", ret);
+		return ret;
 	}
 
-	/* Validate the size of the firmware */
 	if (pfw->size > TC956X_FW_MAX_SIZE) {
-		dev_err(dev, "Error : FW size exceeds the memory size\n");
+		dev_err(dev, "firmware too big (%zu > %u)\n",
+			pfw->size, TC956X_FW_MAX_SIZE);
 		return -EINVAL;
 	}
 
-	dev_dbg(dev,  "FW Loading Start...\n");
-	dev_dbg(dev,  "FW Size = %ld\n", (long)(pfw->size));
-
+	/* Hold the Cortex M3 in reset while we write its firmware */
 	tc956x_m3_reset(td, true);
 
 	tc956x_zero_sram(td);
 
-	mdelay(10);
+	mdelay(10);		/* XXX Why the delay? */
+
+	/*
+	 * XXX Why is this even necessary?  Doesn't it boot at a fixed
+	 * XXX offset?  How does firmware use this?
+	 */
+	/* Tell the Cortex M3 where we put its firmware (boot offset) */
 	iowrite8(EEPROM_OFFSET,
 		 td->sram_addr + TC956X_M3_SRAM_EEPROM_OFFSET_ADDR);
+	/* Also tell it how many eMACs we are supporting */
 	iowrite8(EEPROM_MAC_COUNT,
 		 td->sram_addr + TC956X_M3_SRAM_EEPROM_MAC_COUNT);
 
 	/* Copy TC956X FW to SRAM */
 	memcpy_toio(td->sram_addr, pfw->data, pfw->size);
-	/* Release kernel firmware interface */
+
 	release_firmware(pfw);
-
-	dev_dbg(dev,  "FW Loading Finish.\n");
-
 	tc956x_m3_reset(td, false);
 
-	readl_poll_timeout(td->sram_addr + TC956X_M3_INIT_DONE,
-				fw_init_sync, fw_init_sync, 100, 100000);
-	if (!fw_init_sync)
-		dev_alert(dev, "TC956x FW yet to start!!!");
-	else
-		dev_dbg(dev,  "TC956x M3 started.\n");
+	addr = td->sram_addr + TC956X_M3_INIT_DONE;
+	readl_poll_timeout(addr, init_done, init_done != 0, 100, 100000);
 
-	return 0;
+	return init_done ? 0 : -EINVAL;
 }
 
 /*
