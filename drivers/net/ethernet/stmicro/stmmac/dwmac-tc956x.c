@@ -152,9 +152,6 @@ struct tc956x_data {
 #define TC956X_AXI4_SLV00_TRSL_PARAM_VAL   (0x00000000U)
 #define TC956X_AXI4_SLV00_SRC_ADDR_LO_VAL_DEFAULT  (0x0000007FU)
 
-#define NRSTCTRL0_RST_ASRT 0x1
-#define NRSTCTRL0_RST_DE_ASRT 0x3
-
 #define TC956X_BAR0 0
 #define TC956X_BAR2 2
 #define TC956X_BAR4 4
@@ -270,7 +267,8 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 #define NCLKCTRL0_MAC0312CLKEN	BIT(30)
 #define NCLKCTRL0_MAC0ALLCLKEN	BIT(31)
 #define NRSTCTRL0_OFFSET	(0x1008)  /* TC956X reset control Register-0 */
-#define NRSTCTRL0_MCURST	BIT(0)
+#define NRSTCTRL0_MCURST	BIT(0)		/* M3 system reset */
+#define NRSTCTRL0_MCU1RST	BIT(1)		/* M3 cold reset */
 #define NRSTCTRL0_INTRST	BIT(4)
 #define NRSTCTRL0_MAC0RST	BIT(7)
 #define NRSTCTRL0_UART0RST	BIT(16)
@@ -1453,6 +1451,22 @@ static void tc956x_zero_sram(struct tc956x_data *td)
 	memset_io(td->sram_addr + 0x40000, 0x0, 0x10000);	/* DMEM */
 }
 
+/* Assert or deassert the embedded Cortex M3 */
+static void tc956x_m3_reset(struct tc956x_data *td, bool assert)
+{
+	void __iomem *addr = td->sfr_addr + NRSTCTRL0_OFFSET;
+	u32 mask = NRSTCTRL0_MCURST | NRSTCTRL0_MCU1RST;
+	u32 val;
+
+	/* Note: 1 means assert */
+	val = readl(addr);
+	if (assert)
+		val |= mask;
+	else
+		val &= ~mask;
+	writel(val, addr);
+}
+
 /**
  * tc956x_load_firmware() - Load firmware for the embedded Cortex M3
  * @td:		TC956x driver private data pointer
@@ -1467,8 +1481,6 @@ static s32 tc956x_load_firmware(struct tc956x_data *td)
 	struct device *dev = td->dev;
 	const struct firmware *pfw;
 	u32 fw_init_sync;
-	u32 adrs;
-	u32 val;
 
 	dev_dbg(dev,  "FW Loading: .bin\n");
 
@@ -1487,13 +1499,7 @@ static s32 tc956x_load_firmware(struct tc956x_data *td)
 	dev_dbg(dev,  "FW Loading Start...\n");
 	dev_dbg(dev,  "FW Size = %ld\n", (long)(pfw->size));
 
-	/* Assert M3 reset */
-	adrs = NRSTCTRL0_OFFSET;
-	val = ioread32(td->sfr_addr + adrs);
-	dev_dbg(dev,  "Reset Register value = %lx\n", (unsigned long)val);
-
-	val |= NRSTCTRL0_RST_ASRT;
-	iowrite32(val, td->sfr_addr + adrs);
+	tc956x_m3_reset(td, true);
 
 	iowrite32(0, td->sram_addr + TC956X_M3_INIT_DONE);
 
@@ -1512,11 +1518,7 @@ static s32 tc956x_load_firmware(struct tc956x_data *td)
 
 	dev_dbg(dev,  "FW Loading Finish.\n");
 
-	/* De-assert M3 reset */
-	adrs = NRSTCTRL0_OFFSET;
-	val = ioread32(td->sfr_addr + adrs);
-	val &= ~NRSTCTRL0_RST_DE_ASRT;
-	iowrite32(val, td->sfr_addr + adrs);
+	tc956x_m3_reset(td, false);
 
 	readl_poll_timeout(td->sram_addr + TC956X_M3_INIT_DONE,
 				fw_init_sync, fw_init_sync, 100, 100000);
