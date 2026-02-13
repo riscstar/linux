@@ -397,6 +397,7 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 
 #define NFUNCEN_FUNC0		(0)
 #define NFUNCEN_FUNC2		(2)
+/* XXX Fix all of these to use u32_assign_bits() and get rid of SHIFTs */
 #define NFUNCEN4_GPIO_00	GENMASK(3, 0)
 #define NFUNCEN4_GPIO_00_SHIFT	(0)
 #define NFUNCEN4_GPIO_01	GENMASK(7, 4)
@@ -1052,7 +1053,7 @@ static int tc956x_platform_of_parse(struct tc956x_data *td)
 	ret = of_irq_get_byname(np, "wake-on-lan");
 	if (ret <= 0) {
 		dev_err(dev, "failed to get wake-on-lan property\n");
-		return ret;
+		return ret ? : -EINVAL;
 	}
 	td->wol_irq = ret;
 
