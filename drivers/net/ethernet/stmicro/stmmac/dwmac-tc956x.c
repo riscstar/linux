@@ -1465,155 +1465,29 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 	plat->rx_fifo_size = 46 * SZ_1K;
 	plat->dma_cfg->pbl = 32;
 	plat->dma_cfg->pblx8 = true;
-	/* Set default number of RX and TX queues to use */
-	plat->tx_queues_to_use = 2;
+
 	plat->rx_queues_to_use = 8;
-
-	/* MTL Configuration */
-
-	/*Rx queue configuration for VFs are done in PF driver, so skip setting it here*/
-	/* Static Mapping */
-	/* Note : Best Effort, Broadcast/Multicast packet routing based
-	 * on DA filter Channel Mapping
-	 */
-	/* Unicast/Untagged Packets : Consider Jumbo packets */
-	plat->rx_queues_cfg[0].chan = LEG_UNTAGGED_PACKET;
-	/* VLAN Tagged Legacy packets */
-	plat->rx_queues_cfg[1].chan = LEG_TAGGED_PACKET;
-	/* Untagged gPTP packets  */
-	plat->rx_queues_cfg[2].chan = UNTAGGED_GPTP_PACKET;
-
-	/* Tagged/Untagged  AV control pkts */
-	plat->rx_queues_cfg[3].chan = UNTAGGED_AVCTRL_PACKET;
-
-	/* AVB Class B */
-	plat->rx_queues_cfg[4].chan = AVB_CLASS_B_PACKET;
-	/* AVB Class A */
-	plat->rx_queues_cfg[5].chan = AVB_CLASS_A_PACKET;
-	/* CDT */
-	plat->rx_queues_cfg[6].chan = TSN_CLASS_CDT_PACKET;
-	/* Broadcast/Multicast packets to support pkt duplication it should be highest queue */
-	plat->rx_queues_cfg[7].chan = BC_MC_PACKET;
-
-	/* Rx Queue Packet routing */
-	plat->rx_queues_cfg[0].pkt_route = PACKET_UPQ;
-	plat->rx_queues_cfg[1].pkt_route = 0;
-	plat->rx_queues_cfg[2].pkt_route = PACKET_PTPQ;
-	plat->rx_queues_cfg[3].pkt_route = PACKET_AVCPQ;
-	plat->rx_queues_cfg[4].pkt_route = 0;
-	plat->rx_queues_cfg[5].pkt_route = 0;
-	plat->rx_queues_cfg[6].pkt_route = 0;
-	plat->rx_queues_cfg[7].pkt_route = PACKET_MCBCQ;
-	/* MTL Scheduler for RX and TX */
-
 	plat->rx_sched_algorithm = MTL_RX_ALGORITHM_SP;
+
+	for (int i = 0; i < plat->rx_queues_to_use; i++) {
+		/* Copied from socfpga_agilex5.dtsi */
+		plat->rx_queues_cfg[i].mode_to_use = MTL_QUEUE_DCB;
+		plat->rx_queues_cfg[i].chan = i;
+	}
+
+	/* TODO: ping stops working if we set tx_queues_to_use to 8? */
+	plat->tx_queues_to_use = 7;
 	plat->tx_sched_algorithm = MTL_TX_ALGORITHM_WRR;
 
-	/* Due to the erratum in XGMAC 3.01a, WRR weights not considered in
-	 * TX DMA read data arbitration. Workaround is at set all weights for Tx Queues with
-	 * WRR arbitration logic to 1
-	 */
+	for (int i = 0; i < plat->tx_queues_to_use; i++) {
+		/* Copied from socfpga_agilex5.dtsi */
+		plat->tx_queues_cfg[i].weight = 9 + i;
+		plat->tx_queues_cfg[i].mode_to_use = MTL_QUEUE_DCB;
 
-	 /* Best Effort weitghts are same as its mapped to TC0 */
-	plat->tx_queues_cfg[0].weight = 0x11;
-	plat->tx_queues_cfg[1].weight = 0x11;
-	plat->tx_queues_cfg[2].weight = 0x11;
-	plat->tx_queues_cfg[3].weight = 0x11;
-	plat->tx_queues_cfg[4].weight = 0x12;
-	plat->tx_queues_cfg[5].weight = 0x13;
-	plat->tx_queues_cfg[6].weight = 0x14;
-	plat->tx_queues_cfg[7].weight = 0x15;
-
-	plat->rx_queues_cfg[0].mode_to_use = MTL_QUEUE_DCB;
-	plat->rx_queues_cfg[1].mode_to_use = MTL_QUEUE_DCB;
-	plat->rx_queues_cfg[2].mode_to_use = MTL_QUEUE_DCB;
-	plat->rx_queues_cfg[3].mode_to_use = MTL_QUEUE_AVB;
-	plat->rx_queues_cfg[4].mode_to_use = MTL_QUEUE_AVB;
-	plat->rx_queues_cfg[5].mode_to_use = MTL_QUEUE_AVB;
-	plat->rx_queues_cfg[6].mode_to_use = MTL_QUEUE_AVB;
-	plat->rx_queues_cfg[7].mode_to_use = MTL_QUEUE_DCB;
-
-	plat->tx_queues_cfg[0].mode_to_use = MTL_QUEUE_DCB;
-	plat->tx_queues_cfg[1].mode_to_use = MTL_QUEUE_DCB;
-	plat->tx_queues_cfg[2].mode_to_use = MTL_QUEUE_DCB;
-	plat->tx_queues_cfg[3].mode_to_use = MTL_QUEUE_DCB;
-	plat->tx_queues_cfg[4].mode_to_use = MTL_QUEUE_DCB;
-	plat->tx_queues_cfg[5].mode_to_use = MTL_QUEUE_AVB;
-	plat->tx_queues_cfg[6].mode_to_use = MTL_QUEUE_AVB;
-	plat->tx_queues_cfg[7].mode_to_use = MTL_QUEUE_AVB;
-
-	/* CBS: queue 5 -> Class B traffic (25% BW) */
-	plat->tx_queues_cfg[5].idle_slope = 0x800;
-	plat->tx_queues_cfg[5].send_slope = 0x1800;
-	plat->tx_queues_cfg[5].high_credit = 0x320000;
-	plat->tx_queues_cfg[5].low_credit = 0x1f6a0000;
-
-	/* CBS: queue 6 -> Class A traffic (25% BW) */
-	plat->tx_queues_cfg[6].idle_slope = 0x800;
-	plat->tx_queues_cfg[6].send_slope = 0x1800;
-	plat->tx_queues_cfg[6].high_credit = 0x320000;
-	plat->tx_queues_cfg[6].low_credit = 0x1f6a0000;
-
-	/* CBS: queue 7 -> Class CDT traffic (40%) BW */
-	plat->tx_queues_cfg[7].idle_slope = 0xccc;
-	plat->tx_queues_cfg[7].send_slope = 0x1333;
-	plat->tx_queues_cfg[7].high_credit = 0x500000;
-	plat->tx_queues_cfg[7].low_credit = 0x1f880000;
-
-	/* Tx TC priority */
-	plat->tx_queues_cfg[0].use_prio = true;
-	plat->tx_queues_cfg[1].use_prio = true;
-	plat->tx_queues_cfg[2].use_prio = true;
-	plat->tx_queues_cfg[3].use_prio = true;
-	plat->tx_queues_cfg[4].use_prio = false;
-	plat->tx_queues_cfg[5].use_prio = false;
-	plat->tx_queues_cfg[6].use_prio = false;
-	plat->tx_queues_cfg[7].use_prio = false;
-
-	plat->tx_queues_cfg[0].prio = 0xff;
-	plat->tx_queues_cfg[1].prio = 0xff;
-	plat->tx_queues_cfg[2].prio = 0xff;
-	plat->tx_queues_cfg[3].prio = 0xff;
-	plat->tx_queues_cfg[4].prio = 0;
-	plat->tx_queues_cfg[5].prio = 0;
-	plat->tx_queues_cfg[6].prio = 0;
-	plat->tx_queues_cfg[7].prio = 0;
-
-	/* Enable/Disable TBS */
-	plat->tx_queues_cfg[0].tbs_en = 0;
-	plat->tx_queues_cfg[1].tbs_en = 0;
-	plat->tx_queues_cfg[2].tbs_en = 0;
-	plat->tx_queues_cfg[3].tbs_en = 0;
-	plat->tx_queues_cfg[4].tbs_en = 0;
-	plat->tx_queues_cfg[5].tbs_en = 1;
-	plat->tx_queues_cfg[6].tbs_en = 1;
-	plat->tx_queues_cfg[7].tbs_en = 1;
-
-	plat->rx_queues_cfg[0].use_prio = false;
-	plat->rx_queues_cfg[0].prio = 0;
-
-	plat->rx_queues_cfg[1].use_prio = true;
-	plat->rx_queues_cfg[1].prio = 0xff;
-
-	plat->rx_queues_cfg[2].use_prio = false;
-	plat->rx_queues_cfg[2].prio = 0;
-
-	plat->rx_queues_cfg[3].use_prio = false;
-	plat->rx_queues_cfg[3].prio = 0;
-
-	plat->rx_queues_cfg[4].use_prio = true;
-	plat->rx_queues_cfg[4].prio = 1 << 2;
-
-	plat->rx_queues_cfg[5].use_prio = true;
-	plat->rx_queues_cfg[5].prio = 1 << 3;
-
-	plat->rx_queues_cfg[6].use_prio = true;
-	plat->rx_queues_cfg[6].prio = 1 << 7;
-
-	plat->rx_queues_cfg[7].use_prio = false;
-	plat->rx_queues_cfg[7].prio = 0;
-
-
+		/* Tx Queues 0 - 4 doesn't support TBS on TC956x */
+		if (i >= 5)
+			plat->tx_queues_cfg[i].tbs_en = true;
+	}
 
 	/* Axi Configuration */
 	plat->axi = devm_kzalloc(&pdev->dev, sizeof(*plat->axi), GFP_KERNEL);
