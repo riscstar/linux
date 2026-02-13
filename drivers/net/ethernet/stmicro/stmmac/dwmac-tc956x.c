@@ -454,14 +454,14 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 //
 
 /**
- *  tc956x_GPIO_OutputConfigPin - to configure GPIO as output and write the value
- *  @priv: driver private structure
- *  @out_value : value to write to the GPIO pin. Can be 0 or 1
- *  @remarks : Only GPIO0- GPIO06, GPI010-GPIO12 are allowed
+ * __tc956x_assert_phy_reset - assert or deassert the PHY resetn output
+ *  @td: driver private structure
+ *  @assert: true is assert the reset signal (drive low); false is deassert
  */
-static int tc956x_GPIO_OutputConfigPin(struct tc956x_data *td, u8 out_value)
+static int __tc956x_assert_phy_reset(struct tc956x_data *td, bool assert)
 {
 	u32 gpio_pin = td->phy_reset_gpio;
+	u32 out_value = assert ? 0 : 1;
 	u32 config, val;
 
 	/* Only GPIO00 and GPIO01 are ever used */
@@ -494,6 +494,16 @@ static int tc956x_GPIO_OutputConfigPin(struct tc956x_data *td, u8 out_value)
 	writel(val & config, td->sfr_addr + GPIOE0_OFFSET);
 
 	return 0;
+}
+
+static int tc956x_assert_phy_reset(struct tc956x_data *td)
+{
+	return __tc956x_assert_phy_reset(td, true);
+}
+
+static int tc956x_deassert_phy_reset(struct tc956x_data *td)
+{
+	return __tc956x_assert_phy_reset(td, false);
 }
 
 /**
@@ -965,16 +975,6 @@ const struct tc956x_msi_ops tc956x_msigen_ops = {
 // Code from tc956x_qcom.c in vendor driver
 //
 
-static int tc956x_assert_phy_reset(struct tc956x_data *td)
-{
-	return tc956x_GPIO_OutputConfigPin(td, 0);
-}
-
-static int tc956x_deassert_phy_reset(struct tc956x_data *td)
-{
-	return tc956x_GPIO_OutputConfigPin(td, 1);
-}
-
 static int tc956x_phy_power_on(struct tc956x_data *td)
 {
 	int ret = 0;
@@ -1015,6 +1015,7 @@ static int tc956x_phy_power_off(struct tc956x_data *td)
 		dev_err(td->dev, "Failed to disable PHY supply with error %d\n", ret);
 		if (tc956x_deassert_phy_reset(td))
 			dev_err(td->dev, "Failed to deassert PHY\n");
+		/* XXX Any need for the phy_reset_delay here? */
 	}
 
 	return ret;
@@ -1036,13 +1037,14 @@ static int tc956x_platform_of_parse(struct tc956x_data *td)
 		dev_err(dev, "failed to get qcom,phy-reset-gpio property\n");
 		return ret;
 	}
-	/* The only values used are 0 and 1 */
+	/* The only values used currently are 0 and 1; we'll generalize later */
 	if (td->phy_reset_gpio && td->phy_reset_gpio != 1) {
 		dev_err(dev, "bad qcom,phy-reset-gpio property (%u)\n",
 			td->phy_reset_gpio);
 		return ret;
 	}
 
+	/* XXX Can we use a good constant and avoid having to specify this? * */
 	ret = of_property_read_u32(np, "qcom,phy-reset-delay",
 				   &td->phy_reset_delay);
 	if (ret) {
