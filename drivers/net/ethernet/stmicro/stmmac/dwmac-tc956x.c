@@ -2245,26 +2245,20 @@ static void tc956x_pcie_pm_disable_pci(struct pci_dev *pdev)
  */
 static int tc956x_pcie_pm_enable_pci(struct pci_dev *pdev)
 {
-	struct net_device *ndev = dev_get_drvdata(&pdev->dev);
-	struct stmmac_priv *priv = netdev_priv(ndev);
-	struct tc956x_data *td = priv->plat->bsp_priv;
-	int ret = 0;
+	int ret;
 
-	dev_dbg(&(pdev->dev), "---->%s : Port %d %s - PCI Set Power, Enable Device, Restore State & Set Master",
-		 __func__, td->emac0 ? 0 : 1, ndev->name);
 	pci_set_power_state(pdev, PCI_D0);
+
 	ret = pci_enable_device_mem(pdev);
 	if (ret) {
-		dev_err(&(pdev->dev),
-		"%s: error in calling pci_enable_device_mem", pci_name(pdev));
-		dev_dbg(&(pdev->dev), "<--%s\n", __func__);
+		dev_err(&pdev->dev, "error %d enabling PCI device memory", ret);
 		return ret;
 	}
+
 	pci_restore_state(pdev);
 	pci_set_master(pdev);
-	dev_dbg(&(pdev->dev), "<----%s : Port %d %s - PCI Set Power, Enable Device, Restore State & Set Master",
-		__func__, td->emac0 ? 0 : 1, ndev->name);
-	return ret;
+
+	return 0;
 }
 
 /**
