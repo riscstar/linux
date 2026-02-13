@@ -464,18 +464,14 @@ static void __tc956x_assert_phy_reset(struct tc956x_data *td, bool assert)
 {
 	u32 gpio_pin = td->phy_reset_gpio;
 	u32 out_value = assert ? 0 : 1;
+	void __iomem *addr;
 	u32 config, val;
 
 	tc956x_phy_reset_pin_config(td);
 
-	/* Write data to GPIO pin */
-	config = 1 << gpio_pin;
-	val = readl(td->sfr_addr + GPIOO0_OFFSET);
-	val &= ~config;
-	if (out_value)
-		val |= config;
-
-	writel(val, td->sfr_addr + GPIOO0_OFFSET);
+	/* Output value for both pins is in the GPIOO0 register */
+	addr = td->sfr_addr + GPIOO0_OFFSET;
+	tc956x_reg_update(addr, BIT(gpio_pin), out_value);
 
 	td->saved_phy_reset_value = out_value;
 
@@ -505,6 +501,7 @@ static int tc956x_gpio_restore_configuration(struct stmmac_priv *priv)
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	u32 gpio_pin = td->phy_reset_gpio;
 	u32 config, val, out_value;
+	void __iomem *addr;
 
 	dev_dbg(priv->device, "%s : Restoring GPIO configuration for pin: %d, val: %d",
 			__func__, gpio_pin, td->saved_phy_reset_value);
@@ -513,14 +510,8 @@ static int tc956x_gpio_restore_configuration(struct stmmac_priv *priv)
 
 	out_value = td->saved_phy_reset_value;
 
-	/* Write data to GPIO pin */
-	config = 1 << gpio_pin;
-	val = readl(td->sfr_addr + GPIOO0_OFFSET);
-	val &= ~config;
-	if (out_value)
-		val |= config;
-
-	writel(val, td->sfr_addr + GPIOO0_OFFSET);
+	addr = td->sfr_addr + GPIOO0_OFFSET;
+	tc956x_reg_update(addr, BIT(gpio_pin), out_value);
 
 	/* Configure the GPIO pin in output direction */
 	config = ~(1 << gpio_pin);
