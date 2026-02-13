@@ -1406,10 +1406,12 @@ static void tc956x_get_interfaces(struct stmmac_priv *priv, void *bsp_priv,
 	}
 }
 
-static void xgmac_default_data(struct plat_stmmacenet_data *plat)
+static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
+				struct plat_stmmacenet_data *plat)
 {
 	struct tc956x_data *td = plat->bsp_priv;
 
+	/* Set common default data first */
 	plat->core_type = DWMAC_CORE_XGMAC;
 	plat->force_sf_dma_mode = 1;
 	plat->flags |= STMMAC_FLAG_TSO_EN;
@@ -1431,16 +1433,6 @@ static void xgmac_default_data(struct plat_stmmacenet_data *plat)
 
 	plat->riwt_off = 0;
 	plat->rss_en = 0;
-}
-
-static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
-				struct plat_stmmacenet_data *plat)
-{
-	struct tc956x_data *td = plat->bsp_priv;
-
-	/* Set common default data first */
-	xgmac_default_data(plat);
-
 	plat->bus_id = 1;
 	plat->phy_addr = -1;
 	plat->pdev = pdev;
