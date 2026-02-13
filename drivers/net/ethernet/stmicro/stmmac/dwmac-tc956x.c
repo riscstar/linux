@@ -1,5 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0
-/* Copyright (C) 2011-2012  Vayavya Labs Pvt Ltd
+
+/*
+ * Copyright (C) 2026 by RISCstar Solutions Corporation.  All rights reserved.
+ *
+ * Derived from code having the following copyrights:
+ * Copyright (C) 2011-2012  Vayavya Labs Pvt Ltd
  * Copyright (C) 2025 Toshiba Electronic Devices & Storage Corporation
  */
 
@@ -2685,6 +2690,5 @@ static struct pci_driver tc956x_pci_driver = {
 
 module_pci_driver(tc956x_pci_driver);
 
-MODULE_DESCRIPTION("TC956X PCI Express Ethernet Network Driver");
-MODULE_AUTHOR("Toshiba Electronic Devices & Storage Corporation");
-MODULE_LICENSE("GPL v2");
+MODULE_DESCRIPTION("Toshiba TC956x PCIe Ethernet Network Driver");
+MODULE_LICENSE("GPL");
