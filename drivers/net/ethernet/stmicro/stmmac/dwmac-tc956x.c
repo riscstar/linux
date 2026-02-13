@@ -245,8 +245,6 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 #define MAC0_BASE_OFFSET 0x40000 /* eMAC0 Base Offset */
 #define MAC1_BASE_OFFSET 0x48000 /* eMAC1 Base Offset */
 
-#define TC956X_TARGET_PTP_CLK	50000000
-
 #define RSC_MNG_OFFSET		0x2000
 #define RSCMNG_ID_REG		(RSC_MNG_OFFSET + 0x00000000)
 #define RSCMNG_PFN_MASK		GENMASK(3, 0)
@@ -449,8 +447,6 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 #ifdef TC956X_SW_MSI
 #define MSI_INT_SW_MSI		24
 #endif
-
-#define MAX_MAC_ADDR_FILTERS 32
 
 //
 // Code from tc956x_main.c in vendor driver
@@ -1453,12 +1449,12 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 	 */
 	td->is_sgmii_2p5g = plat->phy_interface == PHY_INTERFACE_MODE_SGMII;
 
-	plat->clk_ptp_rate = TC956X_TARGET_PTP_CLK;
+	plat->clk_ptp_rate = 50000000;
 
 	/* Set default value for multicast hash bins */
 	plat->multicast_filter_bins = HASH_TABLE_SIZE;
 	/* Set default value for unicast filter entries */
-	plat->unicast_filter_entries = MAX_MAC_ADDR_FILTERS;
+	plat->unicast_filter_entries = 32;
 	plat->maxmtu = XGMAC_JUMBO_LEN;
 
 	plat->tx_fifo_size = 46 * SZ_1K;
