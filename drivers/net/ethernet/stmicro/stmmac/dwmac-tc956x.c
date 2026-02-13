@@ -1212,15 +1212,16 @@ struct tx956x_shrd_mem tx956x_pci_shrd_mem[TC956X_TOT_CASCADE_DEV];
 
 static uint16_t tc956x_get_shared_mem_offset(struct pci_dev *pdev, uint16_t pci_bd)
 {
+	struct device *dev = &pdev->dev;
 	uint16_t offset;
 
 	for (offset = 0; offset < TC956X_TOT_CASCADE_DEV; offset++) {
 		if (tx956x_pci_shrd_mem[offset].pci_bd == 0) {
 			tx956x_pci_shrd_mem[offset].pci_bd = pci_bd;
-			dev_dbg(&pdev->dev, "New shared memory offset %d allocated\n", offset);
+			dev_dbg(dev, "New shared memory offset %d allocated\n", offset);
 			return offset;	/* Free memory is available */
 		} else if (tx956x_pci_shrd_mem[offset].pci_bd == pci_bd) {
-			dev_dbg(&pdev->dev, "Existing shared memory offset %d found\n", offset);
+			dev_dbg(dev, "Existing shared memory offset %d found\n", offset);
 			return offset;	/* Allocated memory found */
 		}
 	}
@@ -2167,7 +2168,8 @@ err_out_enb_failed:
  */
 static void tc956x_pci_remove(struct pci_dev *pdev)
 {
-	struct net_device *ndev = dev_get_drvdata(&pdev->dev);
+	struct device *dev = &pdev->dev;
+	struct net_device *ndev = dev_get_drvdata(dev);
 	struct stmmac_priv *priv = netdev_priv(ndev);
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	void *nrst_reg, *nclk_reg;
@@ -2180,11 +2182,11 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 	 */
 	if (priv->dma_cap.sma_mdio == 1) {
 		if (priv->plat->phy_addr != -1) {
-			stmmac_dvr_remove(&pdev->dev);
+			stmmac_dvr_remove(dev);
 			tc956x_platform_remove(td);
 		}
 	} else {
-		stmmac_dvr_remove(&pdev->dev);
+		stmmac_dvr_remove(dev);
 		tc956x_platform_remove(td);
 	}
 
@@ -2382,7 +2384,8 @@ err:
  */
 static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 {
-	struct net_device *ndev = dev_get_drvdata(&pdev->dev);
+	struct device *dev = &pdev->dev;
+	struct net_device *ndev = dev_get_drvdata(dev);
 	struct stmmac_priv *priv = netdev_priv(ndev);
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	/* use signal from MSPHY */
@@ -2393,7 +2396,7 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 	/* Skip Config when Port unavailable */
 	if (priv->dma_cap.sma_mdio == 1) {
 		if ((priv->plat->phy_addr == -1) || (priv->mii == NULL)) {
-			dev_dbg(&(pdev->dev), "%s : Invalid PHY Address (%d)\n", __func__, priv->plat->phy_addr);
+			dev_dbg(dev, "%s : Invalid PHY Address (%d)\n", __func__, priv->plat->phy_addr);
 			ret = -1;
 			goto err_phy_addr;
 		}
@@ -2407,7 +2410,7 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 
 		writel(ret, td->sfr_addr + NRSTCTRL0_OFFSET);
 
-		dev_dbg(&pdev->dev, "Enabling all eMAC clocks for Port 0 %s\n", priv->dev->name);
+		dev_dbg(dev, "Enabling all eMAC clocks for Port 0 %s\n", priv->dev->name);
 		/* Enable all clocks to eMAC Port0 */
 		ret = readl(td->sfr_addr + NCLKCTRL0_OFFSET);
 
@@ -2450,7 +2453,7 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 		ret |= NRSTCTRL1_MAC1RST1;
 		writel(ret, td->sfr_addr + NRSTCTRL1_OFFSET);
 
-		dev_dbg(&pdev->dev, "Enabling all eMAC clocks for Port 1 %s\n", priv->dev->name);
+		dev_dbg(dev, "Enabling all eMAC clocks for Port 1 %s\n", priv->dev->name);
 		/* Enable all clocks to eMAC Port1 */
 		ret = readl(td->sfr_addr + NCLKCTRL1_OFFSET);
 
@@ -2517,7 +2520,7 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 			td->sfr_addr + (td->emac0 ? NEMAC0CTL_OFFSET : NEMAC1CTL_OFFSET),
 			val, val & NEMACCTL_INIT_DONE, 50, 1000000);
 		if (ret < 0)
-			dev_err(&pdev->dev, "PMA/XPCS failed to come out of reset\n");
+			dev_err(dev, "PMA/XPCS failed to come out of reset\n");
 
 		ret = tc956x_xpcs_init(priv->plat);
 		if (ret < 0)
