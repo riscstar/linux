@@ -385,41 +385,17 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 #define SP_ETH_100M				3
 #define SP_ETH_10M				7
 
-#define GPIOE0_OFFSET	(0x1208) /* GPIO Enable-0 register */
-#define GPIOE1_OFFSET	(0x120C) /* GPIO Enable-1 register */
-#define GPIOO0_OFFSET	(0x1210) /* GPIO Output-0 register */
-#define GPIOO1_OFFSET	(0x1214) /* GPIO Output-1 register */
+#define GPIOE0_OFFSET		0x1208	/* GPIO00 enable register */
+#define GPIOE1_OFFSET		0x120C	/* GPIO01 enable register */
+#define GPIOO0_OFFSET		0x1210	/* GPIO00 output register */
+#define GPIOO1_OFFSET		0x1214	/* GPIO01 output register */
 
-#define NFUNCEN4_OFFSET		(0x1528)
-#define NFUNCEN5_OFFSET		(0x152C)
-#define NFUNCEN6_OFFSET		(0x1530)
-#define NFUNCEN7_OFFSET		(0x153C)
-
-#define NFUNCEN_FUNC0		(0)
-#define NFUNCEN_FUNC2		(2)
-/* XXX Fix all of these to use u32_assign_bits() and get rid of SHIFTs */
-#define NFUNCEN4_GPIO_00	GENMASK(3, 0)
-#define NFUNCEN4_GPIO_00_SHIFT	(0)
-#define NFUNCEN4_GPIO_01	GENMASK(7, 4)
-#define NFUNCEN4_GPIO_01_SHIFT	(4)
-#define NFUNCEN4_GPIO_02	GENMASK(11, 8)
-#define NFUNCEN4_GPIO_02_SHIFT	(8)
-#define NFUNCEN4_GPIO_03	GENMASK(15, 12)
-#define NFUNCEN4_GPIO_03_SHIFT	(12)
-#define NFUNCEN4_GPIO_04	GENMASK(19, 16)
-#define NFUNCEN4_GPIO_04_SHIFT	(16)
-#define NFUNCEN4_GPIO_05	GENMASK(23, 20)
-#define NFUNCEN4_GPIO_05_SHIFT	(20)
-#define NFUNCEN4_GPIO_06	GENMASK(27, 24)
-#define NFUNCEN4_GPIO_06_SHIFT	(24)
-#define NFUNCEN5_GPIO_10	GENMASK(3, 0)
-#define NFUNCEN5_GPIO_10_SHIFT	(0)
-#define NFUNCEN5_GPIO_11	GENMASK(7, 4)
-#define NFUNCEN5_GPIO_11_SHIFT	(4)
-#define NFUNCEN6_GPIO_12	GENMASK(19, 16)
-#define NFUNCEN6_GPIO_12_SHIFT	(16)
-#define NFUNCEN7_GPIO_13	GENMASK(3, 0)
-#define NFUNCEN7_GPIO_13_SHIFT	(0)
+/* Pin configuration for PHY resets; eMAC0 uses GPIO00, eMAC1 uses GPIO01 */
+#define NFUNCEN4_OFFSET		0x1528
+#define NFUNCEN4_GPIO_00_MASK	GENMASK(3, 0)
+#define GPIO_00_FUNC		0
+#define NFUNCEN4_GPIO_01_MASK	GENMASK(7, 4)
+#define GPIO_01_FUNC		0
 
 #define TC956X_SSREG_BRREG_REG_BASE		(0x00024000U)
 
@@ -464,16 +440,14 @@ static void __tc956x_assert_phy_reset(struct tc956x_data *td, bool assert)
 	u32 out_value = assert ? 0 : 1;
 	u32 config, val;
 
-	/* Only GPIO00 and GPIO01 are ever used */
+	/* Set pin mode; only GPIO00 and GPIO01 are ever used */
 	if (gpio_pin) {
 		val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
-		val &= ~NFUNCEN4_GPIO_01;
-		val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_01_SHIFT);
+		FIELD_MODIFY(NFUNCEN4_GPIO_01_MASK, &val, GPIO_01_FUNC);
 		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 	} else {
 		val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
-		val &= ~NFUNCEN4_GPIO_00;
-		val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_00_SHIFT);
+		FIELD_MODIFY(NFUNCEN4_GPIO_00_MASK, &val, GPIO_00_FUNC);
 		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 	}
 
@@ -518,16 +492,14 @@ static int tc956x_gpio_restore_configuration(struct stmmac_priv *priv)
 	dev_dbg(priv->device, "%s : Restoring GPIO configuration for pin: %d, val: %d",
 			__func__, gpio_pin, td->saved_phy_reset_value);
 
-	/* Only GPIO00 and GPIO01 are ever used */
+	/* Set pin mode; only GPIO00 and GPIO01 are ever used */
 	if (gpio_pin) {
 		val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
-		val &= ~NFUNCEN4_GPIO_01;
-		val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_01_SHIFT);
+		FIELD_MODIFY(NFUNCEN4_GPIO_01_MASK, &val, GPIO_01_FUNC);
 		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 	} else {
 		val = readl(td->sfr_addr + NFUNCEN4_OFFSET);
-		val &= ~NFUNCEN4_GPIO_00;
-		val |= (NFUNCEN_FUNC0 << NFUNCEN4_GPIO_00_SHIFT);
+		FIELD_MODIFY(NFUNCEN4_GPIO_00_MASK, &val, GPIO_00_FUNC);
 		writel(val, td->sfr_addr + NFUNCEN4_OFFSET);
 	}
 
