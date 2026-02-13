@@ -44,7 +44,7 @@
 // * TC956x has support for phy interrupts. Should that be re-enabled?
 //
 
-/**
+/*
  * Used to store toshiba-specific context.
  *
  * It is stored in the bsp_priv field of struct plat_stmmacenet_data.
@@ -461,7 +461,7 @@ static void tc956x_phy_reset_pin_config(struct tc956x_data *td)
 }
 
 /**
- * __tc956x_assert_phy_reset - assert or deassert the PHY resetn output
+ * __tc956x_assert_phy_reset() - Assert or deassert the PHY resetn output
  *  @td: driver private structure
  *  @assert: true is assert the reset signal (drive low); false is deassert
  */
@@ -495,8 +495,8 @@ static void tc956x_deassert_phy_reset(struct tc956x_data *td)
 }
 
 /**
- *  tc956x_restore_phy_reset - restore the saved PHY reset configuration
- *  @priv: driver private structure
+ * tc956x_restore_phy_reset() - Restore the saved PHY reset configuration
+ * @priv:	STMMAC driver private data pointer
  */
 static void tc956x_restore_phy_reset(struct stmmac_priv *priv)
 {
@@ -768,16 +768,12 @@ static void tc956x_xpcs_ctrl_ane(struct tc956x_data *td, bool ane)
 //
 
 /**
- * tc956x_msigen_init
+ * tc956x_msigen_init() - Initialize and configure the MSIGEN module
+ * @priv:	STMMAC driver private data pointer
+ * @dev:	Net device pointer
  *
- * \brief API to Initialize and configure MSIGEN module
- *
- * \details This function is used to configures clock, reset, sets mask and
- * interrupt source to MSI vector mapping.
- *
- * \param[in] dev - Pointer to net device structure
- *
- * \return None
+ * Configure clocks and resets, and sets the mask and interrupt source
+ * to MSI vector mapping.
  */
 static void tc956x_msigen_init(struct stmmac_priv *priv, struct net_device *dev)
 {
@@ -832,16 +828,10 @@ static u32 tc956x_interrupt_sts(struct stmmac_priv *priv, struct net_device *dev
 }
 
 /**
- * tc956x_interrupt_en
- *
- * \brief API to enable disable MSI interrupts
- *
- * \details This function is used to set/clear interrupts
- *
- * \param[in] dev - Pointer to net device structure
- * \param[in] en -	1 - Enable interrupts
- * 0 - Disable interrupts
- * \return None
+ * tc956x_interrupt_en() - Enable or disable MSI interrupts
+ * @priv:	STMMAC driver private data pointer
+ * @dev:	Net device pointer
+ * @en:		Whether to enable or disable MSI interrupts
  */
 static void tc956x_interrupt_en(struct stmmac_priv *priv, struct net_device *dev, u32 en)
 {
@@ -908,17 +898,12 @@ static void tc956x_interrupt_en(struct stmmac_priv *priv, struct net_device *dev
 }
 
 /**
- * tc956x_interrupt_clr
+ * tc956x_interrupt_clr() - Clear/acknowledge an MSI condition
+ * @priv:	STMMAC driver private data pointer
+ * @dev:	Net device pointer
+ * @vector:	MSI number to clear
  *
- * \brief API to enable clear MSI vector
- *
- * \details This function is used to clear MSI vector. To be called
- * after handling the interrupts.
- *
- * \param[in] dev - Pointer to net device structure
- * \param[in] vector - Supported values TC956X_MSI_VECTOR_0, TC956X_MSI_VECTOR_1
- *
- * \return None
+ * Clear an interrupt condition for an MSI after handling it.
  */
 static void tc956x_interrupt_clr(struct stmmac_priv *priv, struct net_device *dev, u32 vector)
 {
@@ -1243,16 +1228,13 @@ struct tc956x_pci_info {
 	int (*setup)(struct pci_dev *pdev, struct plat_stmmacenet_data *plat);
 };
 
-/*!
- * \brief API to save and restore clock and reset during suspend-resume.
+/**
+ * tc956x_pm_set_power() - Set clock and reset for suspend or resume
+ * @priv:	STMMAC driver private data pointer
+ * @state:	Whether we are being called during suspend
  *
- * \details This fucntion saves the EMAC clock and reset bits before
- * suspend. And restores the same settings after resume.
- *
- * \param[in] priv - pointer to device private structure.
- * \param[in] state - identify SUSPEND and RESUME operation.
- *
- * \return None
+ * Save the eMAC clock and reset settings before suspend, or restore those
+ * settings during resume.
  */
 static void tc956x_pm_set_power(struct stmmac_priv *priv, enum TC956X_PORT_PM_STATE state)
 {
@@ -1447,15 +1429,12 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 	return 0;
 }
 
-/*!
- * \brief API to Reset SRAM Region.
+/**
+ * tc956x_reset_SRAM() - Reset SRAM region
+ * @td:		TC956x driver private data pointer
+ * @dev:	Device pointer
  *
- * \details This function Resets both IMEM & DMEM sections of tc956x.
- *
- * \param[in] dev  - pointer to device structure.
- * \param[in] res  - pointer to stmmac_resources structure.
- *
- * \return none
+ * Reset the IMEM and DMEM memory in the tc956x.
  */
 static void tc956x_reset_SRAM(struct device *dev, struct tc956x_data *td)
 {
@@ -1467,20 +1446,16 @@ static void tc956x_reset_SRAM(struct device *dev, struct tc956x_data *td)
 	dev_dbg(dev,  "Resetting SRAM Region end\n");
 }
 
-/*!
- * \brief API to load firmware for CM3.
+/**
+ * tc956x_load_firmware() - Load firmware for the embedded Cortex M3
+ * @td:		TC956x driver private data pointer
+ * @dev:	Device pointer
  *
- * \details This fucntion loads the firmware onto the SRAM of tc956x.
- * The tc956x CM3 starts executing once the firmware loading is complete.
+ * Load the firmware into the SRAM in the TC956x.  The embedded Cortex M3
+ * starts executing once the firmware loading is complete.
  *
- * \param[in] dev  - pointer to device structure.
- * \param[in] id   - pointer to stmmac_resources structure.
- *
- * \return integer
- *
- * \retval 0 on success & -ve number on failure.
+ * Return:	0 if successful, or an error code if an error occurs
  */
-
 static s32 tc956x_load_firmware(struct device *dev, struct tc956x_data *td)
 {
 	u32 adrs = 0, val = 0;
@@ -1739,16 +1714,13 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 }
 
 /**
- * tc956x_pci_probe
+ * tc956x_pci_probe() - PCI driver probe callback
+ * @pdev:	PCI device pointer
+ * @id:		Pointer to the matching PCI device ID table entry
  *
- * @pdev: pci device pointer
- * @id: pointer to table of device id/id's.
- *
- * Description: This probing function gets called for all PCI devices which
- * match the ID table and are not "owned" by other driver yet. This function
- * gets passed a "struct pci_dev *" for each device whose entry in the ID table
- * matches the device. The probe functions returns zero when the driver choose
- * to take "ownership" of the device or an error code(-ve no) otherwise.
+ * Set up a PCI device whose VID/PID match what we support.  This includes
+ * allocating a driver private structure, requesting memory regions,
+ * setting up interrupt handling, and so on.
  */
 static int tc956x_pci_probe(struct pci_dev *pdev,
 			    const struct pci_device_id *id)
@@ -2178,19 +2150,11 @@ err_out_enb_failed:
 }
 
 /**
- * tc956x_pci_remove
+ * tc956x_pci_remove() - PCI driver remove callback
+ * @pdev: Pointer to the pci_dev structure
  *
- * \brief API to release all the resources from the driver.
- *
- * \details The remove function gets called whenever a device being handled
- * by this driver is removed (either during deregistration of the driver or
- * when it is manually pulled out of a hot-pluggable slot). This function
- * should reverse operations performed at probe time. The remove function
- * always gets called from process context, so it can sleep.
- *
- * \param[in] pdev - pointer to pci_dev structure.
- *
- * \return void
+ * Reverse operations performed at probe time, releasing resources
+ * and returning things to original state.
  */
 static void tc956x_pci_remove(struct pci_dev *pdev)
 {
@@ -2268,15 +2232,13 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 	mutex_unlock(&tc956x_pm_suspend_lock);
 }
 
-/*!
- * \brief API to disable pci device.
+/**
+ * tc956x_pcie_pm_disable_pci() - Disable a PCI device
+ * @pdev:	Pointer to the PCI device to disable
  *
- * \details This api will be called during suspend operation.
- * This will disable pci device passed as argument.
+ * Disable the PCI device passed as argument.
  *
- * \param[in] pdev - pointer to pci_dev structure.
- *
- * \return int
+ * Return:	Always returns 0
  */
 static int tc956x_pcie_pm_disable_pci(struct pci_dev *pdev)
 {
@@ -2295,15 +2257,13 @@ static int tc956x_pcie_pm_disable_pci(struct pci_dev *pdev)
 	return ret;
 }
 
-/*!
- * \brief API to enable pci device.
+/**
+ * tc956x_pcie_pm_enable_pci() - Enable a PCI device
+ * @pdev:	Pointer to the PCI device to enable
  *
- * \details This api will be called during resume operation.
- * This will enable pci device passed as argument.
+ * Enable the PCI device passed as argument.
  *
- * \param[in] pdev - pointer to pci_dev structure.
- *
- * \return int
+ * Return:	0 if successful, or an error code if setting power state fails
  */
 static int tc956x_pcie_pm_enable_pci(struct pci_dev *pdev)
 {
@@ -2329,16 +2289,14 @@ static int tc956x_pcie_pm_enable_pci(struct pci_dev *pdev)
 	return ret;
 }
 
-/*!
- * \brief API to extract child pci devices.
+/**
+ * tc956x_pcie_pm_pci() - Disable PCIe child devices
+ * @pdev:	Pointer to the PCI device whose children are affected
+ * @state:	Whether we are being called during suspend
  *
- * \details This api will be called during suspend and resume operation.
- * This will find pci child devices by getting parent device of argument pci device.
+ * Disable PCI devices that are children of the given PCI device.
  *
- * \param[in] pdev - pointer to pci_dev structure.
- * \param[in] state - identify SUSPEND and RESUME operation.
- *
- * \return int
+ * Return:	0 if successful, or an error code if an error occurs
  */
 static int tc956x_pcie_pm_pci(struct pci_dev *pdev, enum TC956X_PORT_PM_STATE state)
 {
@@ -2374,19 +2332,15 @@ err:
 	return ret;
 }
 
-/*!
- * \brief Routine to put the device in suspend mode
+/**
+ * tc956x_pcie_suspend() - Device driver suspend callback
+ * @dev:	Device pointer
  *
- * \details This function is called whenever pm_generic_suspend() gets invoked.
- * This function invokes stmmac_suspend() to process MAC related suspend
- * operations during PORT_WIDE suspend.
- * This function handles PCI state during SYSTEM_WIDE suspend.
+ * Perform the activities required to suspend the TC956x platform device.
+ * This includes suspending the eMACs (and managing wake-on-LAN state)
+ * and suspending the PCIe interfaces.
  *
- * \param[in] dev \96 pointer to device structure.
- *
- * \return int
- *
- * \retval 0
+ * Return:	0 if successful, or an error code if an error occurs
  */
 static int tc956x_pcie_suspend(struct device *dev)
 {
@@ -2429,19 +2383,13 @@ err:
 	return ret;
 }
 
-/*!
- * \brief Routine to configure device during resume
+/**
+ * tc956x_pcie_resume_config() - Restore device configuration during resume
+ * @pdev:	PCI device pointer
  *
- * \details This function gets called by PCI core when the device is being
- * resumed. It is always called after suspend has been called. These function
- * reverse operations performed at suspend time. This function configure emac
- * port 0, 1 and xpcs to perform MAC realted resume operations.
+ * Restore the state of the eMAC to functional state during resume.
  *
- * \param[in] pdev pointer to pci device structure.
- *
- * \return s32
- *
- * \retval 0
+ * Return:	0 if successful, or an error code if an error occurs
  */
 static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 {
@@ -2591,20 +2539,15 @@ err_phy_addr:
 	return ret;
 }
 
-/*!
- * \brief Routine to resume device operation
+/**
+ * tc956x_pcie_resume() - Device driver resume callback
+ * @dev:	Device pointer
  *
- * \details This function gets called whenever pm_generic_resume() gets invoked.
- * This function reverse operations performed at suspend time. This function restores the
- * power state of the device and restores the PCI config space for SYSTEM_WIDE resume.
- * And it invokes stmmac_resume() to perform MAC realted resume operations
- * for PORT_WIDE resume.
+ * Perform the activities required to resume the TC956x platform device.
+ * This includes resuming the PCIe interfaces, and disabling wake-on-LAN
+ * and resuming the eMACs.
  *
- * \param[in] dev pointer to device structure.
- *
- * \return int
- *
- * \retval 0
+ * Return:	0 if successful, or an error code if an error occurs
  */
 static int tc956x_pcie_resume(struct device *dev)
 {
