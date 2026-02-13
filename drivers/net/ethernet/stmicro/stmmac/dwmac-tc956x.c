@@ -818,7 +818,7 @@ static void tc956x_msigen_reset_assert(struct tc956x_data *td)
 static void tc956x_msigen_init(struct stmmac_priv *priv, struct net_device *dev)
 {
 	struct tc956x_data *td = priv->plat->bsp_priv;
-	u8 pf_no = td->emac0 ? 0 : 1, vf_no = 0;
+	u8 pf_no = td->emac0 ? 0 : 1;
 
 	tc956x_eee_clk_init(td);
 
@@ -828,29 +828,28 @@ static void tc956x_msigen_init(struct stmmac_priv *priv, struct net_device *dev)
 
 	/* Initialize MSIGEN */
 
-	writel(TC956X_MSI_OUT_EN_CLR, td->sfr_addr + TC956X_MSI_OUT_EN_OFFSET(pf_no, vf_no));
-	writel(TC956X_MSI_MASK_SET, td->sfr_addr + TC956X_MSI_MASK_SET_OFFSET(pf_no, vf_no));
-	writel(TC956X_MSI_MASK_CLR, td->sfr_addr + TC956X_MSI_MASK_CLR_OFFSET(pf_no, vf_no));
+	writel(TC956X_MSI_OUT_EN_CLR, td->sfr_addr + TC956X_MSI_OUT_EN_OFFSET(pf_no, 0));
+	writel(TC956X_MSI_MASK_SET, td->sfr_addr + TC956X_MSI_MASK_SET_OFFSET(pf_no, 0));
+	writel(TC956X_MSI_MASK_CLR, td->sfr_addr + TC956X_MSI_MASK_CLR_OFFSET(pf_no, 0));
 	/* DMA Ch Tx-Rx Interrupt sources are assigned to Vector 0,
 	 * All other Interrupt sources are assigned to Vector 1
 	 */
-	writel(TC956X_MSI_SET0, td->sfr_addr + TC956X_MSI_VECT_SET0_OFFSET(pf_no, vf_no));
-	writel(TC956X_MSI_SET1, td->sfr_addr + TC956X_MSI_VECT_SET1_OFFSET(pf_no, vf_no));
-	writel(TC956X_MSI_SET2, td->sfr_addr + TC956X_MSI_VECT_SET2_OFFSET(pf_no, vf_no));
-	writel(TC956X_MSI_SET3, td->sfr_addr + TC956X_MSI_VECT_SET3_OFFSET(pf_no, vf_no));
-	writel(TC956X_MSI_SET4, td->sfr_addr + TC956X_MSI_VECT_SET4_OFFSET(pf_no, vf_no));
-	writel(TC956X_MSI_SET5, td->sfr_addr + TC956X_MSI_VECT_SET5_OFFSET(pf_no, vf_no));
-	writel(TC956X_MSI_SET6, td->sfr_addr + TC956X_MSI_VECT_SET6_OFFSET(pf_no, vf_no));
-	writel(TC956X_MSI_SET7, td->sfr_addr + TC956X_MSI_VECT_SET7_OFFSET(pf_no, vf_no));
+	writel(TC956X_MSI_SET0, td->sfr_addr + TC956X_MSI_VECT_SET0_OFFSET(pf_no, 0));
+	writel(TC956X_MSI_SET1, td->sfr_addr + TC956X_MSI_VECT_SET1_OFFSET(pf_no, 0));
+	writel(TC956X_MSI_SET2, td->sfr_addr + TC956X_MSI_VECT_SET2_OFFSET(pf_no, 0));
+	writel(TC956X_MSI_SET3, td->sfr_addr + TC956X_MSI_VECT_SET3_OFFSET(pf_no, 0));
+	writel(TC956X_MSI_SET4, td->sfr_addr + TC956X_MSI_VECT_SET4_OFFSET(pf_no, 0));
+	writel(TC956X_MSI_SET5, td->sfr_addr + TC956X_MSI_VECT_SET5_OFFSET(pf_no, 0));
+	writel(TC956X_MSI_SET6, td->sfr_addr + TC956X_MSI_VECT_SET6_OFFSET(pf_no, 0));
+	writel(TC956X_MSI_SET7, td->sfr_addr + TC956X_MSI_VECT_SET7_OFFSET(pf_no, 0));
 }
 
 static u32 tc956x_interrupt_sts(struct stmmac_priv *priv, struct net_device *dev)
 {
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	u8 pf_no = td->emac0 ? 0 : 1;
-	u8 vf_no = 0;
 
-	return readl(td->sfr_addr + TC956X_MSI_INT_STS_OFFSET(pf_no, vf_no));
+	return readl(td->sfr_addr + TC956X_MSI_INT_STS_OFFSET(pf_no, 0));
 }
 
 /**
@@ -864,7 +863,6 @@ static void tc956x_interrupt_en(struct stmmac_priv *priv, struct net_device *dev
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	u8 pf_no = td->emac0 ? 0 : 1;
 	u32 mask_val = 0;
-	u8 vf_no = 0;
 
 #if 0
 	// This table is copied from tc956xmac_main.c and is almost certainly
@@ -918,9 +916,9 @@ static void tc956x_interrupt_en(struct stmmac_priv *priv, struct net_device *dev
 
 		mask_val = TC956X_MSI_OUT_EN & (~mask_val);
 
-		writel(mask_val, td->sfr_addr + TC956X_MSI_OUT_EN_OFFSET(pf_no, vf_no));
+		writel(mask_val, td->sfr_addr + TC956X_MSI_OUT_EN_OFFSET(pf_no, 0));
 	} else
-		writel(TC956X_MSI_OUT_EN_CLR, td->sfr_addr + TC956X_MSI_OUT_EN_OFFSET(pf_no, vf_no));
+		writel(TC956X_MSI_OUT_EN_CLR, td->sfr_addr + TC956X_MSI_OUT_EN_OFFSET(pf_no, 0));
 }
 
 /**
@@ -935,9 +933,8 @@ static void tc956x_interrupt_clr(struct stmmac_priv *priv, struct net_device *de
 {
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	u8 pf_no = td->emac0 ? 0 : 1;
-	u8 vf_no = 0;
 
-	writel((1<<vector), td->sfr_addr + TC956X_MSI_MASK_CLR_OFFSET(pf_no, vf_no));
+	writel((1<<vector), td->sfr_addr + TC956X_MSI_MASK_CLR_OFFSET(pf_no, 0));
 }
 
 const struct tc956x_msi_ops tc956x_msigen_ops = {
