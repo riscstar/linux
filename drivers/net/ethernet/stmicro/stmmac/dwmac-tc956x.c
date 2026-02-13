@@ -1411,7 +1411,6 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 	plat->core_type = DWMAC_CORE_XGMAC;
 	plat->force_sf_dma_mode = 1;
 	plat->flags |= STMMAC_FLAG_TSO_EN;
-	plat->mdio_bus_data->phy_mask = 0;
 
 	/* For TC956X, clk_csr_i = 125MHz XXX any standard XGMAC values? */
 	if (td->emac0)			/* emac0: XFI */
@@ -1419,18 +1418,13 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 	else				/* emac1: SGMII */
 		plat->clk_csr = 0x0;	/* clk_csr_i / 62 */
 
-	plat->force_thresh_dma_mode  = 0;
-	plat->mdio_bus_data->needs_reset = false;
 	if (td->port_interface == ENABLE_XFI_INTERFACE)
 		plat->mac_port_sel_speed = 10000;
 
 	if (td->port_interface == ENABLE_SGMII_INTERFACE)
 		plat->mac_port_sel_speed = 2500;
 
-	plat->riwt_off = 0;
-	plat->rss_en = 0;
 	plat->bus_id = 1;
-	plat->phy_addr = -1;
 	plat->pdev = pdev;
 
 	if (td->port_interface == ENABLE_XFI_INTERFACE) {
@@ -1451,9 +1445,6 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 
 	plat->clk_ptp_rate = 50000000;
 
-	/* Set default value for multicast hash bins */
-	plat->multicast_filter_bins = HASH_TABLE_SIZE;
-	/* Set default value for unicast filter entries */
 	plat->unicast_filter_entries = 32;
 	plat->maxmtu = XGMAC_JUMBO_LEN;
 
@@ -1468,7 +1459,6 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 	for (int i = 0; i < plat->rx_queues_to_use; i++) {
 		/* Copied from socfpga_agilex5.dtsi */
 		plat->rx_queues_cfg[i].mode_to_use = MTL_QUEUE_DCB;
-		plat->rx_queues_cfg[i].chan = i;
 	}
 
 	/* TODO: ping stops working if we set tx_queues_to_use to 8? */
@@ -1491,11 +1481,8 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 		return -ENOMEM;
 
 	plat->axi->axi_lpi_en = 1;
-	plat->axi->axi_xit_frm = 0;
 	plat->axi->axi_wr_osr_lmt = 31;
 	plat->axi->axi_rd_osr_lmt = 31;
-
-	plat->axi->axi_fb = false;
 	plat->axi->axi_blen_regval =
 		DMA_AXI_BLEN256 | DMA_AXI_BLEN128 | DMA_AXI_BLEN64 |
 		DMA_AXI_BLEN32 | DMA_AXI_BLEN16 | DMA_AXI_BLEN8 | DMA_AXI_BLEN4;
