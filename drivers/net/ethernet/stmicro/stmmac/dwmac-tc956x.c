@@ -1437,7 +1437,6 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 				struct plat_stmmacenet_data *plat)
 {
 	struct tc956x_data *td = plat->bsp_priv;
-	u32 axi_blen_array[AXI_BLEN];
 
 	/* Set common default data first */
 	xgmac_default_data(plat);
@@ -1635,15 +1634,9 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 	plat->axi->axi_rd_osr_lmt = 31;
 
 	plat->axi->axi_fb = false;
-	axi_blen_array[0] = 4;
-	axi_blen_array[1] = 8;
-	axi_blen_array[2] = 16;
-	axi_blen_array[3] = 32;
-	axi_blen_array[4] = 64;
-	axi_blen_array[5] = 128;
-	axi_blen_array[6] = 256;
-	stmmac_axi_blen_to_mask(&plat->axi->axi_blen_regval, axi_blen_array,
-				AXI_BLEN);
+	plat->axi->axi_blen_regval =
+		DMA_AXI_BLEN256 | DMA_AXI_BLEN128 | DMA_AXI_BLEN64 |
+		DMA_AXI_BLEN32 | DMA_AXI_BLEN16 | DMA_AXI_BLEN8 | DMA_AXI_BLEN4;
 
 	return 0;
 }
