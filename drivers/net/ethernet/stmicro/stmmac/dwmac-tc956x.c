@@ -1461,6 +1461,8 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 	plat->unicast_filter_entries = MAX_MAC_ADDR_FILTERS;
 	plat->maxmtu = XGMAC_JUMBO_LEN;
 
+	plat->tx_fifo_size = 46 * SZ_1K;
+	plat->rx_fifo_size = 46 * SZ_1K;
 	/* Set default number of RX and TX queues to use */
 	plat->tx_queues_to_use = 2;
 	plat->rx_queues_to_use = 8;
