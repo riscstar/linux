@@ -1430,20 +1430,15 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 }
 
 /**
- * tc956x_reset_SRAM() - Reset SRAM region
+ * tc956x_zero_sram() - Reset SRAM region
  * @td:		TC956x driver private data pointer
- * @dev:	Device pointer
  *
  * Reset the IMEM and DMEM memory in the tc956x.
  */
-static void tc956x_reset_SRAM(struct device *dev, struct tc956x_data *td)
+static void tc956x_zero_sram(struct tc956x_data *td)
 {
-	dev_dbg(dev,  "Resetting SRAM Region start\n");
-	/* Resetting SRAM IMEM Region */
-	memset_io(td->sram_addr, 0x0, 0x10000);
-	/* Resetting SRAM DMEM Region */
-	memset_io(td->sram_addr + 0x40000, 0x0, 0x10000);
-	dev_dbg(dev,  "Resetting SRAM Region end\n");
+	memset_io(td->sram_addr, 0x0, 0x10000);			/* IMEM */
+	memset_io(td->sram_addr + 0x40000, 0x0, 0x10000);	/* DMEM */
 }
 
 /**
@@ -1490,7 +1485,7 @@ static s32 tc956x_load_firmware(struct tc956x_data *td)
 
 	iowrite32(0, td->sram_addr + TC956X_M3_INIT_DONE);
 
-	tc956x_reset_SRAM(dev, td);
+	tc956x_zero_sram(td);
 
 	mdelay(10);
 	iowrite8(EEPROM_OFFSET,
