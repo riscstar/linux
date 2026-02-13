@@ -2018,6 +2018,12 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 	if (ret < 0)
 		dev_err(td->dev, "PMA/XPCS failed to come out of reset\n");
 
+	/*
+	 * TODO:
+	 * This is probably wrong (or at least making a decision on a
+	 * potentially outdated value): at 2500 the proper enum value is
+	 *  PHY_INTERFACE_MODE_2500BASEX.
+	 */
 	if ((plat->phy_interface == PHY_INTERFACE_MODE_SGMII) &&
 	    (speed == SPEED_2500)) {
 		/* XPCS doesn't support AN for 2.5G SGMII.
