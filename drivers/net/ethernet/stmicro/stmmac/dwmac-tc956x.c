@@ -761,6 +761,26 @@ static void tc956x_xpcs_ctrl_ane(struct tc956x_data *td, bool ane)
 // Code from tc956x_msigen.c in vendor driver
 //
 
+// TODO: this is the #ifdef EEE_MAC_CONTROLLED_MODE stanza from
+//       tc965xmac_main.c. It's nothing to do with xpcs but it
+//       appears just before MSI initialization so this gets
+//       things turned on in the same order we see in the vendor
+//       driver
+//
+//       EEE_MAC_CONTROLLED_MODE if enabled (as here) means the MAC
+//       (not the PHY) controls EEE mode
+static void tc956x_eee_clk_init(struct tc956x_data *td)
+{
+	u32 val;
+
+	val = readl(td->sfr_addr + NCLKCTRL0_OFFSET);
+	/* XXX Is this conditional on eMAC0, or on the first to initialize? */
+	if (td->emac0)
+		val |= NCLKCTRL0_MAC0312CLKEN | NCLKCTRL0_MAC0125CLKEN;
+	val |= NCLKCTRL0_POEPLLCEN | NCLKCTRL0_SGMPCIEN | NCLKCTRL0_REFCLKOCEN;
+	writel(val, td->sfr_addr + NCLKCTRL0_OFFSET);
+}
+
 /**
  * tc956x_msigen_init() - Initialize and configure the MSIGEN module
  * @priv:	STMMAC driver private data pointer
@@ -775,16 +795,7 @@ static void tc956x_msigen_init(struct stmmac_priv *priv, struct net_device *dev)
 	u8 pf_no = td->emac0 ? 0 : 1, vf_no = 0;
 	u32 rd_val;
 
-	// TODO: this is the #ifdef EEE_MAC_CONTROLLED_MODE stanza from
-	//       tc965xmac_main.c. It's nothing to do with xpcs but it
-	//       appears just before MSI initialization so this gets
-	//       things turned on in the same order we see in the vendor
-	//       driver
-	rd_val = readl(td->sfr_addr + NCLKCTRL0_OFFSET);
-	if (td->emac0)
-		rd_val |= (NCLKCTRL0_MAC0312CLKEN | NCLKCTRL0_MAC0125CLKEN);
-	rd_val |= (NCLKCTRL0_POEPLLCEN | NCLKCTRL0_SGMPCIEN | NCLKCTRL0_REFCLKOCEN);
-	writel(rd_val, td->sfr_addr + NCLKCTRL0_OFFSET);
+	tc956x_eee_clk_init(td);
 
 	/* Enable MSIGEN Module */
 	rd_val = readl(td->sfr_addr + NCLKCTRL0_OFFSET);
@@ -909,10 +920,10 @@ static void tc956x_interrupt_clr(struct stmmac_priv *priv, struct net_device *de
 }
 
 const struct tc956x_msi_ops tc956x_msigen_ops = {
-	.init = tc956x_msigen_init,
-	.interrupt_sts = tc956x_interrupt_sts,
-	.interrupt_en = tc956x_interrupt_en,
-	.interrupt_clr = tc956x_interrupt_clr,
+	.init		= tc956x_msigen_init,
+	.interrupt_sts	= tc956x_interrupt_sts,
+	.interrupt_en	= tc956x_interrupt_en,
+	.interrupt_clr	= tc956x_interrupt_clr,
 };
 
 //
