@@ -216,74 +216,9 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 // TODO: this was unifdef'ed (some build options result in the value being two)
 #define TC956X_TOT_MSI_VEC	1
 
-#define TC956X_AVB_PRIORITY_CLASS_A	(3)
-#define TC956X_AVB_PRIORITY_CLASS_B	(2)
-#define TC956X_PRIORITY_CLASS_CDT	(7)
-
 #define TC956X_DA_MAP		0xF
 
 /************************ TC956X_SRIOV_PF Starts ************************/
-
-/* TX Queue 0: Legacy and Jumbo packets */
-#define TX_QUEUE0_MODE		MTL_QUEUE_DCB
-/* TX Queue 1:Legacy*/
-#define TX_QUEUE1_MODE		MTL_QUEUE_DCB
-/* TX Queue 2: Legacy */
-#define TX_QUEUE2_MODE		MTL_QUEUE_DCB
-/* TX Queue 3: Legacy */
-#define TX_QUEUE3_MODE		MTL_QUEUE_DCB
-/* TX Queue 4: Untagged PTP */
-#define TX_QUEUE4_MODE		MTL_QUEUE_DCB
-/* TX Queue 5: AVB Class B AVTP packet */
-#define TX_QUEUE5_MODE		MTL_QUEUE_AVB
-/* TX Queue 6: AVB Class A AVTP packet */
-#define TX_QUEUE6_MODE		MTL_QUEUE_AVB
-/* TX Queue 7: TSN Class CDT packet */
-#define TX_QUEUE7_MODE		MTL_QUEUE_AVB
-
-/* Tx Queue TBS Enable/Disable */
-#define TX_QUEUE0_TBS		0
-#define TX_QUEUE1_TBS		0
-#define TX_QUEUE2_TBS		0
-#define TX_QUEUE3_TBS		0
-#define TX_QUEUE4_TBS		0
-#define TX_QUEUE5_TBS		1
-#define TX_QUEUE6_TBS		1
-#define TX_QUEUE7_TBS		1
-
-/*
- * RX Queue 0: Unicast/Untagged Packets - Packets with
- * unique MAC Address of Host/Guest OS DMA channel selection will be based on
- * MAC_Address(#i)_High.DCS
- */
-#define RX_QUEUE0_MODE		MTL_QUEUE_DCB
-/* RX Queue 1: VLAN Tagged Legacy packets- Pkt routing will be based on VLAN */
-#define RX_QUEUE1_MODE		MTL_QUEUE_DCB
-/* RX Queue 2: Untagged gPTP packets */
-#define RX_QUEUE2_MODE		MTL_QUEUE_DCB
-/* RX Queue 3: Filter Fail packet queue */
-#define RX_QUEUE3_MODE		MTL_QUEUE_AVB
-/* RX Queue 4: AVB Class B AVTP packets */
-#define RX_QUEUE4_MODE		MTL_QUEUE_AVB
-/* RX Queue 5: AVB Class A AVTP packets */
-#define RX_QUEUE5_MODE		MTL_QUEUE_AVB
-/* RX Queue 6:TSN  Class CDT packets */
-#define RX_QUEUE6_MODE		MTL_QUEUE_AVB
-/* RX Queue 7: Broadcast/Multicast packets */
-#define RX_QUEUE7_MODE		MTL_QUEUE_DCB
-
-/* Rx Queue Packet Routing */
-#define RX_QUEUE0_PKT_ROUTE	PACKET_UPQ
-#define RX_QUEUE1_PKT_ROUTE	0
-#define RX_QUEUE2_PKT_ROUTE	PACKET_PTPQ
-#define RX_QUEUE3_PKT_ROUTE	PACKET_AVCPQ
-/* Queue 4,5,6 Routed based on Packet Priority Configured in
- * MAC_RxQ_Ctrl2/MAC_RxQ_Ctrl3
- */
-#define RX_QUEUE4_PKT_ROUTE	0
-#define RX_QUEUE5_PKT_ROUTE	0
-#define RX_QUEUE6_PKT_ROUTE	0
-#define RX_QUEUE7_PKT_ROUTE	PACKET_MCBCQ
 
 /* Unicast/Untagged packet */
 #define LEG_UNTAGGED_PACKET	TC956X_DA_MAP
@@ -301,44 +236,6 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 #define TSN_CLASS_CDT_PACKET	7
 /* Broadcast/Multicast packet */
 #define BC_MC_PACKET		TC956X_DA_MAP
-
-#define TX_QUEUE0_USE_PRIO	true
-#define TX_QUEUE1_USE_PRIO	true
-#define TX_QUEUE2_USE_PRIO	true
-#define TX_QUEUE3_USE_PRIO	true
-#define TX_QUEUE4_USE_PRIO	false
-#define TX_QUEUE5_USE_PRIO	false
-#define TX_QUEUE6_USE_PRIO	false
-#define TX_QUEUE7_USE_PRIO	false
-
-#define TX_QUEUE0_PRIO		0xFF	/* TC0 Priority */
-#define TX_QUEUE1_PRIO		0xFF
-#define TX_QUEUE2_PRIO		0xFF
-#define TX_QUEUE3_PRIO		0xFF
-#define TX_QUEUE4_PRIO		0x00
-#define TX_QUEUE5_PRIO		0x00
-#define TX_QUEUE6_PRIO		0x00
-#define TX_QUEUE7_PRIO		0x00
-
-/* Rx Queue Use Priority */
-#define RX_QUEUE0_USE_PRIO		false
-#define RX_QUEUE1_USE_PRIO		true
-#define RX_QUEUE2_USE_PRIO		false
-#define RX_QUEUE3_USE_PRIO		false
-#define RX_QUEUE4_USE_PRIO		true
-#define RX_QUEUE5_USE_PRIO		true
-#define RX_QUEUE6_USE_PRIO		true
-#define RX_QUEUE7_USE_PRIO		false
-
-/* Rx Queue VLAN tagged Priority mapping */
-#define RX_QUEUE0_PRIO		0
-#define RX_QUEUE1_PRIO		0xFF
-#define RX_QUEUE2_PRIO		0
-#define RX_QUEUE3_PRIO		0
-#define RX_QUEUE4_PRIO		(1 << TC956X_AVB_PRIORITY_CLASS_B)
-#define RX_QUEUE5_PRIO		(1 << TC956X_AVB_PRIORITY_CLASS_A)
-#define RX_QUEUE6_PRIO		(1 << TC956X_PRIORITY_CLASS_CDT)
-#define RX_QUEUE7_PRIO		0
 
 #define EEPROM_OFFSET		0
 #define EEPROM_MAC_COUNT	14
@@ -1604,14 +1501,14 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 	plat->rx_queues_cfg[7].chan = BC_MC_PACKET;
 
 	/* Rx Queue Packet routing */
-	plat->rx_queues_cfg[0].pkt_route = RX_QUEUE0_PKT_ROUTE;
-	plat->rx_queues_cfg[1].pkt_route = RX_QUEUE1_PKT_ROUTE;
-	plat->rx_queues_cfg[2].pkt_route = RX_QUEUE2_PKT_ROUTE;
-	plat->rx_queues_cfg[3].pkt_route = RX_QUEUE3_PKT_ROUTE;
-	plat->rx_queues_cfg[4].pkt_route = RX_QUEUE4_PKT_ROUTE;
-	plat->rx_queues_cfg[5].pkt_route = RX_QUEUE5_PKT_ROUTE;
-	plat->rx_queues_cfg[6].pkt_route = RX_QUEUE6_PKT_ROUTE;
-	plat->rx_queues_cfg[7].pkt_route = RX_QUEUE7_PKT_ROUTE;
+	plat->rx_queues_cfg[0].pkt_route = PACKET_UPQ;
+	plat->rx_queues_cfg[1].pkt_route = 0;
+	plat->rx_queues_cfg[2].pkt_route = PACKET_PTPQ;
+	plat->rx_queues_cfg[3].pkt_route = PACKET_AVCPQ;
+	plat->rx_queues_cfg[4].pkt_route = 0;
+	plat->rx_queues_cfg[5].pkt_route = 0;
+	plat->rx_queues_cfg[6].pkt_route = 0;
+	plat->rx_queues_cfg[7].pkt_route = PACKET_MCBCQ;
 	/* MTL Scheduler for RX and TX */
 
 	plat->rx_sched_algorithm = MTL_RX_ALGORITHM_SP;
@@ -1632,24 +1529,23 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 	plat->tx_queues_cfg[6].weight = 0x14;
 	plat->tx_queues_cfg[7].weight = 0x15;
 
-	/*Rx queue configuration for VFs are done in PF driver, so skip setting it here*/
-	plat->rx_queues_cfg[0].mode_to_use = RX_QUEUE0_MODE;
-	plat->rx_queues_cfg[1].mode_to_use = RX_QUEUE1_MODE;
-	plat->rx_queues_cfg[2].mode_to_use = RX_QUEUE2_MODE;
-	plat->rx_queues_cfg[3].mode_to_use = RX_QUEUE3_MODE;
-	plat->rx_queues_cfg[4].mode_to_use = RX_QUEUE4_MODE;
-	plat->rx_queues_cfg[5].mode_to_use = RX_QUEUE5_MODE;
-	plat->rx_queues_cfg[6].mode_to_use = RX_QUEUE6_MODE;
-	plat->rx_queues_cfg[7].mode_to_use = RX_QUEUE7_MODE;
+	plat->rx_queues_cfg[0].mode_to_use = MTL_QUEUE_DCB;
+	plat->rx_queues_cfg[1].mode_to_use = MTL_QUEUE_DCB;
+	plat->rx_queues_cfg[2].mode_to_use = MTL_QUEUE_DCB;
+	plat->rx_queues_cfg[3].mode_to_use = MTL_QUEUE_AVB;
+	plat->rx_queues_cfg[4].mode_to_use = MTL_QUEUE_AVB;
+	plat->rx_queues_cfg[5].mode_to_use = MTL_QUEUE_AVB;
+	plat->rx_queues_cfg[6].mode_to_use = MTL_QUEUE_AVB;
+	plat->rx_queues_cfg[7].mode_to_use = MTL_QUEUE_DCB;
 
-	plat->tx_queues_cfg[0].mode_to_use = TX_QUEUE0_MODE;
-	plat->tx_queues_cfg[1].mode_to_use = TX_QUEUE1_MODE;
-	plat->tx_queues_cfg[2].mode_to_use = TX_QUEUE2_MODE;
-	plat->tx_queues_cfg[3].mode_to_use = TX_QUEUE3_MODE;
-	plat->tx_queues_cfg[4].mode_to_use = TX_QUEUE4_MODE;
-	plat->tx_queues_cfg[5].mode_to_use = TX_QUEUE5_MODE;
-	plat->tx_queues_cfg[6].mode_to_use = TX_QUEUE6_MODE;
-	plat->tx_queues_cfg[7].mode_to_use = TX_QUEUE7_MODE;
+	plat->tx_queues_cfg[0].mode_to_use = MTL_QUEUE_DCB;
+	plat->tx_queues_cfg[1].mode_to_use = MTL_QUEUE_DCB;
+	plat->tx_queues_cfg[2].mode_to_use = MTL_QUEUE_DCB;
+	plat->tx_queues_cfg[3].mode_to_use = MTL_QUEUE_DCB;
+	plat->tx_queues_cfg[4].mode_to_use = MTL_QUEUE_DCB;
+	plat->tx_queues_cfg[5].mode_to_use = MTL_QUEUE_AVB;
+	plat->tx_queues_cfg[6].mode_to_use = MTL_QUEUE_AVB;
+	plat->tx_queues_cfg[7].mode_to_use = MTL_QUEUE_AVB;
 
 	/* CBS: queue 5 -> Class B traffic (25% BW) */
 	plat->tx_queues_cfg[5].idle_slope = 0x800;
@@ -1670,57 +1566,57 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 	plat->tx_queues_cfg[7].low_credit = 0x1f880000;
 
 	/* Tx TC priority */
-	plat->tx_queues_cfg[0].use_prio = TX_QUEUE0_USE_PRIO;
-	plat->tx_queues_cfg[1].use_prio = TX_QUEUE1_USE_PRIO;
-	plat->tx_queues_cfg[2].use_prio = TX_QUEUE2_USE_PRIO;
-	plat->tx_queues_cfg[3].use_prio = TX_QUEUE3_USE_PRIO;
-	plat->tx_queues_cfg[4].use_prio = TX_QUEUE4_USE_PRIO;
-	plat->tx_queues_cfg[5].use_prio = TX_QUEUE5_USE_PRIO;
-	plat->tx_queues_cfg[6].use_prio = TX_QUEUE6_USE_PRIO;
-	plat->tx_queues_cfg[7].use_prio = TX_QUEUE7_USE_PRIO;
+	plat->tx_queues_cfg[0].use_prio = true;
+	plat->tx_queues_cfg[1].use_prio = true;
+	plat->tx_queues_cfg[2].use_prio = true;
+	plat->tx_queues_cfg[3].use_prio = true;
+	plat->tx_queues_cfg[4].use_prio = false;
+	plat->tx_queues_cfg[5].use_prio = false;
+	plat->tx_queues_cfg[6].use_prio = false;
+	plat->tx_queues_cfg[7].use_prio = false;
 
-	plat->tx_queues_cfg[0].prio = TX_QUEUE0_PRIO;
-	plat->tx_queues_cfg[1].prio = TX_QUEUE1_PRIO;
-	plat->tx_queues_cfg[2].prio = TX_QUEUE2_PRIO;
-	plat->tx_queues_cfg[3].prio = TX_QUEUE3_PRIO;
-	plat->tx_queues_cfg[4].prio = TX_QUEUE4_PRIO;
-	plat->tx_queues_cfg[5].prio = TX_QUEUE5_PRIO;
-	plat->tx_queues_cfg[6].prio = TX_QUEUE6_PRIO;
-	plat->tx_queues_cfg[7].prio = TX_QUEUE7_PRIO;
+	plat->tx_queues_cfg[0].prio = 0xff;
+	plat->tx_queues_cfg[1].prio = 0xff;
+	plat->tx_queues_cfg[2].prio = 0xff;
+	plat->tx_queues_cfg[3].prio = 0xff;
+	plat->tx_queues_cfg[4].prio = 0;
+	plat->tx_queues_cfg[5].prio = 0;
+	plat->tx_queues_cfg[6].prio = 0;
+	plat->tx_queues_cfg[7].prio = 0;
 
 	/* Enable/Disable TBS */
-	plat->tx_queues_cfg[0].tbs_en = TX_QUEUE0_TBS;
-	plat->tx_queues_cfg[1].tbs_en = TX_QUEUE1_TBS;
-	plat->tx_queues_cfg[2].tbs_en = TX_QUEUE2_TBS;
-	plat->tx_queues_cfg[3].tbs_en = TX_QUEUE3_TBS;
-	plat->tx_queues_cfg[4].tbs_en = TX_QUEUE4_TBS;
-	plat->tx_queues_cfg[5].tbs_en = TX_QUEUE5_TBS;
-	plat->tx_queues_cfg[6].tbs_en = TX_QUEUE6_TBS;
-	plat->tx_queues_cfg[7].tbs_en = TX_QUEUE7_TBS;
+	plat->tx_queues_cfg[0].tbs_en = 0;
+	plat->tx_queues_cfg[1].tbs_en = 0;
+	plat->tx_queues_cfg[2].tbs_en = 0;
+	plat->tx_queues_cfg[3].tbs_en = 0;
+	plat->tx_queues_cfg[4].tbs_en = 0;
+	plat->tx_queues_cfg[5].tbs_en = 1;
+	plat->tx_queues_cfg[6].tbs_en = 1;
+	plat->tx_queues_cfg[7].tbs_en = 1;
 
-	plat->rx_queues_cfg[0].use_prio = RX_QUEUE0_USE_PRIO;
-	plat->rx_queues_cfg[0].prio = RX_QUEUE0_PRIO;
+	plat->rx_queues_cfg[0].use_prio = false;
+	plat->rx_queues_cfg[0].prio = 0;
 
-	plat->rx_queues_cfg[1].use_prio = RX_QUEUE1_USE_PRIO;
-	plat->rx_queues_cfg[1].prio = RX_QUEUE1_PRIO;
+	plat->rx_queues_cfg[1].use_prio = true;
+	plat->rx_queues_cfg[1].prio = 0xff;
 
-	plat->rx_queues_cfg[2].use_prio = RX_QUEUE2_USE_PRIO;
-	plat->rx_queues_cfg[2].prio = RX_QUEUE2_PRIO;
+	plat->rx_queues_cfg[2].use_prio = false;
+	plat->rx_queues_cfg[2].prio = 0;
 
-	plat->rx_queues_cfg[3].use_prio = RX_QUEUE3_USE_PRIO;
-	plat->rx_queues_cfg[3].prio = RX_QUEUE3_PRIO;
+	plat->rx_queues_cfg[3].use_prio = false;
+	plat->rx_queues_cfg[3].prio = 0;
 
-	plat->rx_queues_cfg[4].use_prio = RX_QUEUE4_USE_PRIO;
-	plat->rx_queues_cfg[4].prio = RX_QUEUE4_PRIO;
+	plat->rx_queues_cfg[4].use_prio = true;
+	plat->rx_queues_cfg[4].prio = 1 << 2;
 
-	plat->rx_queues_cfg[5].use_prio = RX_QUEUE5_USE_PRIO;
-	plat->rx_queues_cfg[5].prio = RX_QUEUE5_PRIO;
+	plat->rx_queues_cfg[5].use_prio = true;
+	plat->rx_queues_cfg[5].prio = 1 << 3;
 
-	plat->rx_queues_cfg[6].use_prio = RX_QUEUE6_USE_PRIO;
-	plat->rx_queues_cfg[6].prio = RX_QUEUE6_PRIO;
+	plat->rx_queues_cfg[6].use_prio = true;
+	plat->rx_queues_cfg[6].prio = 1 << 7;
 
-	plat->rx_queues_cfg[7].use_prio = RX_QUEUE7_USE_PRIO;
-	plat->rx_queues_cfg[7].prio = RX_QUEUE7_PRIO;
+	plat->rx_queues_cfg[7].use_prio = false;
+	plat->rx_queues_cfg[7].prio = 0;
 
 	plat->dma_cfg->txpbl = 16;
 	plat->dma_cfg->rxpbl = 16;
