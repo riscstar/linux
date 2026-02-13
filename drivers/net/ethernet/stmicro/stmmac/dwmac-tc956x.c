@@ -1449,15 +1449,15 @@ static void tc956x_reset_SRAM(struct device *dev, struct tc956x_data *td)
 /**
  * tc956x_load_firmware() - Load firmware for the embedded Cortex M3
  * @td:		TC956x driver private data pointer
- * @dev:	Device pointer
  *
  * Load the firmware into the SRAM in the TC956x.  The embedded Cortex M3
  * starts executing once the firmware loading is complete.
  *
  * Return:	0 if successful, or an error code if an error occurs
  */
-static s32 tc956x_load_firmware(struct device *dev, struct tc956x_data *td)
+static s32 tc956x_load_firmware(struct tc956x_data *td)
 {
+	struct device *dev = td->dev;
 	u32 adrs = 0, val = 0;
 	u32 fw_init_sync;
 	const struct firmware *pfw = NULL;
@@ -1898,7 +1898,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 
 	if (td->emac0) {
-		ret = tc956x_load_firmware(dev, td);
+		ret = tc956x_load_firmware(td);
 		if (ret)
 			dev_err(dev, "Firmware load failed\n");
 	}
