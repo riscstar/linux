@@ -321,33 +321,24 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 
 /* MSIGEN Registers */
 
-#define TC956X_MSI_BASE		(0xF000)
+#define TC956X_MSI_BASE		0xf000
 
-#define TC956X_MSI_F_OFFSET		(0x0100)
-#define TC956X_MSI_OUT_EN_OFFSET(pf_id)	(TC956X_MSI_BASE +\
-						 (pf_id * TC956X_MSI_F_OFFSET) + (0x0000))
-#define TC956X_MSI_MASK_SET_OFFSET(pf_id)	(TC956X_MSI_BASE +\
-						(pf_id * TC956X_MSI_F_OFFSET) + (0x0008))
-#define TC956X_MSI_MASK_CLR_OFFSET(pf_id)	(TC956X_MSI_BASE +\
-						(pf_id * TC956X_MSI_F_OFFSET) + (0x000c))
-#define TC956X_MSI_INT_STS_OFFSET(pf_id)	(TC956X_MSI_BASE +\
-						(pf_id * TC956X_MSI_F_OFFSET) + (0x0010))
-#define TC956X_MSI_VECT_SET0_OFFSET(pf_id)	(TC956X_MSI_BASE +\
-						(pf_id * TC956X_MSI_F_OFFSET) + (0x0020))
-#define TC956X_MSI_VECT_SET1_OFFSET(pf_id)	(TC956X_MSI_BASE +\
-						(pf_id * TC956X_MSI_F_OFFSET) + (0x0024))
-#define TC956X_MSI_VECT_SET2_OFFSET(pf_id)	(TC956X_MSI_BASE +\
-						(pf_id * TC956X_MSI_F_OFFSET) + (0x0028))
-#define TC956X_MSI_VECT_SET3_OFFSET(pf_id)	(TC956X_MSI_BASE +\
-						(pf_id * TC956X_MSI_F_OFFSET) + (0x002C))
-#define TC956X_MSI_VECT_SET4_OFFSET(pf_id)	(TC956X_MSI_BASE +\
-						(pf_id * TC956X_MSI_F_OFFSET) + (0x0030))
-#define TC956X_MSI_VECT_SET5_OFFSET(pf_id)	(TC956X_MSI_BASE +\
-						(pf_id * TC956X_MSI_F_OFFSET) + (0x0034))
-#define TC956X_MSI_VECT_SET6_OFFSET(pf_id)	(TC956X_MSI_BASE +\
-						(pf_id * TC956X_MSI_F_OFFSET) + (0x0038))
-#define TC956X_MSI_VECT_SET7_OFFSET(pf_id)	(TC956X_MSI_BASE +\
-						(pf_id * TC956X_MSI_F_OFFSET) + (0x003C))
+/* Each PCIe function has a block of registers this far apart */
+#define MSIGEN_STRIDE		0x0100
+#define MSIGEN_BASE(pf_id)	(TC956X_MSI_BASE + (pf_id) * MSIGEN_STRIDE)
+
+#define TC956X_MSI_OUT_EN_OFFSET	0x0000
+#define TC956X_MSI_MASK_SET_OFFSET	0x0008
+#define TC956X_MSI_MASK_CLR_OFFSET	0x000c
+#define TC956X_MSI_INT_STS_OFFSET	0x0010
+#define TC956X_MSI_VECT_SET0_OFFSET	0x0020
+#define TC956X_MSI_VECT_SET1_OFFSET	0x0024
+#define TC956X_MSI_VECT_SET2_OFFSET	0x0028
+#define TC956X_MSI_VECT_SET3_OFFSET	0x002C
+#define TC956X_MSI_VECT_SET4_OFFSET	0x0030
+#define TC956X_MSI_VECT_SET5_OFFSET	0x0034
+#define TC956X_MSI_VECT_SET6_OFFSET	0x0038
+#define TC956X_MSI_VECT_SET7_OFFSET	0x003C
 
 #define TC956X_MSI_OUT_EN_CLR	(0x00000000)
 
@@ -819,6 +810,7 @@ static void tc956x_msigen_init(struct stmmac_priv *priv, struct net_device *dev)
 {
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	u8 pf_no = td->emac0 ? 0 : 1;
+	void __iomem *base;
 
 	tc956x_eee_clk_init(td);
 
@@ -828,28 +820,32 @@ static void tc956x_msigen_init(struct stmmac_priv *priv, struct net_device *dev)
 
 	/* Initialize MSIGEN */
 
-	writel(TC956X_MSI_OUT_EN_CLR, td->sfr_addr + TC956X_MSI_OUT_EN_OFFSET(pf_no));
-	writel(TC956X_MSI_MASK_SET, td->sfr_addr + TC956X_MSI_MASK_SET_OFFSET(pf_no));
-	writel(TC956X_MSI_MASK_CLR, td->sfr_addr + TC956X_MSI_MASK_CLR_OFFSET(pf_no));
+	base = td->sfr_addr + MSIGEN_BASE(pf_no);
+	writel(TC956X_MSI_OUT_EN_CLR, base + TC956X_MSI_OUT_EN_OFFSET);
+	writel(TC956X_MSI_MASK_SET, base + TC956X_MSI_MASK_SET_OFFSET);
+	writel(TC956X_MSI_MASK_CLR, base + TC956X_MSI_MASK_CLR_OFFSET);
 	/* DMA Ch Tx-Rx Interrupt sources are assigned to Vector 0,
 	 * All other Interrupt sources are assigned to Vector 1
 	 */
-	writel(TC956X_MSI_SET0, td->sfr_addr + TC956X_MSI_VECT_SET0_OFFSET(pf_no));
-	writel(TC956X_MSI_SET1, td->sfr_addr + TC956X_MSI_VECT_SET1_OFFSET(pf_no));
-	writel(TC956X_MSI_SET2, td->sfr_addr + TC956X_MSI_VECT_SET2_OFFSET(pf_no));
-	writel(TC956X_MSI_SET3, td->sfr_addr + TC956X_MSI_VECT_SET3_OFFSET(pf_no));
-	writel(TC956X_MSI_SET4, td->sfr_addr + TC956X_MSI_VECT_SET4_OFFSET(pf_no));
-	writel(TC956X_MSI_SET5, td->sfr_addr + TC956X_MSI_VECT_SET5_OFFSET(pf_no));
-	writel(TC956X_MSI_SET6, td->sfr_addr + TC956X_MSI_VECT_SET6_OFFSET(pf_no));
-	writel(TC956X_MSI_SET7, td->sfr_addr + TC956X_MSI_VECT_SET7_OFFSET(pf_no));
+	writel(TC956X_MSI_SET0, base + TC956X_MSI_VECT_SET0_OFFSET);
+	writel(TC956X_MSI_SET1, base + TC956X_MSI_VECT_SET1_OFFSET);
+	writel(TC956X_MSI_SET2, base + TC956X_MSI_VECT_SET2_OFFSET);
+	writel(TC956X_MSI_SET3, base + TC956X_MSI_VECT_SET3_OFFSET);
+	writel(TC956X_MSI_SET4, base + TC956X_MSI_VECT_SET4_OFFSET);
+	writel(TC956X_MSI_SET5, base + TC956X_MSI_VECT_SET5_OFFSET);
+	writel(TC956X_MSI_SET6, base + TC956X_MSI_VECT_SET6_OFFSET);
+	writel(TC956X_MSI_SET7, base + TC956X_MSI_VECT_SET7_OFFSET);
 }
 
 static u32 tc956x_interrupt_sts(struct stmmac_priv *priv, struct net_device *dev)
 {
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	u8 pf_no = td->emac0 ? 0 : 1;
+	void __iomem *base;
 
-	return readl(td->sfr_addr + TC956X_MSI_INT_STS_OFFSET(pf_no));
+	base = td->sfr_addr + MSIGEN_BASE(pf_no);
+
+	return readl(base + TC956X_MSI_INT_STS_OFFSET);
 }
 
 /**
@@ -862,6 +858,7 @@ static void tc956x_interrupt_en(struct stmmac_priv *priv, struct net_device *dev
 {
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	u8 pf_no = td->emac0 ? 0 : 1;
+	void __iomem *base;
 	u32 mask_val = 0;
 
 #if 0
@@ -887,6 +884,7 @@ static void tc956x_interrupt_en(struct stmmac_priv *priv, struct net_device *dev
 	rx_ch_in_use[7] = true;
 #endif
 
+	base = td->sfr_addr + MSIGEN_BASE(pf_no);
 	if (en) {
 		/*
 		 * TODO: This logic was intended to avoid enabling interrupts
@@ -916,9 +914,9 @@ static void tc956x_interrupt_en(struct stmmac_priv *priv, struct net_device *dev
 
 		mask_val = TC956X_MSI_OUT_EN & (~mask_val);
 
-		writel(mask_val, td->sfr_addr + TC956X_MSI_OUT_EN_OFFSET(pf_no));
+		writel(mask_val, base + TC956X_MSI_OUT_EN_OFFSET);
 	} else
-		writel(TC956X_MSI_OUT_EN_CLR, td->sfr_addr + TC956X_MSI_OUT_EN_OFFSET(pf_no));
+		writel(TC956X_MSI_OUT_EN_CLR, base + TC956X_MSI_OUT_EN_OFFSET);
 }
 
 /**
@@ -932,9 +930,11 @@ static void tc956x_interrupt_en(struct stmmac_priv *priv, struct net_device *dev
 static void tc956x_interrupt_clr(struct stmmac_priv *priv, struct net_device *dev, u32 vector)
 {
 	struct tc956x_data *td = priv->plat->bsp_priv;
+	void __iomem *base;
 	u8 pf_no = td->emac0 ? 0 : 1;
 
-	writel((1<<vector), td->sfr_addr + TC956X_MSI_MASK_CLR_OFFSET(pf_no));
+	base = td->sfr_addr + MSIGEN_BASE(pf_no);
+	writel((1<<vector), base + TC956X_MSI_MASK_CLR_OFFSET);
 }
 
 const struct tc956x_msi_ops tc956x_msigen_ops = {
