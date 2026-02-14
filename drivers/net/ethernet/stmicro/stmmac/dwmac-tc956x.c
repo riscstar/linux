@@ -1528,69 +1528,59 @@ static s32 tc956x_load_firmware(struct tc956x_data *td)
 	return init_done ? 0 : -EINVAL;
 }
 
-/*
- * brief API to populate the table address map registers.
+/**
+ * tc956x_config_tamap() - Populate the table address map registers
+ * @td:		TC956x driver private data pointer
  *
- * details This function pouplates the registers that are used to convert the
- * AXI bus access to PCI TLP.
- *
- * param[in] dev  - pointer to device structure.
- * param[in] id   - pointer to base address of registers.
+ * Populate the registers used to convert the AXI bus access to PCI TLP.
  */
-static void tc956x_config_tamap(struct device *dev,
-				void __iomem *reg_pci_base_addr)
+static void tc956x_config_tamap(struct tc956x_data *td)
 {
-	u32 table_entry;
+	void __iomem *addr = td->bridge_cfg_addr;
+	u32 i;
 
-	/* Set all entries to default */
-	for (table_entry = 0; table_entry <= MAX_CM3_TAMAP_ENTRIES; table_entry++) {
-
-		writel(TC956X_AXI4_SLV00_TRSL_PARAM_VAL, reg_pci_base_addr +
-					TC956X_AXI4_SLV_TRSL_PARAM(0, table_entry));
-		writel(0x0, reg_pci_base_addr +
-					TC956X_AXI4_SLV_TRSL_ADDR_HI(0, table_entry));
-		writel(0x0, reg_pci_base_addr +
-					TC956X_AXI4_SLV_TRSL_ADDR_LO(0, table_entry));
-		writel(0x0, reg_pci_base_addr +
-					TC956X_AXI4_SLV_SRC_ADDR_HI(0, table_entry));
-		writel(TC956X_AXI4_SLV00_SRC_ADDR_LO_VAL_DEFAULT, reg_pci_base_addr +
-					TC956X_AXI4_SLV_SRC_ADDR_LO(0, table_entry));
-
+	/* Set all entries to default values */
+	for (i = 0; i <= MAX_CM3_TAMAP_ENTRIES; i++) {
+		writel(TC956X_AXI4_SLV00_TRSL_PARAM_VAL,
+		       addr + TC956X_AXI4_SLV_TRSL_PARAM(0, i));
+		writel(0x0, addr + TC956X_AXI4_SLV_TRSL_ADDR_HI(0, i));
+		writel(0x0, addr + TC956X_AXI4_SLV_TRSL_ADDR_LO(0, i));
+		writel(0x0, addr + TC956X_AXI4_SLV_SRC_ADDR_HI(0, i));
+		writel(TC956X_AXI4_SLV00_SRC_ADDR_LO_VAL_DEFAULT,
+		       addr + TC956X_AXI4_SLV_SRC_ADDR_LO(0, i));
 	}
-
-
 
 	/* AXI4 Slave 0 - Table 0 Entry */
 	/* EDMA address region 0x10 0000 0000 - 0x1F FFFF FFFF is
 	 * translated to 0x0 0000 0000 - 0xF FFFF FFFF
 	 */
-	writel(TC956X_AXI4_SLV00_TRSL_PARAM_VAL, reg_pci_base_addr +
-					TC956X_AXI4_SLV_TRSL_PARAM(0, 0));
-	writel(TC956X_AXI4_SLV00_TRSL_ADDR_HI_VAL, reg_pci_base_addr +
-					TC956X_AXI4_SLV_TRSL_ADDR_HI(0, 0));
-	writel(TC956X_AXI4_SLV00_TRSL_ADDR_LO_VAL, reg_pci_base_addr +
-					TC956X_AXI4_SLV_TRSL_ADDR_LO(0, 0));
-	writel(TC956X_AXI4_SLV00_SRC_ADDR_HI_VAL, reg_pci_base_addr +
-					TC956X_AXI4_SLV_SRC_ADDR_HI(0, 0));
+	writel(TC956X_AXI4_SLV00_TRSL_PARAM_VAL,
+	       addr + TC956X_AXI4_SLV_TRSL_PARAM(0, 0));
+	writel(TC956X_AXI4_SLV00_TRSL_ADDR_HI_VAL,
+	       addr + TC956X_AXI4_SLV_TRSL_ADDR_HI(0, 0));
+	writel(TC956X_AXI4_SLV00_TRSL_ADDR_LO_VAL,
+	       addr + TC956X_AXI4_SLV_TRSL_ADDR_LO(0, 0));
+	writel(TC956X_AXI4_SLV00_SRC_ADDR_HI_VAL,
+	       addr + TC956X_AXI4_SLV_SRC_ADDR_HI(0, 0));
 	writel(TC956X_AXI4_SLV00_SRC_ADDR_LO_VAL |
 				TC956X_ATR_SIZE(TC956X_AXI4_SLV00_ATR_SIZE) |
-				TC956X_ATR_IMPL, reg_pci_base_addr +
-				TC956X_AXI4_SLV_SRC_ADDR_LO(0, 0));
+				TC956X_ATR_IMPL,
+	       addr + TC956X_AXI4_SLV_SRC_ADDR_LO(0, 0));
 
 	pr_debug("SL00 TRSL_MASK = 0x%08x\n",
-		readl(reg_pci_base_addr + TC956X_AXI4_SLV_TRSL_MASK1(0, 0)));
+		readl(addr + TC956X_AXI4_SLV_TRSL_MASK1(0, 0)));
 	pr_debug("SL00 TRSL_MASK = 0x%08x\n",
-		readl(reg_pci_base_addr + TC956X_AXI4_SLV_TRSL_MASK2(0, 0)));
+		readl(addr + TC956X_AXI4_SLV_TRSL_MASK2(0, 0)));
 	pr_debug("SL00 TRSL_PARAM = 0x%08x\n",
-		readl(reg_pci_base_addr + TC956X_AXI4_SLV_TRSL_PARAM(0, 0)));
+		readl(addr + TC956X_AXI4_SLV_TRSL_PARAM(0, 0)));
 	pr_debug("SL00 TRSL_ADDR HI = 0x%08x\n",
-		readl(reg_pci_base_addr + TC956X_AXI4_SLV_TRSL_ADDR_HI(0, 0)));
+		readl(addr + TC956X_AXI4_SLV_TRSL_ADDR_HI(0, 0)));
 	pr_debug("SL00 TRSL_ADDR LO = 0x%08x\n",
-		readl(reg_pci_base_addr + TC956X_AXI4_SLV_TRSL_ADDR_LO(0, 0)));
+		readl(addr + TC956X_AXI4_SLV_TRSL_ADDR_LO(0, 0)));
 	pr_debug("SL00 SRC_ADDR HI = 0x%08x\n",
-		readl(reg_pci_base_addr + TC956X_AXI4_SLV_SRC_ADDR_HI(0, 0)));
+		readl(addr + TC956X_AXI4_SLV_SRC_ADDR_HI(0, 0)));
 	pr_debug("SL00 SRC_ADDR LO = 0x%08x\n",
-		readl(reg_pci_base_addr + TC956X_AXI4_SLV_SRC_ADDR_LO(0, 0)));
+		readl(addr + TC956X_AXI4_SLV_SRC_ADDR_LO(0, 0)));
 }
 
 static int tc956x_dwmac_setup(void *apriv, struct mac_device_info *mac)
@@ -1894,11 +1884,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		tc956x_intc_reset(td, true);
 		tc956x_intc_clock_enable(td);
 		tc956x_intc_reset(td, false);
-
-		/* Configure Address Transslation block
-		 * Bridge Base address to be passed for TC956X
-		 */
-		tc956x_config_tamap(dev, td->bridge_cfg_addr);
+		tc956x_config_tamap(td);
 	}
 	dev_dbg(dev, "Initialising eMAC Port %d bus number-%x\n",
 		 td->emac0 ? 0 : 1, pdev->bus->number);
@@ -2576,10 +2562,8 @@ static int tc956x_pcie_resume(struct device *dev)
 
 	/* Configure TA map registers */
 
-	if (tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt == TC956X_ALL_MAC_PORT_SUSPENDED) {
-		dev_dbg(dev, "%s : Tamap Re-configuration", __func__);
-		tc956x_config_tamap(dev, td->bridge_cfg_addr);
-	}
+	if (tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt == TC956X_ALL_MAC_PORT_SUSPENDED)
+		tc956x_config_tamap(td);
 
 	/* Configure EMAC Port */
 	tc956x_pcie_resume_config(pdev);
