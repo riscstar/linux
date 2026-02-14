@@ -133,13 +133,13 @@ struct tc956x_data {
 #define TRSL_PARAM_OFFSET		0x10
 #define TRSL_MASK_LO_OFFSET		0x18
 #define TRSL_MASK_HI_OFFSET		0x1C
-#define TC956X_AXI4_SLV_SRC_ADDR_LO(ch, tid)	(TC956X_AXI4_SLV(ch, tid) + SRC_ADDR_LO_OFFSET)
-#define TC956X_AXI4_SLV_SRC_ADDR_HI(ch, tid)	(TC956X_AXI4_SLV(ch, tid) + SRC_ADDR_HI_OFFSET)
-#define TC956X_AXI4_SLV_TRSL_ADDR_LO(ch, tid)	(TC956X_AXI4_SLV(ch, tid) + TRSL_ADDR_LO_OFFSET)
-#define TC956X_AXI4_SLV_TRSL_ADDR_HI(ch, tid)	(TC956X_AXI4_SLV(ch, tid) + TRSL_ADDR_HI_OFFSET)
-#define TC956X_AXI4_SLV_TRSL_PARAM(ch, tid)	(TC956X_AXI4_SLV(ch, tid) + TRSL_PARAM_OFFSET)
-#define TC956X_AXI4_SLV_TRSL_MASK_LO(ch, tid)	(TC956X_AXI4_SLV(ch, tid) + TRSL_MASK_LO_OFFSET)
-#define TC956X_AXI4_SLV_TRSL_MASK_HI(ch, tid)	(TC956X_AXI4_SLV(ch, tid) + TRSL_MASK_HI_OFFSET)
+#define TC956X_AXI4_SLV_SRC_ADDR_LO(tid)	(TC956X_AXI4_SLV(0, tid) + SRC_ADDR_LO_OFFSET)
+#define TC956X_AXI4_SLV_SRC_ADDR_HI(tid)	(TC956X_AXI4_SLV(0, tid) + SRC_ADDR_HI_OFFSET)
+#define TC956X_AXI4_SLV_TRSL_ADDR_LO(tid)	(TC956X_AXI4_SLV(0, tid) + TRSL_ADDR_LO_OFFSET)
+#define TC956X_AXI4_SLV_TRSL_ADDR_HI(tid)	(TC956X_AXI4_SLV(0, tid) + TRSL_ADDR_HI_OFFSET)
+#define TC956X_AXI4_SLV_TRSL_PARAM(tid)		(TC956X_AXI4_SLV(0, tid) + TRSL_PARAM_OFFSET)
+#define TC956X_AXI4_SLV_TRSL_MASK_LO(tid)		(TC956X_AXI4_SLV(0, tid) + TRSL_MASK_LO_OFFSET)
+#define TC956X_AXI4_SLV_TRSL_MASK_HI(tid)		(TC956X_AXI4_SLV(0, tid) + TRSL_MASK_HI_OFFSET)
 
 #define TC956X_ATR_IMPL 1U
 #define TC956X_ATR_SIZE(size) ((size - 1U) << 1U)
@@ -1542,12 +1542,12 @@ static void tc956x_config_tamap(struct tc956x_data *td)
 	/* Set all entries to default values */
 	for (i = 0; i <= MAX_CM3_TAMAP_ENTRIES; i++) {
 		writel(TC956X_AXI4_SLV00_TRSL_PARAM_VAL,
-		       addr + TC956X_AXI4_SLV_TRSL_PARAM(0, i));
-		writel(0x0, addr + TC956X_AXI4_SLV_TRSL_ADDR_HI(0, i));
-		writel(0x0, addr + TC956X_AXI4_SLV_TRSL_ADDR_LO(0, i));
-		writel(0x0, addr + TC956X_AXI4_SLV_SRC_ADDR_HI(0, i));
+		       addr + TC956X_AXI4_SLV_TRSL_PARAM(i));
+		writel(0x0, addr + TC956X_AXI4_SLV_TRSL_ADDR_HI(i));
+		writel(0x0, addr + TC956X_AXI4_SLV_TRSL_ADDR_LO(i));
+		writel(0x0, addr + TC956X_AXI4_SLV_SRC_ADDR_HI(i));
 		writel(TC956X_AXI4_SLV00_SRC_ADDR_LO_VAL_DEFAULT,
-		       addr + TC956X_AXI4_SLV_SRC_ADDR_LO(0, i));
+		       addr + TC956X_AXI4_SLV_SRC_ADDR_LO(i));
 	}
 
 	/* AXI4 Slave 0 - Table 0 Entry */
@@ -1555,32 +1555,32 @@ static void tc956x_config_tamap(struct tc956x_data *td)
 	 * translated to 0x0 0000 0000 - 0xF FFFF FFFF
 	 */
 	writel(TC956X_AXI4_SLV00_TRSL_PARAM_VAL,
-	       addr + TC956X_AXI4_SLV_TRSL_PARAM(0, 0));
+	       addr + TC956X_AXI4_SLV_TRSL_PARAM(0));
 	writel(TC956X_AXI4_SLV00_TRSL_ADDR_HI_VAL,
-	       addr + TC956X_AXI4_SLV_TRSL_ADDR_HI(0, 0));
+	       addr + TC956X_AXI4_SLV_TRSL_ADDR_HI(0));
 	writel(TC956X_AXI4_SLV00_TRSL_ADDR_LO_VAL,
-	       addr + TC956X_AXI4_SLV_TRSL_ADDR_LO(0, 0));
+	       addr + TC956X_AXI4_SLV_TRSL_ADDR_LO(0));
 	writel(TC956X_AXI4_SLV00_SRC_ADDR_HI_VAL,
-	       addr + TC956X_AXI4_SLV_SRC_ADDR_HI(0, 0));
+	       addr + TC956X_AXI4_SLV_SRC_ADDR_HI(0));
 	writel(TC956X_AXI4_SLV00_SRC_ADDR_LO_VAL |
 				TC956X_ATR_SIZE(TC956X_AXI4_SLV00_ATR_SIZE) |
 				TC956X_ATR_IMPL,
-	       addr + TC956X_AXI4_SLV_SRC_ADDR_LO(0, 0));
+	       addr + TC956X_AXI4_SLV_SRC_ADDR_LO(0));
 
 	pr_debug("SL00 TRSL_MASK = 0x%08x\n",
-		readl(addr + TC956X_AXI4_SLV_TRSL_MASK_LO(0, 0)));
+		readl(addr + TC956X_AXI4_SLV_TRSL_MASK_LO(0)));
 	pr_debug("SL00 TRSL_MASK = 0x%08x\n",
-		readl(addr + TC956X_AXI4_SLV_TRSL_MASK_HI(0, 0)));
+		readl(addr + TC956X_AXI4_SLV_TRSL_MASK_HI(0)));
 	pr_debug("SL00 TRSL_PARAM = 0x%08x\n",
-		readl(addr + TC956X_AXI4_SLV_TRSL_PARAM(0, 0)));
+		readl(addr + TC956X_AXI4_SLV_TRSL_PARAM(0)));
 	pr_debug("SL00 TRSL_ADDR HI = 0x%08x\n",
-		readl(addr + TC956X_AXI4_SLV_TRSL_ADDR_HI(0, 0)));
+		readl(addr + TC956X_AXI4_SLV_TRSL_ADDR_HI(0)));
 	pr_debug("SL00 TRSL_ADDR LO = 0x%08x\n",
-		readl(addr + TC956X_AXI4_SLV_TRSL_ADDR_LO(0, 0)));
+		readl(addr + TC956X_AXI4_SLV_TRSL_ADDR_LO(0)));
 	pr_debug("SL00 SRC_ADDR HI = 0x%08x\n",
-		readl(addr + TC956X_AXI4_SLV_SRC_ADDR_HI(0, 0)));
+		readl(addr + TC956X_AXI4_SLV_SRC_ADDR_HI(0)));
 	pr_debug("SL00 SRC_ADDR LO = 0x%08x\n",
-		readl(addr + TC956X_AXI4_SLV_SRC_ADDR_LO(0, 0)));
+		readl(addr + TC956X_AXI4_SLV_SRC_ADDR_LO(0)));
 }
 
 static int tc956x_dwmac_setup(void *apriv, struct mac_device_info *mac)
