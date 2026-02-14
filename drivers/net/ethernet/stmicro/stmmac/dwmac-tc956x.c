@@ -30,6 +30,15 @@
 
 #define DRIVER_NAME "dwmac-tc956x-pci"
 
+/*
+ * XXX Next up is mostly getting rid of these, and defining the m
+ * XXX symbolically.  For example, the ATR_SIZE value 36 goes into
+ * XXX a field in the the SRC_ADDR_LO_VAL register.  But I think
+ * XXX that also defines the fact that the SRC_ADDR_HI_VAL register
+ * XXX contains 0x10 (that represents 1 << 36 for the whole SRC_ADDR).
+ * XXX And the SRC_ADDR_LO_VAL_DEFAULT value represents ATR_IMPL bit
+ * XXX set, and ATR_SIZEW contains 0x3 which represents 4096 bytes
+ */
 //
 // (Long term) TODOs
 //
@@ -42,6 +51,10 @@
 // * TC956x has support for faster MDIO bus scanning (by increasing CSR
 //   clock rate). Should we replicate that?
 // * TC956x has support for phy interrupts. Should that be re-enabled?
+// * I (Alex) have a number of other questions, in particular related
+//   to the firmware on the Cortex M3.  There are a few values stored
+//   in the DMEM portion of SRAM, and they are used to communicate and
+//   coordinate between the host and the M3.
 //
 
 /*
