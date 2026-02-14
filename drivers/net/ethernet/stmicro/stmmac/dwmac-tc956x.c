@@ -131,15 +131,15 @@ struct tc956x_data {
 #define TRSL_ADDR_LO_OFFSET		0x08
 #define TRSL_ADDR_HI_OFFSET		0x0C
 #define TRSL_PARAM_OFFSET		0x10
-#define TRSL_MASK_OFFSET1		0x18
-#define TRSL_MASK_OFFSET2		0x1C
+#define TRSL_MASK_LO_OFFSET		0x18
+#define TRSL_MASK_HI_OFFSET		0x1C
 #define TC956X_AXI4_SLV_SRC_ADDR_LO(ch, tid)	(TC956X_AXI4_SLV(ch, tid) + SRC_ADDR_LO_OFFSET)
 #define TC956X_AXI4_SLV_SRC_ADDR_HI(ch, tid)	(TC956X_AXI4_SLV(ch, tid) + SRC_ADDR_HI_OFFSET)
 #define TC956X_AXI4_SLV_TRSL_ADDR_LO(ch, tid)	(TC956X_AXI4_SLV(ch, tid) + TRSL_ADDR_LO_OFFSET)
 #define TC956X_AXI4_SLV_TRSL_ADDR_HI(ch, tid)	(TC956X_AXI4_SLV(ch, tid) + TRSL_ADDR_HI_OFFSET)
 #define TC956X_AXI4_SLV_TRSL_PARAM(ch, tid)	(TC956X_AXI4_SLV(ch, tid) + TRSL_PARAM_OFFSET)
-#define TC956X_AXI4_SLV_TRSL_MASK1(ch, tid)	(TC956X_AXI4_SLV(ch, tid) + TRSL_MASK_OFFSET1)
-#define TC956X_AXI4_SLV_TRSL_MASK2(ch, tid)	(TC956X_AXI4_SLV(ch, tid) + TRSL_MASK_OFFSET2)
+#define TC956X_AXI4_SLV_TRSL_MASK_LO(ch, tid)	(TC956X_AXI4_SLV(ch, tid) + TRSL_MASK_LO_OFFSET)
+#define TC956X_AXI4_SLV_TRSL_MASK_HI(ch, tid)	(TC956X_AXI4_SLV(ch, tid) + TRSL_MASK_HI_OFFSET)
 
 #define TC956X_ATR_IMPL 1U
 #define TC956X_ATR_SIZE(size) ((size - 1U) << 1U)
@@ -1568,9 +1568,9 @@ static void tc956x_config_tamap(struct tc956x_data *td)
 	       addr + TC956X_AXI4_SLV_SRC_ADDR_LO(0, 0));
 
 	pr_debug("SL00 TRSL_MASK = 0x%08x\n",
-		readl(addr + TC956X_AXI4_SLV_TRSL_MASK1(0, 0)));
+		readl(addr + TC956X_AXI4_SLV_TRSL_MASK_LO(0, 0)));
 	pr_debug("SL00 TRSL_MASK = 0x%08x\n",
-		readl(addr + TC956X_AXI4_SLV_TRSL_MASK2(0, 0)));
+		readl(addr + TC956X_AXI4_SLV_TRSL_MASK_HI(0, 0)));
 	pr_debug("SL00 TRSL_PARAM = 0x%08x\n",
 		readl(addr + TC956X_AXI4_SLV_TRSL_PARAM(0, 0)));
 	pr_debug("SL00 TRSL_ADDR HI = 0x%08x\n",
