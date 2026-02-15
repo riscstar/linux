@@ -39,6 +39,10 @@
  * XXX base of the translated space:
  * XXX	TC956X_AXI4_SLV00_SRC_ADDR_HI_VAL  0x00000010U
  * XXX	TC956X_AXI4_SLV00_SRC_ADDR_LO_VAL  0x00000000U
+ * XXX
+ * XXX Start working on isolating the clocks and resets (and GPIOs and
+ * XXX pinctrl), possibly implementing them using the proper common clock
+ * XXX and reset interfaces.
  */
 
 //
@@ -158,14 +162,17 @@ struct tc956x_data {
 #define TC956X_AXI4_SLV00_SRC_ADDR	0x0000001000000000ULL
 #define TC956X_AXI4_SLV00_TRSL_ADDR	0x0000000000000000ULL
 
-/* XXX This appears to be an invalid value; 0x00000017 is the minimum */
+/* XXX This is an invalid value; 0x00000017 is the minimum allowed */
 #define TC956X_AXI4_SLV00_SRC_ADDR_LO_VAL_DEFAULT  (0x0000007FU)
 
+#if 0
+/* XXX What are these?  EMAC control */
 #define TC9563_CFG_NEMACTXCDLY		0x1050U
 #define TC9563_CFG_NEMACIOCTL		0x107CU
 
 #define NEMACTXCDLY_DEFAULT		0x00000000U
 #define NEMACIOCTL_DEFAULT		0xF300F300
+#endif
 
 /* XXX This stuff must be coordinated with firmware. */
 #define TC956X_M3_SRAM_EEPROM_OFFSET_ADDR	0x47050		/* DMEM addrs 0x20007050U */
@@ -175,9 +182,9 @@ struct tc956x_data {
 #define ENABLE_XFI_INTERFACE			1 /* XFI/SFI, this is same as USXGMII, except XPCS autoneg disabled */
 #define ENABLE_SGMII_INTERFACE			4
 
-#define MAX_CM3_TAMAP_ENTRIES		3
 #define CM3_TAMAP_COUNT			4
 
+#if 0
 struct tc956x_version {
 	unsigned char rel_dbg; /* 'R' for release, 'D' for debug */
 	unsigned char major;
@@ -186,6 +193,7 @@ struct tc956x_version {
 	unsigned char patch_rel_major;
 	unsigned char patch_rel_minor;
 };
+#endif
 
 //
 // Definitions taken from tc956xmac_inc.h in vendor driver
@@ -208,6 +216,7 @@ struct tx956x_shrd_mem {
 #define TC956X_TOT_CASCADE_DEV	7 /* Maximum number of devices for 2 Level cascade setup */
 #define TC956X_PCI_BD_MASK	0xFFF8
 
+#if 0
 /* PHY/MDIO configurations */
 enum TC956X_PHY_MDIO_AVAILABILITY {
 	PHY_ON_MDIO_ON = 0, /* PHY and MDIO available */
@@ -215,6 +224,7 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 	PHY_OFF_MDIO_ON,    /* PHY not available and MDIO available */ /* Not supported currrently */
 	PHY_OFF_MDIO_OFF    /* PHY not available and MDIO not available */
 };
+#endif
 
 // TODO: this was unifdef'ed (some build options result in the value being two)
 #define TC956X_TOT_MSI_VEC	1
@@ -223,6 +233,7 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 
 /************************ TC956X_SRIOV_PF Starts ************************/
 
+#if 0
 /* Unicast/Untagged packet */
 #define LEG_UNTAGGED_PACKET	TC956X_DA_MAP
 /* VLAN tagged packets */
@@ -239,6 +250,7 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 #define TSN_CLASS_CDT_PACKET	7
 /* Broadcast/Multicast packet */
 #define BC_MC_PACKET		TC956X_DA_MAP
+#endif
 
 #define EEPROM_OFFSET		0
 #define EEPROM_MAC_COUNT	14	/* XXX Why 14? */
@@ -1225,6 +1237,7 @@ static uint16_t tc956x_get_shared_mem_offset(struct pci_dev *pdev, uint16_t pci_
 	return 0xFFFF;
 }
 
+#if 0
 /*
  * This struct is used to associate PCI Function of MAC controller on a board,
  * discovered via DMI, with the address of PHY connected to the MAC. The
@@ -1244,6 +1257,7 @@ struct tc956x_pci_dmi_data {
 struct tc956x_pci_info {
 	int (*setup)(struct pci_dev *pdev, struct plat_stmmacenet_data *plat);
 };
+#endif
 
 /**
  * tc956x_pm_set_power() - Set clock and reset for suspend or resume
