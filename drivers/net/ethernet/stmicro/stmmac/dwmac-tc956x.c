@@ -1800,6 +1800,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	plat->bsp_priv = td;
 	td->plat = plat;
 
+	/* XXX We don't initialize this; what is required? */
 	plat->mdio_bus_data = devm_kzalloc(dev, sizeof(*plat->mdio_bus_data),
 					   GFP_KERNEL);
 	if (!plat->mdio_bus_data) {
@@ -1807,6 +1808,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		goto err_out_enb_failed;
 	}
 
+	/* XXX We initialize two (four) fields here; what is required? */
 	plat->dma_cfg = devm_kzalloc(dev, sizeof(*plat->dma_cfg), GFP_KERNEL);
 	if (!plat->dma_cfg) {
 		ret = -ENOMEM;
@@ -1821,11 +1823,26 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	}
 
 	/* Request the PCI IO Memory for the device */
+/*
+ * BARs 2, 4, and 6 are defined for both interfaces.  They all have
+ * flags value: 0x00140204.  The 0x04 in the low-order bits I'm not
+ * completely sure about.  But the others represent IORESOURCE_MEM_64,
+ * IORESOURCE_SIZEALIGN, and IORESOURCE_MEM,.
+ *
+ * XXX Maybe define symbolic names for 0, 2, and 4 regions
+ *
+ * irqd_set_trigger_type() suggests that the 0x4 in the bottom bits
+ * could represent IRQ_TYPE_LEVEL_HIGH, but I think that's only for
+ * IRQ resources.
+ *
+ * BARs 1, 3, and 5 have resource length 0.
+ */
 	if (pci_request_regions(pdev, DRIVER_NAME)) {
 		dev_err(dev, "%s:Failed to get PCI regions\n", DRIVER_NAME);
 		ret = -ENODEV;
 		goto err_out_req_reg_failed;
 	}
+	/* XXX Move this down */
 	memset(&res, 0, sizeof(res));
 
 	/* Enable the bus mastering */
@@ -1841,7 +1858,9 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		(u64)pci_resource_start(pdev, 4),
 		(u64)pci_resource_len(pdev, 4));
 
-	// TODO: devm_pci_iomap?
+	/* These should use pcim_iomap_region(pdev, 0, DRIVER_NAME); */
+		/* This handles requesting and iomapping */
+		/* Else these should use pci_ioremap_bar(pdev, 0) */
 	td->bridge_cfg_addr = ioremap(pci_resource_start(pdev, 0),
 				      pci_resource_len(pdev, 0));
 	if (!td->bridge_cfg_addr) {
