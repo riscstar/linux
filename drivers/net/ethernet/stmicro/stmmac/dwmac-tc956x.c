@@ -31,22 +31,9 @@
 #define DRIVER_NAME "dwmac-tc956x-pci"
 
 /*
- * XXX Next up is mostly getting rid of the definitions like
- * XXX TC956X_AXI4_SLV00_SRC_ADDR_LO_VAL, and defining them
- * XXX differently.
- * XXX
- * XXX For one thing, I think we should really define the source
- * XXX and translated addresses as 64-bit values, and then use
- * XXX upper_32_bits(that) and lower_32_bits(that) when recording
- * XXX the values in the register pairs.
- * XXX
- * XXX In addition, the SRC_ADDR_LO_OFFSET (for each of the 8
- * XXX translation table entries) contains two fields in the
- * XXX bottom 7 bits.  One of those is the ATR_SIZE value, and
- * XXX if X is stored there, it means the address translation
- * XXX space is 2^(X + 1). TC956X_AXI4_SLV00_ATR_SIZE (36) defines
- * XXX the size, and macros convert that so 35 is stored in the
- * XXX field--meaning 2^36 size.  2^36 = 0x00000010 00000000
+ * XXX TC956X_AXI4_SLV00_ATR_SIZE (36) defines the source translation
+ * XXX region size.  The value held in the field is one less than this,
+ * XXX so we subtract one when filling it.
  * XXX
  * XXX That *might* also be related to the value recorded as the
  * XXX base of the translated space:
@@ -161,6 +148,9 @@ struct tc956x_data {
 #define TRSL_ADDR_LO_OFFSET		0x08
 #define TRSL_ADDR_HI_OFFSET		0x0C
 #define TRSL_PARAM_OFFSET		0x10
+#define TRSL_ID_MASK		GENMASK(3, 0)
+#define TRSL_ID_PCIE_TX_RX	0
+#define TRSF_PARAM_MASK		GENMASK(27, 16)
 #define TRSL_MASK_LO_OFFSET		0x18
 #define TRSL_MASK_HI_OFFSET		0x1C
 
@@ -168,7 +158,6 @@ struct tc956x_data {
 #define TC956X_AXI4_SLV00_SRC_ADDR	0x0000001000000000ULL
 #define TC956X_AXI4_SLV00_TRSL_ADDR	0x0000000000000000ULL
 
-#define TC956X_AXI4_SLV00_TRSL_PARAM_VAL   (0x00000000U)
 /* XXX This appears to be an invalid value; 0x00000017 is the minimum */
 #define TC956X_AXI4_SLV00_SRC_ADDR_LO_VAL_DEFAULT  (0x0000007FU)
 
@@ -1554,8 +1543,13 @@ static s32 tc956x_load_firmware(struct tc956x_data *td)
 static void tc956x_config_tamap(struct tc956x_data *td)
 {
 	void __iomem *base;
+	u32 trsf_param_val;
 	u32 val;
 	u32 i;
+
+	/* This is value assigned to the TRSL_PARAM register */
+	trsf_param_val = FIELD_PREP(TRSL_ID_MASK, TRSL_ID_PCIE_TX_RX);
+	trsf_param_val |= FIELD_PREP(TRSF_PARAM_MASK, 0);
 
 	base = td->bridge_cfg_addr + AXI4_SLV_BASE(td->emac0 ? 0 : 1);
 
@@ -1566,8 +1560,7 @@ static void tc956x_config_tamap(struct tc956x_data *td)
 		writel(0x0, base + SRC_ADDR_HI_OFFSET);
 		writel(0x0, base + TRSL_ADDR_LO_OFFSET);
 		writel(0x0, base + TRSL_ADDR_HI_OFFSET);
-		writel(TC956X_AXI4_SLV00_TRSL_PARAM_VAL,
-		       base + TRSL_PARAM_OFFSET);
+		writel(trsf_param_val, base + TRSL_PARAM_OFFSET);
 		/* XXX Not initializing the TRSL_MASK value? */
 	}
 
@@ -1585,13 +1578,16 @@ static void tc956x_config_tamap(struct tc956x_data *td)
 	val |= FIELD_PREP(ATR_SIZE_MASK, TC956X_AXI4_SLV00_ATR_SIZE - 1);
 	val |= ATR_IMPL_MASK;
 	writel(val, base + SRC_ADDR_LO_OFFSET);
-	writel(upper_32_bits(TC956X_AXI4_SLV00_SRC_ADDR),
-	       base + SRC_ADDR_HI_OFFSET);
-	writel(lower_32_bits(TC956X_AXI4_SLV00_TRSL_ADDR),
-	       base + TRSL_ADDR_LO_OFFSET);
-	writel(upper_32_bits(TC956X_AXI4_SLV00_TRSL_ADDR),
-	       base + TRSL_ADDR_HI_OFFSET);
-	writel(TC956X_AXI4_SLV00_TRSL_PARAM_VAL, base + TRSL_PARAM_OFFSET);
+
+	val = upper_32_bits(TC956X_AXI4_SLV00_SRC_ADDR);
+	writel(val, base + SRC_ADDR_HI_OFFSET);
+
+	val = lower_32_bits(TC956X_AXI4_SLV00_TRSL_ADDR);
+	writel(val, base + TRSL_ADDR_LO_OFFSET);
+
+	val = upper_32_bits(TC956X_AXI4_SLV00_TRSL_ADDR);
+	writel(val, base + TRSL_ADDR_HI_OFFSET);
+	writel(trsf_param_val, base + TRSL_PARAM_OFFSET);
 
 	pr_debug("SL00 SRC_ADDR HI = 0x%08x\n",
 		readl(base + SRC_ADDR_HI_OFFSET));
