@@ -31,14 +31,29 @@
 #define DRIVER_NAME "dwmac-tc956x-pci"
 
 /*
- * XXX Next up is mostly getting rid of these, and defining the m
- * XXX symbolically.  For example, the ATR_SIZE value 36 goes into
- * XXX a field in the the SRC_ADDR_LO_VAL register.  But I think
- * XXX that also defines the fact that the SRC_ADDR_HI_VAL register
- * XXX contains 0x10 (that represents 1 << 36 for the whole SRC_ADDR).
- * XXX And the SRC_ADDR_LO_VAL_DEFAULT value represents ATR_IMPL bit
- * XXX set, and ATR_SIZEW contains 0x3 which represents 4096 bytes
+ * XXX Next up is mostly getting rid of the definitions like
+ * XXX TC956X_AXI4_SLV00_SRC_ADDR_LO_VAL, and defining them
+ * XXX differently.
+ * XXX
+ * XXX For one thing, I think we should really define the source
+ * XXX and translated addresses as 64-bit values, and then use
+ * XXX upper_32_bits(that) and lower_32_bits(that) when recording
+ * XXX the values in the register pairs.
+ * XXX
+ * XXX In addition, the SRC_ADDR_LO_OFFSET (for each of the 8
+ * XXX translation table entries) contains two fields in the
+ * XXX bottom 7 bits.  One of those is the ATR_SIZE value, and
+ * XXX if X is stored there, it means the address translation
+ * XXX space is 2^(X + 1). TC956X_AXI4_SLV00_ATR_SIZE (36) defines
+ * XXX the size, and macros convert that so 35 is stored in the
+ * XXX field--meaning 2^36 size.  2^36 = 0x00000010 00000000
+ * XXX
+ * XXX That *might* also be related to the value recorded as the
+ * XXX base of the translated space:
+ * XXX	TC956X_AXI4_SLV00_SRC_ADDR_HI_VAL  0x00000010U
+ * XXX	TC956X_AXI4_SLV00_SRC_ADDR_LO_VAL  0x00000000U
  */
+
 //
 // (Long term) TODOs
 //
@@ -156,11 +171,8 @@ struct tc956x_data {
 #define TC956X_AXI4_SLV00_TRSL_ADDR_LO_VAL (0x00000000U)
 #define TC956X_AXI4_SLV00_TRSL_ADDR_HI_VAL (0x00000000U)
 #define TC956X_AXI4_SLV00_TRSL_PARAM_VAL   (0x00000000U)
+/* XXX This appears to be an invalid value; 0x00000017 is the minimum */
 #define TC956X_AXI4_SLV00_SRC_ADDR_LO_VAL_DEFAULT  (0x0000007FU)
-
-#define TC956X_BAR0 0
-#define TC956X_BAR2 2
-#define TC956X_BAR4 4
 
 #define TC9563_CFG_NEMACTXCDLY		0x1050U
 #define TC9563_CFG_NEMACIOCTL		0x107CU
@@ -1804,37 +1816,34 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	/* Enable the bus mastering */
 	pci_set_master(pdev);
 
-	dev_dbg(dev,
-		"BAR0 length = %lld bytes\n", (u64)pci_resource_len(pdev, 0));
-	dev_dbg(dev,
-		"BAR2 length = %lld bytes\n", (u64)pci_resource_len(pdev, 2));
-	dev_dbg(dev,
-		"BAR4 length = %lld bytes\n", (u64)pci_resource_len(pdev, 4));
-	dev_dbg(dev,
-		"BAR0 physical address = 0x%llx\n", (u64)pci_resource_start(pdev, 0));
-	dev_dbg(dev,
-		"BAR2 physical address = 0x%llx\n", (u64)pci_resource_start(pdev, 2));
-	dev_dbg(dev,
-		"BAR4 physical address = 0x%llx\n", (u64)pci_resource_start(pdev, 4));
+	dev_dbg(dev, "BAR0 physical address = 0x%llx length 0x%llx\n",
+		(u64)pci_resource_start(pdev, 0),
+		(u64)pci_resource_len(pdev, 0));
+	dev_dbg(dev, "BAR2 physical address = 0x%llx length 0x%llx\n",
+		(u64)pci_resource_start(pdev, 2),
+		(u64)pci_resource_len(pdev, 2));
+	dev_dbg(dev, "BAR4 physical address = 0x%llx length 0x%llx\n",
+		(u64)pci_resource_start(pdev, 4),
+		(u64)pci_resource_len(pdev, 4));
 
 	// TODO: devm_pci_iomap?
-	td->bridge_cfg_addr = ioremap(pci_resource_start(pdev, TC956X_BAR0),
-				      pci_resource_len(pdev, TC956X_BAR0));
+	td->bridge_cfg_addr = ioremap(pci_resource_start(pdev, 0),
+				      pci_resource_len(pdev, 0));
 	if (!td->bridge_cfg_addr) {
 		dev_err(dev, "%s: cannot map TC956X BAR0, aborting", pci_name(pdev));
 		ret = -EIO;
 		goto err_out_map_failed;
 	}
-	td->sram_addr = ioremap(pci_resource_start(pdev, TC956X_BAR2),
-				pci_resource_len(pdev, TC956X_BAR2));
+	td->sram_addr = ioremap(pci_resource_start(pdev, 2),
+				pci_resource_len(pdev, 2));
 	if (!td->sram_addr) {
 		pci_iounmap(pdev, td->bridge_cfg_addr);
 		dev_err(dev, "%s: cannot map TC956X BAR2, aborting", pci_name(pdev));
 		ret = -EIO;
 		goto err_out_map_failed;
 	}
-	td->sfr_addr = ioremap(pci_resource_start(pdev, TC956X_BAR4),
-			       pci_resource_len(pdev, TC956X_BAR4));
+	td->sfr_addr = ioremap(pci_resource_start(pdev, 4),
+			       pci_resource_len(pdev, 4));
 	if (!td->sfr_addr) {
 		pci_iounmap(pdev, td->bridge_cfg_addr);
 		pci_iounmap(pdev, td->sram_addr);
