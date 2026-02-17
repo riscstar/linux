@@ -570,13 +570,14 @@ static void tc956x_restore_phy_reset(struct stmmac_priv *priv)
 #define XGMAC_VR_RST					0x00008000/*set VR_RST*/
 #define XGMAC_SOFT_RST					0x00008000/*SOFT RST*/
 
-#define XPCS_REG_BASE_ADDR				10
-#define XPCS_REG_OFFSET					0x0003FF
-#define XPCS_IND_ACCESS					0x3FC
+#define XPCS_REG_BASE_ADDR_MASK				GENMASK(31, 10)
+#define XPCS_REG_OFFSET_MASK				GENMASK(9, 0)
+#define	XPCS_IND_ACCESS					0x3fc
 
+#if 0
 #define XPCS_USX_5G_MODE				(0x1 << 10)
 #define XPCS_USX_2_5G_MODE				(0x2 << 10)
-
+#endif
 
 //
 // Code from tc956x_xpcs.c in vendor driver
@@ -584,41 +585,29 @@ static void tc956x_restore_phy_reset(struct stmmac_priv *priv)
 
 static u32 tc956x_xpcs_read(void __iomem *xpcsaddr, u32 pcs_reg_num)
 {
-	u32 reg_value;
-	u16 base_address, offset;
+	u16 base_address = FIELD_GET(XPCS_REG_BASE_ADDR_MASK, pcs_reg_num);
+	u16 offset = FIELD_GET(XPCS_REG_OFFSET_MASK, pcs_reg_num);
 
-	base_address = pcs_reg_num >> XPCS_REG_BASE_ADDR;
-	offset = pcs_reg_num & XPCS_REG_OFFSET;
-
-	/*write base address to (PCS address + 0x3FC) register*/
+	/* Write the base address into indirect access register */
 	writel(base_address, (xpcsaddr + XPCS_IND_ACCESS));
 
-	/*Access to offset address (PCS address + offset)*/
-	reg_value = readl(xpcsaddr + offset);
-	pr_debug("XPCS register %x (%x@%x) indirect read access value : %x",
-		 pcs_reg_num, base_address, offset, reg_value);
+	/* Then read the value from the offset register */
 
-	return reg_value;
+	return readl(xpcsaddr + offset);
 }
 
-static u32 tc956x_xpcs_write(void __iomem *xpcsaddr, u32 pcs_reg_num, u32 value)
+static void
+tc956x_xpcs_write(void __iomem *xpcsaddr, u32 pcs_reg_num, u32 value)
 {
-	u16 base_address, offset;
+	u16 base_address = FIELD_GET(XPCS_REG_BASE_ADDR_MASK, pcs_reg_num);
+	u16 offset = FIELD_GET(XPCS_REG_OFFSET_MASK, pcs_reg_num);
 
-	base_address = pcs_reg_num >> XPCS_REG_BASE_ADDR;
-	offset = pcs_reg_num & XPCS_REG_OFFSET;
+	/* Write the base address into indirect access register */
+	writel(base_address, xpcsaddr + XPCS_IND_ACCESS);
 
-	/*write base address to (PCS address + 0x3FC) register*/
-	writel(base_address, (xpcsaddr + XPCS_IND_ACCESS));
-
-	/*Access to offset address (PCS address + offset)*/
+	/* Then write the value to the offset register */
 	writel(value, xpcsaddr + offset);
-	pr_debug("XPCS register %x (%x@%x) indirect write access value : %x",
-		 pcs_reg_num, base_address, offset, value);
-
-	return 0;
 }
-
 
 static int tc956x_xpcs_init(struct plat_stmmacenet_data *plat)
 {
@@ -1880,9 +1869,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	}
 	td->emac0 = pfn == 0;
 
-	res.addr = td->sfr_addr +
-		   (td->emac0 ? MAC0_BASE_OFFSET : MAC1_BASE_OFFSET);
-
 	plat->mac_setup = &tc956x_dwmac_setup;
 	plat->fix_mac_speed = &tc956x_fix_mac_speed;
 
@@ -2015,6 +2001,8 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	}
 
 
+	res.addr = td->sfr_addr +
+		   (td->emac0 ? MAC0_BASE_OFFSET : MAC1_BASE_OFFSET);
 	res.wol_irq = pdev->irq;
 	res.irq = pdev->irq;
 	res.lpi_irq = pdev->irq;
