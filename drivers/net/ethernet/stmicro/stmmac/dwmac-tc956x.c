@@ -1836,10 +1836,22 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
  *
  * BARs 1, 3, and 5 have resource length 0.
  */
-	if (pci_request_regions(pdev, DRIVER_NAME)) {
-		dev_err(dev, "%s:Failed to get PCI regions\n", DRIVER_NAME);
-		ret = -ENODEV;
-		goto err_out_req_reg_failed;
+	ret = pci_request_region(pdev, 0, DRIVER_NAME);
+	if (ret)
+		dev_err(dev, "failed to get bridge config region\n");
+		goto err_disable_device;
+	}
+
+	ret = pci_request_region(pdev, 2, DRIVER_NAME);
+	if (ret)
+		dev_err(dev, "failed to get SRAM region\n");
+		goto err_release_bridge_config;
+	}
+
+	ret = pci_request_region(pdev, 4, DRIVER_NAME);
+	if (ret)
+		dev_err(dev, "failed to get SFR region\n");
+		goto err_release_sram:
 	}
 
 	/* Enable the bus mastering */
@@ -1863,24 +1875,22 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	if (!td->bridge_cfg_addr) {
 		dev_err(dev, "%s: cannot map TC956X BAR0, aborting", pci_name(pdev));
 		ret = -EIO;
-		goto err_out_map_failed;
+		goto err_release_sfr;
 	}
 	td->sram_addr = ioremap(pci_resource_start(pdev, 2),
 				pci_resource_len(pdev, 2));
 	if (!td->sram_addr) {
-		pci_iounmap(pdev, td->bridge_cfg_addr);
 		dev_err(dev, "%s: cannot map TC956X BAR2, aborting", pci_name(pdev));
 		ret = -EIO;
-		goto err_out_map_failed;
+		goto err_unmap_bridge_config;
 	}
+
 	td->sfr_addr = ioremap(pci_resource_start(pdev, 4),
 			       pci_resource_len(pdev, 4));
 	if (!td->sfr_addr) {
-		pci_iounmap(pdev, td->bridge_cfg_addr);
-		pci_iounmap(pdev, td->sram_addr);
 		dev_err(dev, "%s: cannot map TC956X BAR4, aborting", pci_name(pdev));
 		ret = -EIO;
-		goto err_out_map_failed;
+		goto err_unmap_sram;
 	}
 
 	dev_dbg(dev, "BAR0 virtual address = %p\n", td->bridge_cfg_addr);
@@ -1902,8 +1912,10 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	/* Determine physical port number from the resource manager */
 	val = readl(td->bridge_cfg_addr + RSCMNG_ID_REG);
 	pfn = FIELD_GET(RSCMNG_PFN_MASK, val);
-	if (WARN_ON(pfn > 1))
-		return -EINVAL;
+	if (WARN_ON(pfn > 1)) {
+		ret = -EINVAL;
+		goto err_unmap_sfr;
+	}
 	td->emac0 = pfn == 0;
 
 	td->dev = dev;
@@ -1923,7 +1935,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 	ret = tc956x_xgmac3_default_data(pdev, plat);
 	if (ret)
-		goto err_out_enb_failed;
+		goto err_unmap_sfr;
 
 	dev_dbg(dev, "port_interface = %d\n", td->port_interface);
 
@@ -2184,15 +2196,19 @@ err_dvr_probe:
 err_platform_probe:
 err_out_msi_failed:
 	pci_free_irq_vectors(pdev);
-	if (td->sfr_addr)
-		pci_iounmap(pdev, td->sfr_addr);
-	if (td->sram_addr)
-		pci_iounmap(pdev, td->sram_addr);
-	if (td->bridge_cfg_addr)
-		pci_iounmap(pdev, td->bridge_cfg_addr);
-err_out_map_failed:
-	pci_release_regions(pdev);
-err_out_req_reg_failed:
+err_unmap_sfr:
+	pci_iounmap(pdev, td->sfr_addr);
+err_unmap_sram:
+	pci_iounmap(pdev, td->sram_addr);
+err_unmap_bridge_config:
+	pci_iounmap(pdev, td->bridge_cfg_addr);
+err_release_sfr:
+	pci_release_region(pdev, 4);
+err_release_sram:
+	pci_release_region(pdev, 2);
+err_release_bridge_config:
+	pci_release_region(pdev, 0);
+err_disable_device:
 	pci_disable_device(pdev);
 err_out_enb_failed:
 	dev_dbg(dev, "<--%s Error return: %d\n", __func__, ret);
