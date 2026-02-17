@@ -419,9 +419,8 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 
 #define TC956X_GLUE_SW_REG_ACCESS_CTRL		(TC956X_GLUE_LOGIC_BASE_OFST \
 						+ 0x0000002CU)
-
-#define SW_DSP1_ENABLE				(0x00000002)
-#define SW_DSP2_ENABLE				(0x00000004)
+#define SW_DSP1_ENABLE				BIT(1)
+#define SW_DSP2_ENABLE				BIT(2)
 
 #define ENABLE_CUT_THROUGH_ON_RX_PATH_MASK	0x1U
 #define ENABLE_CUT_THROUGH_ON_TX_PATH_MASK	0x1U
@@ -2148,7 +2147,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		dev_dbg(dev, "%s : Setting B : Adding DSP Cut Through Settings for DSP2", __func__);
 		/* downstream port is selected*/
 		val = readl(td->sfr_addr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
-		val &= ~(SW_DSP2_ENABLE);	/* XXX Not needed */
 		val |= SW_DSP2_ENABLE;
 		writel(val, td->sfr_addr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
 		/*Set 0x0 to Rx Bit enable_cut_through_on_receive_path*/
@@ -2163,7 +2161,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		dev_dbg(dev, "%s : Setting A : Adding DSP Cut Through Settings for DSP1 & DSP2", __func__);
 		/*DSP1 & DSP2 is selected*/
 		val = readl(td->sfr_addr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
-		val &= ~(SW_DSP1_ENABLE | SW_DSP2_ENABLE); /* XXX Not needed */
 		val |= SW_DSP1_ENABLE | SW_DSP2_ENABLE;
 		writel(val, td->sfr_addr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
 		/*Set 0x0 to Rx Bit enable_cut_through_on_receive_path*/
