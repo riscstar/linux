@@ -78,7 +78,6 @@
  * @emac0:		Which eMAC port this is (true: port 0; false: port 1
  * @is_sgmii_2p5g:	True if PHY uses SGMII and operating at 2.5 Gbps
  * @port_interface:	Operating more of the port (XFI or SGMII)
- * @tc956x_port_pm_suspend: True if the port is suspended
  * @pm_saved_emac_rst:	Saved eMAC reset control register value
  * @pm_saved_emac_clk:	Saved eMAC clock control register value
  * @pci_bd:		PCIe bus and device ID
@@ -99,7 +98,6 @@ struct tc956x_data {
 	bool emac0;
 	bool is_sgmii_2p5g;
 	u32 port_interface;
-	bool tc956x_port_pm_suspend;
 	u32 pm_saved_emac_rst;
 	u32 pm_saved_emac_clk;
 	uint16_t pci_bd;
@@ -2317,14 +2315,6 @@ static int tc956x_pcie_suspend(struct device *dev)
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	int ret;
 
-	if (td->tc956x_port_pm_suspend == true) {
-		dev_dbg(dev, "<--%s : Port %d interface %s already Suspended\n",
-			 __func__, td->emac0 ? 0 : 1, priv->dev->name);
-		return -1;
-	}
-	/* Set flag to avoid queuing any more work */
-	td->tc956x_port_pm_suspend = true;
-
 	/* Decrement device usage counter */
 	tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt--;
 	dev_dbg(dev, "%s : (Number of Ports Left to Suspend = [%d])\n", __func__, tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt);
@@ -2519,12 +2509,6 @@ static int tc956x_pcie_resume(struct device *dev)
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	int ret;
 
-	if (td->tc956x_port_pm_suspend == false) {
-		dev_dbg(dev, "%s : Port %d %s already Resumed\n",
-				__func__, td->emac0 ? 0 : 1, priv->dev->name);
-		return -1;
-	}
-
 	ret = tc956x_pcie_pm_enable_pci(pdev);
 	if (ret < 0)
 		return ret;
@@ -2557,8 +2541,6 @@ static int tc956x_pcie_resume(struct device *dev)
 	/* Increment device usage counter */
 	tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt++;
 	dev_dbg(dev, "%s : (Number of Ports Resumed = [%d])\n", __func__, tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt);
-
-	td->tc956x_port_pm_suspend = false;
 
 	return 0;
 }
