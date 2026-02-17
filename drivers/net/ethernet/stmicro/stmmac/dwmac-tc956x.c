@@ -1799,6 +1799,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 	plat->bsp_priv = td;
 	td->plat = plat;
+	td->dev = dev;
 
 	/* XXX We don't initialize this; what is required? */
 	plat->mdio_bus_data = devm_kzalloc(dev, sizeof(*plat->mdio_bus_data),
@@ -1821,61 +1822,31 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 	/* Request the PCI IO Memory for the device */
 /*
- * BARs 2, 4, and 6 are defined for both interfaces.  They all have
- * flags value: 0x00140204.  The 0x04 in the low-order bits I'm not
- * completely sure about.  But the others represent IORESOURCE_MEM_64,
- * IORESOURCE_SIZEALIGN, and IORESOURCE_MEM,.
- *
  * XXX Maybe define symbolic names for 0, 2, and 4 regions
  *
  * irqd_set_trigger_type() suggests that the 0x4 in the bottom bits
  * could represent IRQ_TYPE_LEVEL_HIGH, but I think that's only for
  * IRQ resources.
- *
- * BARs 1, 3, and 5 have resource length 0.
  */
-	ret = pci_request_region(pdev, 0, DRIVER_NAME);
-	if (ret) {
-		dev_err(dev, "failed to get bridge config region\n");
+	td->bridge_cfg_addr = pcim_iomap_region(pdev, 0, DRIVER_NAME);
+	if (IS_ERR(td->bridge_cfg_addr)) {
+		ret = PTR_ERR(td->bridge_cfg_addr);
+		dev_err(dev, "failed to map bridge config region\n");
 		goto err_disable_device;
 	}
 
-	ret = pci_request_region(pdev, 2, DRIVER_NAME);
-	if (ret) {
-		dev_err(dev, "failed to get SRAM region\n");
-		goto err_release_bridge_config;
+	td->sram_addr = pcim_iomap_region(pdev, 2, DRIVER_NAME);
+	if (IS_ERR(td->sram_addr)) {
+		ret = PTR_ERR(td->sram_addr);
+		dev_err(dev, "failed to map sram region\n");
+		goto err_disable_device;
 	}
 
-	ret = pci_request_region(pdev, 4, DRIVER_NAME);
-	if (ret) {
-		dev_err(dev, "failed to get SFR region\n");
-		goto err_release_sram;
-	}
-
-	/* These should use pcim_iomap_region(pdev, 0, DRIVER_NAME); */
-		/* This handles requesting and iomapping */
-		/* Else these should use pci_ioremap_bar(pdev, 0) */
-	td->bridge_cfg_addr = ioremap(pci_resource_start(pdev, 0),
-				      pci_resource_len(pdev, 0));
-	if (!td->bridge_cfg_addr) {
-		dev_err(dev, "%s: cannot map TC956X BAR0, aborting", pci_name(pdev));
-		ret = -EIO;
-		goto err_release_sfr;
-	}
-	td->sram_addr = ioremap(pci_resource_start(pdev, 2),
-				pci_resource_len(pdev, 2));
-	if (!td->sram_addr) {
-		dev_err(dev, "%s: cannot map TC956X BAR2, aborting", pci_name(pdev));
-		ret = -EIO;
-		goto err_unmap_bridge_config;
-	}
-
-	td->sfr_addr = ioremap(pci_resource_start(pdev, 4),
-			       pci_resource_len(pdev, 4));
-	if (!td->sfr_addr) {
-		dev_err(dev, "%s: cannot map TC956X BAR4, aborting", pci_name(pdev));
-		ret = -EIO;
-		goto err_unmap_sram;
+	td->sfr_addr = pcim_iomap_region(pdev, 4, DRIVER_NAME);
+	if (IS_ERR(td->sfr_addr)) {
+		ret = PTR_ERR(td->sfr_addr);
+		dev_err(dev, "failed to map sfr region\n");
+		goto err_disable_device;
 	}
 
 	dev_dbg(dev, "BAR0 physical address = 0x%llx length 0x%llx\n",
@@ -1905,11 +1876,9 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	pfn = FIELD_GET(RSCMNG_PFN_MASK, val);
 	if (WARN_ON(pfn > 1)) {
 		ret = -EINVAL;
-		goto err_unmap_sfr;
+		goto err_disable_device;
 	}
 	td->emac0 = pfn == 0;
-
-	td->dev = dev;
 
 	res.addr = td->sfr_addr +
 		   (td->emac0 ? MAC0_BASE_OFFSET : MAC1_BASE_OFFSET);
@@ -1926,7 +1895,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 	ret = tc956x_xgmac3_default_data(pdev, plat);
 	if (ret)
-		goto err_unmap_sfr;
+		goto err_disable_device;
 
 	dev_dbg(dev, "port_interface = %d\n", td->port_interface);
 
@@ -2187,18 +2156,6 @@ err_dvr_probe:
 err_platform_probe:
 err_out_msi_failed:
 	pci_free_irq_vectors(pdev);
-err_unmap_sfr:
-	pci_iounmap(pdev, td->sfr_addr);
-err_unmap_sram:
-	pci_iounmap(pdev, td->sram_addr);
-err_unmap_bridge_config:
-	pci_iounmap(pdev, td->bridge_cfg_addr);
-err_release_sfr:
-	pci_release_region(pdev, 4);
-err_release_sram:
-	pci_release_region(pdev, 2);
-err_release_bridge_config:
-	pci_release_region(pdev, 0);
 err_disable_device:
 	pci_clear_master(pdev);
 	pci_disable_device(pdev);
