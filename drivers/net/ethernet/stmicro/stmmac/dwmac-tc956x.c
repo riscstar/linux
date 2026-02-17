@@ -86,7 +86,7 @@
  * @phy_supply:		PHY supply egulator
  * @phy_reset_gpio:	GPIO used for PHY reset
  * @phy_reset_delay:	Delay (milliseconds) after PHY reset
- * @saved_phy_reset_value:	Last PHY reset value
+ * @reset_asserted:	Whether reset on this PHY is currently asserted
  * @wol_irq:		Wake-on-LAN IRQ number
  */
 struct tc956x_data {
@@ -106,7 +106,7 @@ struct tc956x_data {
 	struct regulator *phy_supply;
 	u32 phy_reset_gpio;
 	u32 phy_reset_delay;
-	u32 saved_phy_reset_value;
+	u32 reset_asserted;
 	int wol_irq;
 };
 
@@ -456,20 +456,22 @@ static void tc956x_phy_reset_pin_config(struct tc956x_data *td)
 static void __tc956x_assert_phy_reset(struct tc956x_data *td, bool assert)
 {
 	u32 gpio_pin = td->phy_reset_gpio;
-	u32 out_value = assert ? 0 : 1;
 	void __iomem *addr;
+
+	if (assert == td->reset_asserted)
+		return;
 
 	tc956x_phy_reset_pin_config(td);
 
 	/* Output value for both pins is in the GPIOO0 register */
 	addr = td->sfr + GPIOO0_OFFSET;
-	tc956x_reg_update(addr, BIT(gpio_pin), out_value);
-
-	td->saved_phy_reset_value = out_value;
+	tc956x_reg_update(addr, BIT(gpio_pin), assert ? 0 : 1);
 
 	/* Configure the GPIO pin in output direction */
 	addr = td->sfr + GPIOE0_OFFSET;
 	tc956x_reg_update(addr, BIT(gpio_pin), 0);
+
+	td->reset_asserted = assert;
 }
 
 static void tc956x_assert_phy_reset(struct tc956x_data *td)
@@ -491,14 +493,11 @@ static void tc956x_restore_phy_reset(struct stmmac_priv *priv)
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	u32 gpio_pin = td->phy_reset_gpio;
 	void __iomem *addr;
-	u32 out_value;
 
 	tc956x_phy_reset_pin_config(td);
 
-	out_value = td->saved_phy_reset_value;
-
 	addr = td->sfr + GPIOO0_OFFSET;
-	tc956x_reg_update(addr, BIT(gpio_pin), out_value);
+	tc956x_reg_update(addr, BIT(gpio_pin), td->reset_asserted ? 0 : 1);
 
 	/* Configure the GPIO pin in output direction */
 	addr = td->sfr + GPIOE0_OFFSET;
@@ -1037,6 +1036,7 @@ static int tc956x_platform_probe(struct tc956x_data *td,
 		return ret;
 
 	/* Hold the PHY in reset until we're ready */
+	td->reset_asserted = false;
 	tc956x_assert_phy_reset(td);
 
 	ret = pinctrl_select_state(td->pinctrl, td->pinctrl_default);
