@@ -194,8 +194,6 @@ struct tx956x_shrd_mem {
 
 /* Independent Suspend/Resume Debug */
 #undef TC956X_PM_DEBUG
-#define TC956X_ALL_MAC_PORT_SUSPENDED	0 /* All EMAC Port Suspended. To be used just after suspend and before resume. */
-#define TC956X_SINGLE_MAC_DEVICE_IN_USE	1 /* One of the EMAC Port in use. To be used at remove. */
 #define TC956X_TOT_CASCADE_DEV	7 /* Maximum number of devices for 2 Level cascade setup */
 #define TC956X_PCI_BD_MASK	0xFFF8
 
@@ -455,8 +453,8 @@ static void tc956x_phy_reset_pin_config(struct tc956x_data *td)
  */
 static void __tc956x_assert_phy_reset(struct tc956x_data *td, bool assert)
 {
-	u32 gpio_pin = td->phy_reset_gpio;
 	void __iomem *addr;
+	u32 gpio_pin;
 
 	if (assert == td->reset_asserted)
 		return;
@@ -464,6 +462,7 @@ static void __tc956x_assert_phy_reset(struct tc956x_data *td, bool assert)
 	tc956x_phy_reset_pin_config(td);
 
 	/* Output value for both pins is in the GPIOO0 register */
+	gpio_pin = td->phy_reset_gpio;
 	addr = td->sfr + GPIOO0_OFFSET;
 	tc956x_reg_update(addr, BIT(gpio_pin), assert ? 0 : 1);
 
@@ -1272,7 +1271,8 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 		nclk_val = nclk_val & ~NCLKCTRL_EMAC_MASK;
 		writel(nrst_val, nrst_reg);
 		writel(nclk_val, nclk_reg);
-		if (tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt == TC956X_ALL_MAC_PORT_SUSPENDED) {
+		/* Zero active means are suspended */
+		if (!tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt) {
 			commonclk_reg = td->sfr + NCLKCTRL0_OFFSET;
 			commonclk_val = readl(commonclk_reg);
 			pr_debug("%s : Port %d interface %s Common CLK Rd Reg:%x",
@@ -1288,7 +1288,8 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 	} else {
 		pr_debug("%s : Port %d interface %s Set Power for Resume",
 			 __func__, td->emac0 ? 0 : 1, priv->dev->name);
-		if (tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt == TC956X_ALL_MAC_PORT_SUSPENDED) {
+		/* Zero active means are suspended */
+		if (!tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt) {
 			commonclk_reg = td->sfr + NCLKCTRL0_OFFSET;
 			commonclk_val = readl(commonclk_reg);
 			pr_debug("%s : Port %d interface %s Common CLK Rd Reg:%x",
@@ -2180,7 +2181,9 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 	}
 	writel(nrst_val, nrst_reg);
 	writel(nclk_val, nclk_reg);
-	if (tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt == TC956X_SINGLE_MAC_DEVICE_IN_USE) {
+
+	/* If exactly one MAC is in use... */
+	if (tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt == 1) {
 		/* Set reset value for Common CLK control and Common RESET Control registers */
 		nrst_reg = td->sfr + NRSTCTRL0_OFFSET;
 		nclk_reg = td->sfr + NCLKCTRL0_OFFSET;
@@ -2274,7 +2277,8 @@ static int tc956x_pcie_pm_pci(struct pci_dev *pdev, bool suspend)
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	int ret;
 
-	if (tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt == TC956X_ALL_MAC_PORT_SUSPENDED) {
+	/* Zero active means are suspended */
+	if (!tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt) {
 		tc956x_dsp_ep = pci_upstream_bridge(pdev);
 		bus = tc956x_dsp_ep->subordinate;
 
@@ -2529,7 +2533,8 @@ static int tc956x_pcie_resume(struct device *dev)
 
 	/* Configure TA map registers */
 
-	if (tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt == TC956X_ALL_MAC_PORT_SUSPENDED)
+	/* Zero active means are suspended */
+	if (!tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt)
 		tc956x_config_tamap(td);
 
 	/* Configure EMAC Port */
