@@ -1780,8 +1780,8 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 			    const struct pci_device_id *id)
 {
 	struct plat_stmmacenet_data *plat;
+	struct stmmac_resources res = { };
 	struct device *dev = &pdev->dev;
-	struct stmmac_resources res;
 	struct tc956x_data *td;
 	/* use signal from EMSPHY */
 	uint16_t sh_mem_offset;
@@ -1842,8 +1842,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		ret = -ENODEV;
 		goto err_out_req_reg_failed;
 	}
-	/* XXX Move this down */
-	memset(&res, 0, sizeof(res));
 
 	/* Enable the bus mastering */
 	pci_set_master(pdev);
