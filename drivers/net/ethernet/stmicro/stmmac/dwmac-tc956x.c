@@ -68,61 +68,41 @@
 #define PCI_BAR_SRAM			2
 #define PCI_BAR_SFR			4
 
-/*
- * Used to store toshiba-specific context.
- *
- * It is stored in the bsp_priv field of struct plat_stmmacenet_data.
- *
- * Can be accessed as either plat->bsp_priv or priv->plat->bsp_priv depending
- * on which pointer you have in any particular part of the code.
+/**
+ * struct tc956x_data - Toshiba-specific platform data
+ * @dev:		Device pointer
+ * @plat:		Pointer to our stmmac platform data
+ * @bridge_config:	Mapped bridge config data (BAR 0)
+ * @sram:		Mapped SRAM base address (BAR 2)
+ * @sfr:		Mapped SFR region (BAR 4)
+ * @emac0:		Which eMAC port this is (true: port 0; false: port 1
+ * @is_sgmii_2p5g:	True if PHY uses SGMII and operating at 2.5 Gbps
+ * @port_interface:	Operating more of the port (XFI or SGMII)
+ * @tc956x_port_pm_suspend: True if the port is suspended
+ * @pm_saved_emac_rst:	Saved eMAC reset control register value
+ * @pm_saved_emac_clk:	Saved eMAC clock control register value
+ * @pci_bd:		PCIe bus and device ID
+ * @pinctrl:		Pin control structure
+ * @pinctrl_default:	Pin control default value
+ * @phy_supply:		PHY supply egulator
+ * @phy_reset_gpio:	GPIO used for PHY reset
+ * @phy_reset_delay:	Delay (milliseconds) after PHY reset
+ * @saved_phy_reset_value:	Last PHY reset value
+ * @wol_irq:		Wake-on-LAN IRQ number
  */
 struct tc956x_data {
-	/** @dev: Device pointer */
 	struct device *dev;
-
-	/** @dev: Back-pointer to our plat structure */
 	struct plat_stmmacenet_data *plat;
-
-	/** &bridge_config: Bridge config base address (BAR0) */
 	void __iomem *bridge_config;
-
-	/** &sram: SRAM base address (BAR2) */
 	void __iomem *sram;
-
-	/** @sfr: SFR base address (BAR4) */
 	void __iomem *sfr;
-
-	/** @emac0: Indicates which eMAC is assigned to this driver */
-	bool emac0;		/* true: eMAC port 0; false: eMAC port 1 */
-
-	/**
-	 * @is_sgmii_2p5g: Controls XPCS AN enablement
-	 *
-	 * True if the PHY is interfaced via SGMII and is operating at
-	 *  2.5G, false otherwise.
-	 */
+	bool emac0;
 	bool is_sgmii_2p5g;
-
-	/** @port_interface: Operating mode of the port (SGMII, XII, etc) */
 	u32 port_interface;
-
-	/** @tc956x_port_pm_suspend: Port Suspend Status (true if port suspended */
 	bool tc956x_port_pm_suspend;
-
-	/** @pm_saved_emac_rst: Preserves eMAC resets during suspend-resume */
 	u32 pm_saved_emac_rst;
-
-	/** @pm_saved_emac_clk: Preserves eMAC clock status during suspend-resume */
 	u32 pm_saved_emac_clk;
-
-	/** @pci_bd: PCI bus and device ID of self */
 	uint16_t pci_bd;
-
-	/*
-	 * Remaining elements were copied from tc956x_qcom_priv (and all
-	 * comments have been preserved)
-	 */
-
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *pinctrl_default;
 	struct regulator *phy_supply;
