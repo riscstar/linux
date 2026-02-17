@@ -1790,36 +1790,34 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	int ret;
 
 	plat = stmmac_plat_dat_alloc(dev);
-	if (!plat) {
-		ret = -ENOMEM;
-		goto err_out_enb_failed;
-	}
+	if (!plat)
+		return -ENOMEM;
 
 	td = devm_kzalloc(dev, sizeof(*td), GFP_KERNEL);
+	if (!td)
+		return -ENOMEM;
+
 	plat->bsp_priv = td;
 	td->plat = plat;
 
 	/* XXX We don't initialize this; what is required? */
 	plat->mdio_bus_data = devm_kzalloc(dev, sizeof(*plat->mdio_bus_data),
 					   GFP_KERNEL);
-	if (!plat->mdio_bus_data) {
-		ret = -ENOMEM;
-		goto err_out_enb_failed;
-	}
+	if (!plat->mdio_bus_data)
+		return -ENOMEM;
 
 	/* XXX We initialize two (four) fields here; what is required? */
 	plat->dma_cfg = devm_kzalloc(dev, sizeof(*plat->dma_cfg), GFP_KERNEL);
-	if (!plat->dma_cfg) {
-		ret = -ENOMEM;
-		goto err_out_enb_failed;
-	}
+	if (!plat->dma_cfg)
+		return -ENOMEM;
 
 	/* Enable pci device */
 	ret = pci_enable_device(pdev);
 	if (ret) {
 		dev_err(dev, "%s: ERROR: failed to enable device\n", __func__);
-		goto err_out_enb_failed;
+		return ret;
 	}
+	pci_set_master(pdev);
 
 	/* Request the PCI IO Memory for the device */
 /*
@@ -1837,35 +1835,22 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
  * BARs 1, 3, and 5 have resource length 0.
  */
 	ret = pci_request_region(pdev, 0, DRIVER_NAME);
-	if (ret)
+	if (ret) {
 		dev_err(dev, "failed to get bridge config region\n");
 		goto err_disable_device;
 	}
 
 	ret = pci_request_region(pdev, 2, DRIVER_NAME);
-	if (ret)
+	if (ret) {
 		dev_err(dev, "failed to get SRAM region\n");
 		goto err_release_bridge_config;
 	}
 
 	ret = pci_request_region(pdev, 4, DRIVER_NAME);
-	if (ret)
+	if (ret) {
 		dev_err(dev, "failed to get SFR region\n");
-		goto err_release_sram:
+		goto err_release_sram;
 	}
-
-	/* Enable the bus mastering */
-	pci_set_master(pdev);
-
-	dev_dbg(dev, "BAR0 physical address = 0x%llx length 0x%llx\n",
-		(u64)pci_resource_start(pdev, 0),
-		(u64)pci_resource_len(pdev, 0));
-	dev_dbg(dev, "BAR2 physical address = 0x%llx length 0x%llx\n",
-		(u64)pci_resource_start(pdev, 2),
-		(u64)pci_resource_len(pdev, 2));
-	dev_dbg(dev, "BAR4 physical address = 0x%llx length 0x%llx\n",
-		(u64)pci_resource_start(pdev, 4),
-		(u64)pci_resource_len(pdev, 4));
 
 	/* These should use pcim_iomap_region(pdev, 0, DRIVER_NAME); */
 		/* This handles requesting and iomapping */
@@ -1893,9 +1878,15 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		goto err_unmap_sram;
 	}
 
-	dev_dbg(dev, "BAR0 virtual address = %p\n", td->bridge_cfg_addr);
-	dev_dbg(dev, "BAR2 virtual address = %p\n", td->sram_addr);
-	dev_dbg(dev, "BAR4 virtual address = %p\n", td->sfr_addr);
+	dev_dbg(dev, "BAR0 physical address = 0x%llx length 0x%llx\n",
+		(u64)pci_resource_start(pdev, 0),
+		(u64)pci_resource_len(pdev, 0));
+	dev_dbg(dev, "BAR2 physical address = 0x%llx length 0x%llx\n",
+		(u64)pci_resource_start(pdev, 2),
+		(u64)pci_resource_len(pdev, 2));
+	dev_dbg(dev, "BAR4 physical address = 0x%llx length 0x%llx\n",
+		(u64)pci_resource_start(pdev, 4),
+		(u64)pci_resource_len(pdev, 4));
 
 #if IS_ENABLED(CONFIG_TRACE_MMIO_ACCESS)
 	/*
@@ -2209,9 +2200,8 @@ err_release_sram:
 err_release_bridge_config:
 	pci_release_region(pdev, 0);
 err_disable_device:
+	pci_clear_master(pdev);
 	pci_disable_device(pdev);
-err_out_enb_failed:
-	dev_dbg(dev, "<--%s Error return: %d\n", __func__, ret);
 
 	return ret;
 }
