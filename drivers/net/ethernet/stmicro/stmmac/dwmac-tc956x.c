@@ -63,6 +63,11 @@
 //   coordinate between the host and the M3.
 //
 
+/* PCI BAR assignments:  bridge_config, SRAM, and SFR regions */
+#define PCI_BAR_BRIDGE_CONFIG		0
+#define PCI_BAR_SRAM			2
+#define PCI_BAR_SFR			4
+
 /*
  * Used to store toshiba-specific context.
  *
@@ -1774,6 +1779,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	/* use signal from EMSPHY */
 	uint16_t sh_mem_offset;
 	uint8_t SgmSigPol = 0;
+	void __iomem *virt;
 	u32 pfn;
 	u32 val;
 	int ret;
@@ -1811,32 +1817,33 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 	/* Request the PCI IO Memory for the device */
 /*
- * XXX Maybe define symbolic names for 0, 2, and 4 regions
- *
  * irqd_set_trigger_type() suggests that the 0x4 in the bottom bits
  * could represent IRQ_TYPE_LEVEL_HIGH, but I think that's only for
  * IRQ resources.
  */
-	td->bridge_cfg_addr = pcim_iomap_region(pdev, 0, DRIVER_NAME);
-	if (IS_ERR(td->bridge_cfg_addr)) {
-		ret = PTR_ERR(td->bridge_cfg_addr);
+	virt = pcim_iomap_region(pdev, PCI_BAR_BRIDGE_CONFIG, DRIVER_NAME);
+	if (IS_ERR(virt)) {
+		ret = PTR_ERR(virt);
 		dev_err(dev, "failed to map bridge config region\n");
 		goto err_disable_device;
 	}
+	td->bridge_cfg_addr = virt
 
-	td->sram_addr = pcim_iomap_region(pdev, 2, DRIVER_NAME);
-	if (IS_ERR(td->sram_addr)) {
-		ret = PTR_ERR(td->sram_addr);
+	virt = pcim_iomap_region(pdev, PCI_BAR_SRAM, DRIVER_NAME);
+	if (IS_ERR(virt)) {
+		ret = PTR_ERR(virt);
 		dev_err(dev, "failed to map sram region\n");
 		goto err_disable_device;
 	}
+	td->sram_addr = virt;
 
-	td->sfr_addr = pcim_iomap_region(pdev, 4, DRIVER_NAME);
+	virt = pcim_iomap_region(pdev, PCI_BAR_SFR, DRIVER_NAME);
 	if (IS_ERR(td->sfr_addr)) {
-		ret = PTR_ERR(td->sfr_addr);
+		ret = PTR_ERR(virt);
 		dev_err(dev, "failed to map sfr region\n");
 		goto err_disable_device;
 	}
+	td->sfr_addr = virt;
 
 	dev_dbg(dev, "BAR0 physical address = 0x%llx length 0x%llx\n",
 		(u64)pci_resource_start(pdev, 0),
