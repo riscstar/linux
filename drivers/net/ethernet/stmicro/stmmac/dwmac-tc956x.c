@@ -1596,15 +1596,33 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 	void __iomem *xgmac = XGMAC_BASE(td);
 	struct plat_stmmacenet_data *plat = td->plat;
 	int ret, reg = 0, val, reg_value;
+	void __iomem *xpcs = xgmac + XPCS_XGMAC_OFFSET;
 	bool enable_an = true;
 
 	// TODO: copied from vendor drivers customizations in
 	//       tc956x_speed_change_init_mac()
 
 	if (td->emac0) {
-		// TODO
-		BUG();
+		/* XXX emac0: td->port_interface = ENABLE_XFI_INTERFACE */
+		/* XXX plat->phy_interface = PHY_INTERFACE_MODE_10GBASER; */
+		/* XXX plat->max_speed = 10000; */
+		/* Enable all clocks to eMAC Port0 */
+		/* Enable all clocks to eMAC Port0 */
+		/* Interface configuration for port0*/
+		ret = readl(td->sfr + NEMAC0CTL_OFFSET);
+		ret &= ~(NEMACCTL_SP_SEL_MASK | NEMACCTL_PHY_INF_SEL_MASK);
+		reg_value = tc956x_xpcs_read(xpcs, XGMAC_VR_XS_PCS_KR_CTRL);
+		reg_value &= ~XGMAC_USXG_MODE; /*USXG_MODE : 0x000*/
+		tc956x_xpcs_write(xpcs, XGMAC_VR_XS_PCS_KR_CTRL, reg_value);
+		ret &= ~0x00000040; /* Mask Polarity */
+		ret |= NEMACCTL_PHY_INF_SEL_PHY | NEMACCTL_LPIHWCLKEN;
+		writel(ret, td->sfr + NEMAC0CTL_OFFSET);
+		writel(reg, td->sfr + NMISCCTL_OFFSET);
 	} else {
+		/* XXX emac1: td->port_interface = ENABLE_SGMII_INTERFACE; */
+		/* plat->phy_interface = PHY_INTERFACE_MODE_SGMII; */
+		/* plat->max_speed = 2500; */
+		/* td->is_sgmii_2p5g = true; */
 		/* Enable all clocks to eMAC Port1 */
 		ret = readl(td->sfr + NCLKCTRL1_OFFSET);
 		if (td->plat->phy_interface == PHY_INTERFACE_MODE_SGMII &&
@@ -1626,8 +1644,6 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 			else
 				ret |= NEMACCTL_SP_SEL_SGMII_1000M;
 		} else {
-			void __iomem *xpcs = xgmac + XPCS_XGMAC_OFFSET;
-
 			reg_value = tc956x_xpcs_read(xpcs, XGMAC_VR_XS_PCS_KR_CTRL);
 			reg_value &= ~XGMAC_USXG_MODE; /*USXG_MODE : 0x000*/
 			tc956x_xpcs_write(xpcs, XGMAC_VR_XS_PCS_KR_CTRL, reg_value);
