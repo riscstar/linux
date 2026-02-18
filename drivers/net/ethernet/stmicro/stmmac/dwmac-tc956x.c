@@ -1391,13 +1391,11 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 	}
 
 	/*
-	 * TODO: tx_queues_to_use would normally be set to 8
-	 *
-	 * 1. ping stops working if we set tx_queues_to_use to 8
-	 * 2. functional reliability is poor of tx_queues_to_use is >2
-	 *    (DHCP fails to get IP address)
+	 * TODO: tx_queues_to_use would normally be set to 8. However functional
+	 *       reliability becomes poor (DHCP fails to get IP address or, if
+	 *       it gets an address, ping does not work) if tx_queues_to_use >3
 	 */
-	plat->tx_queues_to_use = 2;
+	plat->tx_queues_to_use = 3;
 	plat->tx_sched_algorithm = MTL_TX_ALGORITHM_WRR;
 
 	for (int i = 0; i < plat->tx_queues_to_use; i++) {
