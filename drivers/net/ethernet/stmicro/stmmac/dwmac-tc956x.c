@@ -759,17 +759,6 @@ static void tc956x_eee_clk_init(struct tc956x_data *td)
 	writel(val, td->sfr + NCLKCTRL0_OFFSET);
 }
 
-/* XXX Apparently this enables the clock and never disables? */
-static void tc956x_msigen_clock_enable(struct tc956x_data *td)
-{
-	void __iomem *addr = td->sfr + NCLKCTRL0_OFFSET;
-	u32 val;
-
-	val = readl(addr);
-	val |= TC956X_MSIGENCEN;
-	writel(val, addr);
-}
-
 /* XXX Apparently this asserts reset and never deasserts? */
 static void tc956x_msigen_reset_assert(struct tc956x_data *td)
 {
@@ -792,12 +781,18 @@ static void tc956x_msigen_reset_assert(struct tc956x_data *td)
 static void tc956x_msigen_init(struct stmmac_priv *priv, struct net_device *dev)
 {
 	struct tc956x_data *td = priv->plat->bsp_priv;
+	void __iomem *addr;
 	void __iomem *base;
+	u32 val;
 
 	tc956x_eee_clk_init(td);
 
 	/* Enable MSIGEN Module */
-	tc956x_msigen_clock_enable(td);
+	addr = td->sfr + NCLKCTRL0_OFFSET;
+	val = readl(addr);
+	val |= TC956X_MSIGENCEN;
+	writel(val, addr);
+
 	tc956x_msigen_reset_assert(td);
 
 	/* Initialize MSIGEN */
