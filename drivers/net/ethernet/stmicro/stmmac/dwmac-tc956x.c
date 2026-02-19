@@ -739,26 +739,6 @@ static void tc956x_xpcs_ctrl_ane(struct tc956x_data *td, bool ane)
 // Code from tc956x_msigen.c in vendor driver
 //
 
-// TODO: this is the #ifdef EEE_MAC_CONTROLLED_MODE stanza from
-//       tc965xmac_main.c. It's nothing to do with xpcs but it
-//       appears just before MSI initialization so this gets
-//       things turned on in the same order we see in the vendor
-//       driver
-//
-//       EEE_MAC_CONTROLLED_MODE if enabled (as here) means the MAC
-//       (not the PHY) controls EEE mode
-static void tc956x_eee_clk_init(struct tc956x_data *td)
-{
-	u32 val;
-
-	val = readl(td->sfr + NCLKCTRL0_OFFSET);
-	/* XXX Is this conditional on eMAC0, or on the first to initialize? */
-	if (td->emac0)
-		val |= CLK0_MAC0_CORE_MASK;
-	val |= CLK0_BUS_MASK;
-	writel(val, td->sfr + NCLKCTRL0_OFFSET);
-}
-
 /* XXX Apparently this asserts reset and never deasserts? */
 static void tc956x_msigen_reset_assert(struct tc956x_data *td)
 {
@@ -785,10 +765,14 @@ static void tc956x_msigen_init(struct stmmac_priv *priv, struct net_device *dev)
 	void __iomem *base;
 	u32 val;
 
-	tc956x_eee_clk_init(td);
+	addr = td->sfr + NCLKCTRL0_OFFSET;
+
+	/* XXX Is this conditional on eMAC0, or on the first to initialize? */
+	if (td->emac0)
+		val |= CLK0_MAC0_CORE_MASK;
+	val |= CLK0_BUS_MASK;
 
 	/* Enable MSIGEN Module */
-	addr = td->sfr + NCLKCTRL0_OFFSET;
 	val = readl(addr);
 	val |= TC956X_MSIGENCEN;
 	writel(val, addr);
