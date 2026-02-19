@@ -1213,6 +1213,8 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 	u32 commonclk_val;
 	void *nrst_reg;
 	void *nclk_reg;
+	u32 nrst_mask;
+	u32 nclk_mask;
 	u32 nrst_val;
 	u32 nclk_val;
 
@@ -1221,10 +1223,16 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 	/* Select register address by port */
 	if (td->emac0) {
 		nrst_reg = td->sfr + NRSTCTRL0_OFFSET;
+		nrst_mask = NRSTCTRL_EMAC_MASK;
 		nclk_reg = td->sfr + NCLKCTRL0_OFFSET;
+		nclk_mask = CLK1_MAC1RMCEN | CLK0_MAC0_CORE_MASK |
+				CLK0_MAC0_IO_MASK;
 	} else {
 		nrst_reg = td->sfr + NRSTCTRL1_OFFSET;
+		nrst_mask = NRSTCTRL_EMAC_MASK;
 		nclk_reg = td->sfr + NCLKCTRL1_OFFSET;
+		nclk_mask = CLK1_MAC1RMCEN | CLK0_MAC0_CORE_MASK |
+				CLK0_MAC0_IO_MASK;
 	}
 
 	if (suspend) {
@@ -1237,15 +1245,11 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 			 __func__, td->emac0 ? 0 : 1, priv->dev->name,
 			 nrst_val, nclk_val);
 		/* Save values before Asserting reset and Clock Disable */
-		td->pm_saved_emac_rst = nrst_val & NRSTCTRL_EMAC_MASK;
-		td->pm_saved_emac_clk = nclk_val & CLK1_MAC1RMCEN;
-		td->pm_saved_emac_clk |= nclk_val & CLK0_MAC0_CORE_MASK;
-		td->pm_saved_emac_clk |= nclk_val & CLK0_MAC0_IO_MASK;
+		td->pm_saved_emac_rst = nrst_val & nrst_mask;
+		td->pm_saved_emac_clk = nclk_val & nclk_mask;
 
-		nrst_val = nrst_val | NRSTCTRL_EMAC_MASK;
-		nclk_val &= ~CLK1_MAC1RMCEN;
-		nclk_val &= ~CLK0_MAC0_CORE_MASK;
-		nclk_val &= ~CLK0_MAC0_IO_MASK;
+		nrst_val |= nrst_mask;
+		nclk_val &= ~nclk_mask;
 		writel(nrst_val, nrst_reg);
 		writel(nclk_val, nclk_reg);
 		/* Zero active means are suspended */
@@ -1285,7 +1289,7 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 			 __func__, td->emac0 ? 0 : 1, priv->dev->name,
 			 nrst_val, nclk_val);
 		/* Restore values same as before suspend */
-		nrst_val = (nrst_val & ~NRSTCTRL_EMAC_MASK) | td->pm_saved_emac_rst;
+		nrst_val = (nrst_val & ~nrst_mask) | td->pm_saved_emac_rst;
 		nclk_val = nclk_val | td->pm_saved_emac_clk; /* Restore Clock */
 		writel(nclk_val, nclk_reg);
 		writel(nrst_val, nrst_reg);
