@@ -2003,8 +2003,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		void __iomem *nclk_reg;
 		u32 nrst_mask;
 		u32 nclk_mask;
-		u32 nrst_val;
-		u32 nclk_val;
+		u32 val;
 
 		if (td->emac0) {
 			nrst_reg = td->sfr + NRSTCTRL0_OFFSET;
@@ -2018,24 +2017,22 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 			nclk_mask = CLK1_MAC1_CORE_MASK | CLK1_MAC1_IO_MASK;
 			nclk_mask |= CLK1_MAC1RMCEN;
 		}
-		nrst_val = readl(nrst_reg);
-		nclk_val = readl(nclk_reg);
 
-		/* Assert reset and Disable Clock for EMAC */
-		nrst_val |= nrst_mask;
-		nclk_val &= ~nclk_mask;
-		writel(nrst_val, nrst_reg);
-		writel(nclk_val, nclk_reg);
+		/* Assert resets */
+		val = readl(nrst_reg);
+		val |= nrst_mask;
+		writel(val, nrst_reg);
 
-		if (ret == -ENODEV) {
-			dev_dbg(dev, "Port%d Bus%x will be registered as PCIe device only",
-				 td->emac0 ? 0 : 1, pdev->bus->number);
-			/* Make sure probe() succeeds by returning 0 to caller of probe() */
-			ret = 0;
-		} else {
-			dev_err(dev, "<--%s : ret: %d\n", __func__, ret);
+		/* Disable clocks */
+		val = readl(nclk_reg);
+		val &= ~nclk_mask;
+		writel(val, nclk_reg);
+
+		if (ret != -ENODEV)
 			goto err_dvr_probe;
-		}
+
+		/* Make sure probe() succeeds by returning 0 to caller of probe() */
+		ret = 0;	/* XXX Why? */
 	}
 
 	dev_dbg(dev, "<--%s : Adding DSP Cut Through Settings", __func__);
