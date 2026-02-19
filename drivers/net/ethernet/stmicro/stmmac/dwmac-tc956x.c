@@ -1735,17 +1735,6 @@ static void tc956x_intc_reset(struct tc956x_data *td, bool assert)
 	writel(val, addr);
 }
 
-/* XXX Apparently this enables the clock and never disables? */
-static void tc956x_intc_clock_enable(struct tc956x_data *td)
-{
-	void __iomem *addr = td->sfr + NCLKCTRL0_OFFSET;
-	u32 val;
-
-	val = readl(addr);
-	val |= NCLKCTRL0_INTCEN;
-	writel(val, addr);
-}
-
 /**
  * tc956x_pci_probe() - PCI driver probe callback
  * @pdev:	PCI device pointer
@@ -1881,9 +1870,13 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 	/* XXX eMAC0, or first one probed? */
 	if (td->emac0) {
+		void __iomem *addr = td->sfr + NCLKCTRL0_OFFSET;
+
 		/* Enable the interrupt controller */
 		tc956x_intc_reset(td, true);
-		tc956x_intc_clock_enable(td);
+		val = readl(addr);
+		val |= NCLKCTRL0_INTCEN;
+		writel(val, addr);
 		tc956x_intc_reset(td, false);
 		tc956x_config_tamap(td);
 	}
