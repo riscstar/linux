@@ -2235,13 +2235,16 @@ static void tc956x_pcie_pm_disable_pci(struct pci_dev *pdev)
  */
 static int tc956x_pcie_pm_pci(struct pci_dev *pdev, bool suspend)
 {
-	static struct pci_dev *tc956x_pd = NULL, *tc956x_dsp_ep = NULL, *tc956x_port_pdev[2] = {NULL};
-	struct pci_bus *bus = NULL;
-	int i = 0, p = 0;
 	struct net_device *ndev = dev_get_drvdata(&pdev->dev);
 	struct stmmac_priv *priv = netdev_priv(ndev);
 	struct tc956x_data *td = priv->plat->bsp_priv;
+	struct pci_dev *tc956x_port_pdev[2] = { };
+	struct pci_dev *tc956x_dsp_ep;
+	struct pci_dev *tc956x_pd;
+	struct pci_bus *bus;
+	int i = 0;
 	int ret;
+	int p;
 
 	/* Zero active means are suspended */
 	if (!tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt) {
@@ -2250,7 +2253,7 @@ static int tc956x_pcie_pm_pci(struct pci_dev *pdev, bool suspend)
 
 		if (bus)
 			list_for_each_entry(tc956x_pd, &bus->devices, bus_list)
-		tc956x_port_pdev[i++] = tc956x_pd;
+				tc956x_port_pdev[i++] = tc956x_pd;
 
 		for (p = 0; ((p < i) && (tc956x_port_pdev[p] != NULL)); p++) {
 			/* Enter only if at least 1 Port Suspended */
