@@ -361,7 +361,7 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 #define TC956X_MSI_SET6		(0x00000000)
 #define TC956X_MSI_SET7		(0x00000000)
 
-/* EMAC control registers for ports 0 and 1 */
+/* EMAC control registers for ports 0 and 1 (both have same format) */
 #define NEMAC0CTL_OFFSET	0x1070
 #define NEMAC1CTL_OFFSET	0x1074
 
@@ -375,7 +375,7 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 /* XXX Fix this to use u32_assign_bits() */
 /*	NEMACCTL_PHY_INF_SEL_PLL		0x00	clock from internal PLL */
 #define NEMACCTL_PHY_INF_SEL_PHY		0x10	/* clock from PHY */
-
+#define EMAC_INV_SGM_SIG_DET			BIT(6)
 #define NEMACCTL_LPIHWCLKEN			BIT(8)	/* 1 = low power mode */
 
 #define NEMACCTL_INIT_DONE			BIT(21)
@@ -1575,7 +1575,7 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 		reg_value = tc956x_xpcs_read(xpcs, XGMAC_VR_XS_PCS_KR_CTRL);
 		reg_value &= ~XGMAC_USXG_MODE; /*USXG_MODE : 0x000*/
 		tc956x_xpcs_write(xpcs, XGMAC_VR_XS_PCS_KR_CTRL, reg_value);
-		ret &= ~0x00000040; /* Mask Polarity */
+		ret &= ~EMAC_INV_SGM_SIG_DET;
 		ret |= NEMACCTL_PHY_INF_SEL_PHY | NEMACCTL_LPIHWCLKEN;
 		writel(ret, td->sfr + NEMAC0CTL_OFFSET);
 		writel(reg, td->sfr + NMISCCTL_OFFSET);
@@ -1609,7 +1609,7 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 			tc956x_xpcs_write(xpcs, XGMAC_VR_XS_PCS_KR_CTRL, reg_value);
 		}
 
-		ret &= ~(0x00000040); /* Mask Polarity */
+		ret &= ~EMAC_INV_SGM_SIG_DET;
 		ret |= NEMACCTL_PHY_INF_SEL_PHY | NEMACCTL_LPIHWCLKEN;
 		writel(ret, td->sfr + NEMAC1CTL_OFFSET);
 		writel(reg, td->sfr + NMISCCTL_OFFSET);
@@ -1710,7 +1710,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	struct tc956x_data *td;
 	/* use signal from EMSPHY */
 	uint16_t sh_mem_offset;
-	uint8_t SgmSigPol = 0;
 	void __iomem *virt;
 	bool mode2;
 	u32 pfn;
@@ -1888,9 +1887,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		else if (td->port_interface == ENABLE_XFI_INTERFACE)
 			ret |= NEMACCTL_SP_SEL_USXGMII_10G_10G;
 
-		ret &= ~(0x00000040); /* Mask Polarity */
-		if (SgmSigPol == 1)
-			ret |= 0x00000040; /* Set Active low */
+		ret &= ~EMAC_INV_SGM_SIG_DET;
 
 		ret |= NEMACCTL_PHY_INF_SEL_PHY | NEMACCTL_LPIHWCLKEN;
 		writel(ret, td->sfr + NEMAC0CTL_OFFSET);
@@ -1922,9 +1919,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		else if (td->port_interface == ENABLE_XFI_INTERFACE)
 			ret |= NEMACCTL_SP_SEL_USXGMII_10G_10G;
 
-		ret &= ~(0x00000040); /* Mask Polarity */
-		if (SgmSigPol == 1)
-			ret |= 0x00000040; /* Set Active low */
+		ret &= ~EMAC_INV_SGM_SIG_DET;
 
 		ret |= NEMACCTL_PHY_INF_SEL_PHY | NEMACCTL_LPIHWCLKEN;
 		writel(ret, td->sfr + NEMAC1CTL_OFFSET);
@@ -2311,7 +2306,6 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 	struct stmmac_priv *priv = netdev_priv(ndev);
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	/* use signal from MSPHY */
-	uint8_t SgmSigPol = 0;
 	int ret = 0;
 	u32 val;
 
@@ -2351,9 +2345,7 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 		else if (td->port_interface == ENABLE_XFI_INTERFACE)
 			ret |= NEMACCTL_SP_SEL_USXGMII_10G_10G;
 
-		ret &= ~(0x00000040); /* Mask Polarity */
-		if (SgmSigPol == 1)
-			ret |= 0x00000040; /* Set Active low */
+		ret &= ~EMAC_INV_SGM_SIG_DET;
 
 		ret |= NEMACCTL_PHY_INF_SEL_PHY | NEMACCTL_LPIHWCLKEN;
 		writel(ret, td->sfr + NEMAC0CTL_OFFSET);
@@ -2385,9 +2377,7 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 		else if (td->port_interface == ENABLE_XFI_INTERFACE)
 			ret |= NEMACCTL_SP_SEL_USXGMII_10G_10G;
 
-		ret &= ~(0x00000040); /* Mask Polarity */
-		if (SgmSigPol == 1)
-			ret |= 0x00000040; /* Set Active low */
+		ret &= ~EMAC_INV_SGM_SIG_DET;
 
 		ret |= NEMACCTL_PHY_INF_SEL_PHY | NEMACCTL_LPIHWCLKEN;
 		writel(ret, td->sfr + NEMAC1CTL_OFFSET);
