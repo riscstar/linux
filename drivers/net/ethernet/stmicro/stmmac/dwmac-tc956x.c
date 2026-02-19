@@ -300,7 +300,6 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 
 #define NRSTCTRL_EMAC_MASK     (NRSTCTRL0_MAC0RST | NRSTCTRL0_MAC0PMARST | \
 				 NRSTCTRL0_MAC0PONRST)
-#define NCLKCTRL_EMAC_MASK     (NCLKCTRL1_MAC1RMCEN)
 #define NRSTCTRL0_DEFAULT	(NRSTCTRL0_MAC0PONRST | NRSTCTRL0_MAC0PMARST | \
 					NRSTCTRL0_MAC0RST)
 #define NRSTCTRL_COMMON (NRSTCTRL0_MSIGENRST  | NRSTCTRL0_UART0RST | \
@@ -1258,12 +1257,12 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 			 nrst_val, nclk_val);
 		/* Save values before Asserting reset and Clock Disable */
 		td->pm_saved_emac_rst = nrst_val & NRSTCTRL_EMAC_MASK;
-		td->pm_saved_emac_clk = nclk_val & NCLKCTRL_EMAC_MASK;
+		td->pm_saved_emac_clk = nclk_val & NCLKCTRL1_MAC1RMCEN;
 		td->pm_saved_emac_clk |= nclk_val & CLK0_MAC0_CORE;
 		td->pm_saved_emac_clk |= nclk_val & CLK0_MAC0_IO;
 
 		nrst_val = nrst_val | NRSTCTRL_EMAC_MASK;
-		nclk_val &= ~NCLKCTRL_EMAC_MASK;
+		nclk_val &= ~NCLKCTRL1_MAC1RMCEN;
 		nclk_val &= ~CLK0_MAC0_CORE;
 		nclk_val &= ~CLK0_MAC0_IO;
 		writel(nrst_val, nrst_reg);
@@ -2071,7 +2070,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 		/* Assert reset and Disable Clock for EMAC */
 		nrst_val = nrst_val | NRSTCTRL_EMAC_MASK;
-		nclk_val &= ~NCLKCTRL_EMAC_MASK;
+		nclk_val &= ~NCLKCTRL1_MAC1RMCEN;
 		nclk_val &= ~CLK0_MAC0_CORE;
 		nclk_val &= ~CLK0_MAC0_IO;
 		writel(nrst_val, nrst_reg);
