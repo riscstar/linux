@@ -302,6 +302,8 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 
 #define RST0_MAC0_POWER_MASK \
 		(RST0_MAC0PMARST | RST0_MAC0PONRST)
+#define RST0_OTHER_MASK	\
+		(RST0_UART0RST | RST0_MSIGENRST)
 
 #define NRSTCTRL1_OFFSET	0x1010	/* Reset control register 1 */
 #define RST1_MAC1RST		BIT(7)		/* individual */
@@ -313,8 +315,7 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 
 #define NRSTCTRL0_DEFAULT	(RST0_MAC0PONRST | RST0_MAC0PMARST | \
 					RST0_MAC0RST)
-#define NRSTCTRL_COMMON (RST0_MSIGENRST  | RST0_UART0RST | \
-					RST0_INTRST | RST0_MCURST)
+#define NRSTCTRL_COMMON (RST0_INTRST | RST0_MCURST)
 
 /* Field in the NCLKCTRL0 register to enable the MSIGEN clock */
 #define TC956X_MSIGENCEN	BIT(18)
@@ -2181,6 +2182,7 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 		nrst_val = readl(nrst_reg);
 		nclk_val = readl(nclk_reg);
 		nrst_val |= NRSTCTRL_COMMON;
+		nrst_val |= RST0_OTHER_MASK;
 		nclk_val |= CLK0_COMMON_MASK;
 		nclk_val &= ~CLK0_OTHER_MASK;
 		nclk_val &= ~CLK0_BUS_MASK;
