@@ -739,17 +739,6 @@ static void tc956x_xpcs_ctrl_ane(struct tc956x_data *td, bool ane)
 // Code from tc956x_msigen.c in vendor driver
 //
 
-/* XXX Apparently this asserts reset and never deasserts? */
-static void tc956x_msigen_reset_assert(struct tc956x_data *td)
-{
-	void __iomem *addr = td->sfr + NRSTCTRL0_OFFSET;
-	u32 val;
-
-	val = readl(addr);
-	val &= ~TC956X_MSIGENSRST;	/* XXX Does this DEassert? */
-	writel(val, addr);
-}
-
 /**
  * tc956x_msigen_init() - Initialize and configure the MSIGEN module
  * @priv:	STMMAC driver private data pointer
@@ -777,7 +766,11 @@ static void tc956x_msigen_init(struct stmmac_priv *priv, struct net_device *dev)
 	val |= TC956X_MSIGENCEN;
 	writel(val, addr);
 
-	tc956x_msigen_reset_assert(td);
+	addr = td->sfr + NRSTCTRL0_OFFSET;
+
+	val = readl(addr);
+	val &= ~TC956X_MSIGENSRST;	/* XXX Does this DEassert? */
+	writel(val, addr);
 
 	/* Initialize MSIGEN */
 
