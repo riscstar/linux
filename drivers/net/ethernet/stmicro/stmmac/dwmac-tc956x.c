@@ -277,6 +277,14 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 #define CLK0_BUS_MASK \
 		(CLK0_POEPLLCEN | CLK0_SGMPCIEN | CLK0_REFCLKOCEN)
 
+#define NCLKCTRL1_OFFSET	0x100c	/* Clock control register 1 */
+#define CLK1_MAC1TXCEN		BIT(7)
+#define CLK1_MAC1RXCEN		BIT(14)
+#define CLK1_MAC1RMCEN		BIT(15)
+#define CLK1_MAC1125CLKEN	BIT(29)
+#define CLK1_MAC1312CLKEN	BIT(30)
+#define CLK1_MAC1ALLCLKEN	BIT(31)
+
 #define NRSTCTRL0_OFFSET	(0x1008)  /* TC956X reset control Register-0 */
 #define NRSTCTRL0_MCURST	BIT(0)		/* M3 system reset */
 #define NRSTCTRL0_MCU1RST	BIT(1)		/* M3 cold reset */
@@ -286,14 +294,6 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 #define NRSTCTRL0_MSIGENRST	BIT(18)
 #define NRSTCTRL0_MAC0PMARST	BIT(30)
 #define NRSTCTRL0_MAC0PONRST	BIT(31)
-
-#define NCLKCTRL1_OFFSET	(0x100C)  /* TC956X clock control Register-1 for eMAC Port-1*/
-#define NCLKCTRL1_MAC1TXCEN	BIT(7)
-#define NCLKCTRL1_MAC1RXCEN	BIT(14)
-#define NCLKCTRL1_MAC1RMCEN	BIT(15)
-#define NCLKCTRL1_MAC1125CLKEN1	BIT(29)
-#define NCLKCTRL1_MAC1312CLKEN1	BIT(30)
-#define NCLKCTRL1_MAC1ALLCLKEN1	BIT(31)
 
 #define NRSTCTRL1_OFFSET	(0x1010)  /* TC956X reset control Register-1 for eMAC Port-1*/
 #define NRSTCTRL1_MAC1RST1	BIT(7)
@@ -1258,12 +1258,12 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 			 nrst_val, nclk_val);
 		/* Save values before Asserting reset and Clock Disable */
 		td->pm_saved_emac_rst = nrst_val & NRSTCTRL_EMAC_MASK;
-		td->pm_saved_emac_clk = nclk_val & NCLKCTRL1_MAC1RMCEN;
+		td->pm_saved_emac_clk = nclk_val & CLK1_MAC1RMCEN;
 		td->pm_saved_emac_clk |= nclk_val & CLK0_MAC0_CORE_MASK;
 		td->pm_saved_emac_clk |= nclk_val & CLK0_MAC0_IO_MASK;
 
 		nrst_val = nrst_val | NRSTCTRL_EMAC_MASK;
-		nclk_val &= ~NCLKCTRL1_MAC1RMCEN;
+		nclk_val &= ~CLK1_MAC1RMCEN;
 		nclk_val &= ~CLK0_MAC0_CORE_MASK;
 		nclk_val &= ~CLK0_MAC0_IO_MASK;
 		writel(nrst_val, nrst_reg);
@@ -1631,11 +1631,11 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 		ret = readl(td->sfr + NCLKCTRL1_OFFSET);
 		if (td->plat->phy_interface == PHY_INTERFACE_MODE_SGMII &&
 		    speed == SPEED_2500) {
-			ret &= ~NCLKCTRL1_MAC1125CLKEN1;
-			ret &= ~NCLKCTRL1_MAC1312CLKEN1;
+			ret &= ~CLK1_MAC1125CLKEN;
+			ret &= ~CLK1_MAC1312CLKEN;
 		} else {
-			ret &= ~NCLKCTRL1_MAC1312CLKEN1;
-			ret |= NCLKCTRL1_MAC1125CLKEN1;
+			ret &= ~CLK1_MAC1312CLKEN;
+			ret |= CLK1_MAC1125CLKEN;
 		}
 		writel(ret, td->sfr + NCLKCTRL1_OFFSET);
 
@@ -1957,11 +1957,11 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		/* Enable all clocks to eMAC Port1 */
 		ret = readl(td->sfr + NCLKCTRL1_OFFSET);
 
-		ret |= NCLKCTRL1_MAC1TXCEN | NCLKCTRL1_MAC1RXCEN |
-			NCLKCTRL1_MAC1ALLCLKEN1 | NCLKCTRL1_MAC1RMCEN;
+		ret |= CLK1_MAC1TXCEN | CLK1_MAC1RXCEN |
+			CLK1_MAC1ALLCLKEN | CLK1_MAC1RMCEN;
 		if (td->port_interface == ENABLE_SGMII_INTERFACE) {
-			ret &= ~NCLKCTRL1_MAC1125CLKEN1;
-			ret &= ~NCLKCTRL1_MAC1312CLKEN1;
+			ret &= ~CLK1_MAC1125CLKEN;
+			ret &= ~CLK1_MAC1312CLKEN;
 		}
 		writel(ret, td->sfr + NCLKCTRL1_OFFSET);
 
@@ -2064,7 +2064,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 		/* Assert reset and Disable Clock for EMAC */
 		nrst_val = nrst_val | NRSTCTRL_EMAC_MASK;
-		nclk_val &= ~NCLKCTRL1_MAC1RMCEN;
+		nclk_val &= ~CLK1_MAC1RMCEN;
 		nclk_val &= ~CLK0_MAC0_CORE_MASK;
 		nclk_val &= ~CLK0_MAC0_IO_MASK;
 		writel(nrst_val, nrst_reg);
@@ -2427,11 +2427,11 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 		/* Enable all clocks to eMAC Port1 */
 		ret = readl(td->sfr + NCLKCTRL1_OFFSET);
 
-		ret |= NCLKCTRL1_MAC1TXCEN | NCLKCTRL1_MAC1RXCEN |
-			NCLKCTRL1_MAC1ALLCLKEN1 | NCLKCTRL1_MAC1RMCEN;
+		ret |= CLK1_MAC1TXCEN | CLK1_MAC1RXCEN |
+			CLK1_MAC1ALLCLKEN | CLK1_MAC1RMCEN;
 		if (td->port_interface == ENABLE_SGMII_INTERFACE) {
-			ret &= ~NCLKCTRL1_MAC1125CLKEN1;
-			ret &= ~NCLKCTRL1_MAC1312CLKEN1;
+			ret &= ~CLK1_MAC1125CLKEN;
+			ret &= ~CLK1_MAC1312CLKEN;
 		}
 		writel(ret, td->sfr + NCLKCTRL1_OFFSET);
 
