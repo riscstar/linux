@@ -272,6 +272,8 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 				 NCLKCTRL0_MAC0ALLCLKEN)
 #define CLK0_MAC0_CORE		(NCLKCTRL0_MAC0125CLKEN | \
 				 NCLKCTRL0_MAC0312CLKEN)
+#define CLK0_BUS		(NCLKCTRL0_POEPLLCEN | NCLKCTRL0_SGMPCIEN | \
+				 NCLKCTRL0_REFCLKOCEN)
 
 #define NRSTCTRL0_OFFSET	(0x1008)  /* TC956X reset control Register-0 */
 #define NRSTCTRL0_MCURST	BIT(0)		/* M3 system reset */
@@ -299,15 +301,11 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 #define NRSTCTRL_EMAC_MASK     (NRSTCTRL0_MAC0RST | NRSTCTRL0_MAC0PMARST | \
 				 NRSTCTRL0_MAC0PONRST)
 #define NCLKCTRL_EMAC_MASK     (NCLKCTRL1_MAC1RMCEN)
-#define NCLKCTRL0_COMMON_EMAC_MASK     (NCLKCTRL0_POEPLLCEN | NCLKCTRL0_SGMPCIEN | \
-				 NCLKCTRL0_REFCLKOCEN)
 #define NRSTCTRL0_DEFAULT	(NRSTCTRL0_MAC0PONRST | NRSTCTRL0_MAC0PMARST | \
 					NRSTCTRL0_MAC0RST)
 #define NRSTCTRL_COMMON (NRSTCTRL0_MSIGENRST  | NRSTCTRL0_UART0RST | \
 					NRSTCTRL0_INTRST | NRSTCTRL0_MCURST)
-#define NCLKCTRL_DISABLE_COMMON_EMAC_MASK (NCLKCTRL0_REFCLKOCEN | \
-								NCLKCTRL0_SGMPCIEN | NCLKCTRL0_POEPLLCEN | \
-								NCLKCTRL0_MSIGENCEN | NCLKCTRL0_UARTOCEN)
+#define NCLKCTRL_DISABLE_COMMON_EMAC_MASK (NCLKCTRL0_MSIGENCEN | NCLKCTRL0_UARTOCEN)
 
 /* Field in the NCLKCTRL0 register to enable the MSIGEN clock */
 #define TC956X_MSIGENCEN	BIT(18)
@@ -752,7 +750,7 @@ static void tc956x_eee_clk_init(struct tc956x_data *td)
 	/* XXX Is this conditional on eMAC0, or on the first to initialize? */
 	if (td->emac0)
 		val |= CLK0_MAC0_CORE;
-	val |= NCLKCTRL0_POEPLLCEN | NCLKCTRL0_SGMPCIEN | NCLKCTRL0_REFCLKOCEN;
+	val |= CLK0_BUS;
 	writel(val, td->sfr + NCLKCTRL0_OFFSET);
 }
 
@@ -1278,7 +1276,7 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 				 __func__, td->emac0 ? 0 : 1,
 				 priv->dev->name, commonclk_val);
 			/* Clear Common Clocks only when both port suspends */
-			commonclk_val = commonclk_val & ~NCLKCTRL0_COMMON_EMAC_MASK;
+			commonclk_val = commonclk_val & ~CLK0_BUS;
 			writel(commonclk_val, commonclk_reg);
 			pr_debug("%s : Port %d interface %s Common CLK Wr Reg:%x",
 				 __func__, td->emac0 ? 0 : 1,
@@ -1295,7 +1293,7 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 				 __func__, td->emac0 ? 0 : 1, priv->dev->name,
 				 commonclk_val);
 			/* Clear Common Clocks only when both port suspends */
-			commonclk_val = commonclk_val | NCLKCTRL0_COMMON_EMAC_MASK;
+			commonclk_val = commonclk_val | CLK0_BUS;
 			writel(commonclk_val, commonclk_reg);
 			pr_debug("%s : Port %d interface %s Common CLK WR Reg:%x",
 				 __func__, td->emac0 ? 0 : 1,
@@ -1929,9 +1927,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 		/* Only if "current" port is SGMII 2.5G, configure below clocks. */
 		if (td->port_interface == ENABLE_SGMII_INTERFACE) {
-			ret &= ~NCLKCTRL0_POEPLLCEN;
-			ret &= ~NCLKCTRL0_SGMPCIEN;
-			ret &= ~NCLKCTRL0_REFCLKOCEN;
+			ret &= ~CLK0_BUS;
 			ret &= ~CLK0_MAC0_CORE;
 		}
 		writel(ret, td->sfr + NCLKCTRL0_OFFSET);
@@ -2207,6 +2203,7 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 		nrst_val |= NRSTCTRL_COMMON;
 		nclk_val |= CLK0_COMMON;
 		nclk_val &= ~NCLKCTRL_DISABLE_COMMON_EMAC_MASK;
+		nclk_val &= ~CLK0_BUS;
 		nclk_val &= ~CLK0_MAC0_CORE;
 		nclk_val &= ~CLK0_MAC0_IO;
 		nclk_val &= ~NCLKCTRL0_INTCEN;
@@ -2400,9 +2397,7 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 
 		if (td->port_interface == ENABLE_SGMII_INTERFACE) {
 			/* Disable Clocks for 2.5Gbps SGMII */
-			ret &= ~NCLKCTRL0_POEPLLCEN;
-			ret &= ~NCLKCTRL0_SGMPCIEN;
-			ret &= ~NCLKCTRL0_REFCLKOCEN;
+			ret &= ~CLK0_BUS;
 			ret &= ~CLK0_MAC0_CORE;
 		}
 		writel(ret, td->sfr + NCLKCTRL0_OFFSET);
