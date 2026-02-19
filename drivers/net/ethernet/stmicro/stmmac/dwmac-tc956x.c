@@ -1899,9 +1899,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
 		ret &= ~RST0_MAC0RST;
 		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
-	}
-
-	if (!td->emac0) {
+	} else {
 		ret = readl(td->sfr + NRSTCTRL1_OFFSET);
 		/* Assertion of EMAC Port1 software Reset*/
 		ret |= RST1_MAC1RST;
@@ -2364,9 +2362,7 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
 		ret &= ~RST0_MAC0RST;
 		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
-	}
-
-	if (!td->emac0) {
+	} else {
 		ret = readl(td->sfr + NRSTCTRL1_OFFSET);
 		/* Assertion of EMAC Port1 software Reset*/
 		ret |= RST1_MAC1RST;
