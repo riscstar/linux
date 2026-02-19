@@ -1217,11 +1217,9 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 	void __iomem *commonclk_reg;
 	void __iomem *nrst_reg;
 	void __iomem *nclk_reg;
-	u32 commonclk_val;
 	u32 nrst_mask;
 	u32 nclk_mask;
-	u32 nrst_val;
-	u32 nclk_val;
+	u32 val;
 
 	/* Select register address by port */
 	if (td->emac0) {
@@ -1238,40 +1236,44 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 	}
 
 	if (suspend) {
-		nrst_val = readl(nrst_reg);
-		td->pm_saved_emac_rst = nrst_val & nrst_mask;
-		nrst_val |= nrst_mask;
-		writel(nrst_val, nrst_reg);
+		/* Save current reset state, and assert resets */
+		val = readl(nrst_reg);
+		td->pm_saved_emac_rst = val & nrst_mask;
+		val |= nrst_mask;
+		writel(val, nrst_reg);
 
-		nclk_val = readl(nclk_reg);
-		td->pm_saved_emac_clk = nclk_val & nclk_mask;
-		nclk_val &= ~nclk_mask;
-		writel(nclk_val, nclk_reg);
+		/* Save current clock state, and disable clocks */
+		val = readl(nclk_reg);
+		td->pm_saved_emac_clk = val & nclk_mask;
+		val &= ~nclk_mask;
+		writel(val, nclk_reg);
 
-		/* Zero active means all are suspending */
+		/* If zero are active, disable common clocks */
 		if (!tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt) {
 			commonclk_reg = td->sfr + NCLKCTRL0_OFFSET;
-			commonclk_val = readl(commonclk_reg);
-			commonclk_val = commonclk_val & ~CLK0_BUS_MASK;
-			writel(commonclk_val, commonclk_reg);
+			val = readl(commonclk_reg);
+			val = val & ~CLK0_BUS_MASK;
+			writel(val, commonclk_reg);
 		}
 	} else {
-		/* Zero active means all were suspended */
+		/* If zero were active, re-enable common clocks */
 		if (!tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt) {
 			commonclk_reg = td->sfr + NCLKCTRL0_OFFSET;
-			commonclk_val = readl(commonclk_reg);
-			commonclk_val = commonclk_val | CLK0_BUS_MASK;
-			writel(commonclk_val, commonclk_reg);
+			val = readl(commonclk_reg);
+			val = val | CLK0_BUS_MASK;
+			writel(val, commonclk_reg);
 		}
 
-		/* Restore values same as before suspend */
-		nclk_val = readl(nclk_reg);
-		nclk_val = nclk_val | td->pm_saved_emac_clk;
-		writel(nclk_val, nclk_reg);
+		/* Restore saved clock state */
+		val = readl(nclk_reg);
+		val = val | td->pm_saved_emac_clk;
+		writel(val, nclk_reg);
 
-		nrst_val = readl(nrst_reg);
-		nrst_val = (nrst_val & ~nrst_mask) | td->pm_saved_emac_rst;
-		writel(nrst_val, nrst_reg);
+		/* Restore saved reset state */
+		val = readl(nrst_reg);
+		/* XXX What's the point of clearing the non-mask bits? */
+		val = (val & ~nrst_mask) | td->pm_saved_emac_rst;
+		writel(val, nrst_reg);
 	}
 }
 
