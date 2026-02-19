@@ -281,9 +281,12 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 #define CLK1_MAC1TXCEN		BIT(7)
 #define CLK1_MAC1RXCEN		BIT(14)
 #define CLK1_MAC1RMCEN		BIT(15)
-#define CLK1_MAC1125CLKEN	BIT(29)
-#define CLK1_MAC1312CLKEN	BIT(30)
+#define CLK1_MAC1125CLKEN	BIT(29)		/* CORE */
+#define CLK1_MAC1312CLKEN	BIT(30)		/* CORE */
 #define CLK1_MAC1ALLCLKEN	BIT(31)
+
+#define CLK1_MAC1_CORE_MASK \
+		(CLK1_MAC1125CLKEN | CLK1_MAC1312CLKEN)
 
 #define NRSTCTRL0_OFFSET	(0x1008)  /* TC956X reset control Register-0 */
 #define NRSTCTRL0_MCURST	BIT(0)		/* M3 system reset */
@@ -1631,8 +1634,7 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 		ret = readl(td->sfr + NCLKCTRL1_OFFSET);
 		if (td->plat->phy_interface == PHY_INTERFACE_MODE_SGMII &&
 		    speed == SPEED_2500) {
-			ret &= ~CLK1_MAC1125CLKEN;
-			ret &= ~CLK1_MAC1312CLKEN;
+			ret &= ~CLK1_MAC1_CORE_MASK;
 		} else {
 			ret &= ~CLK1_MAC1312CLKEN;
 			ret |= CLK1_MAC1125CLKEN;
@@ -1959,10 +1961,8 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 		ret |= CLK1_MAC1TXCEN | CLK1_MAC1RXCEN |
 			CLK1_MAC1ALLCLKEN | CLK1_MAC1RMCEN;
-		if (td->port_interface == ENABLE_SGMII_INTERFACE) {
-			ret &= ~CLK1_MAC1125CLKEN;
-			ret &= ~CLK1_MAC1312CLKEN;
-		}
+		if (td->port_interface == ENABLE_SGMII_INTERFACE)
+			ret &= ~CLK1_MAC1_CORE_MASK;
 		writel(ret, td->sfr + NCLKCTRL1_OFFSET);
 
 		/* Interface configuration for port1*/
@@ -2429,10 +2429,8 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 
 		ret |= CLK1_MAC1TXCEN | CLK1_MAC1RXCEN |
 			CLK1_MAC1ALLCLKEN | CLK1_MAC1RMCEN;
-		if (td->port_interface == ENABLE_SGMII_INTERFACE) {
-			ret &= ~CLK1_MAC1125CLKEN;
-			ret &= ~CLK1_MAC1312CLKEN;
-		}
+		if (td->port_interface == ENABLE_SGMII_INTERFACE)
+			ret &= ~CLK1_MAC1_CORE_MASK;
 		writel(ret, td->sfr + NCLKCTRL1_OFFSET);
 
 		/* Interface configuration for port1*/
