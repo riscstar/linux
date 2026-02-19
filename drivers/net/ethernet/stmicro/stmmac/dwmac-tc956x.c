@@ -1223,8 +1223,6 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 	u32 nrst_val;
 	u32 nclk_val;
 
-	pr_debug("-->%s : Port %d interface %s", __func__, td->emac0 ? 0 : 1,
-		 priv->dev->name);
 	/* Select register address by port */
 	if (td->emac0) {
 		nrst_reg = td->sfr + NRSTCTRL0_OFFSET;
@@ -1240,72 +1238,41 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 	}
 
 	if (suspend) {
-		pr_debug("%s : Port %d interface %s Set Power for Suspend",
-			 __func__, td->emac0 ? 0 : 1, priv->dev->name);
-		/* Modify register for reset, clock and MSI_OUTEN */
 		nrst_val = readl(nrst_reg);
-		nclk_val = readl(nclk_reg);
-		pr_debug("%s : Port %d interface %s Rd RST Reg:%x, CLK Reg:%x",
-			 __func__, td->emac0 ? 0 : 1, priv->dev->name,
-			 nrst_val, nclk_val);
-		/* Save values before Asserting reset and Clock Disable */
 		td->pm_saved_emac_rst = nrst_val & nrst_mask;
-		td->pm_saved_emac_clk = nclk_val & nclk_mask;
-
 		nrst_val |= nrst_mask;
-		nclk_val &= ~nclk_mask;
 		writel(nrst_val, nrst_reg);
+
+		nclk_val = readl(nclk_reg);
+		td->pm_saved_emac_clk = nclk_val & nclk_mask;
+		nclk_val &= ~nclk_mask;
 		writel(nclk_val, nclk_reg);
-		/* Zero active means are suspended */
+
+		/* Zero active means all are suspending */
 		if (!tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt) {
 			commonclk_reg = td->sfr + NCLKCTRL0_OFFSET;
 			commonclk_val = readl(commonclk_reg);
-			pr_debug("%s : Port %d interface %s Common CLK Rd Reg:%x",
-				 __func__, td->emac0 ? 0 : 1,
-				 priv->dev->name, commonclk_val);
-			/* Clear Common Clocks only when both port suspends */
 			commonclk_val = commonclk_val & ~CLK0_BUS_MASK;
 			writel(commonclk_val, commonclk_reg);
-			pr_debug("%s : Port %d interface %s Common CLK Wr Reg:%x",
-				 __func__, td->emac0 ? 0 : 1,
-				 priv->dev->name, commonclk_val);
 		}
 	} else {
-		pr_debug("%s : Port %d interface %s Set Power for Resume",
-			 __func__, td->emac0 ? 0 : 1, priv->dev->name);
-		/* Zero active means are suspended */
+		/* Zero active means all were suspended */
 		if (!tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt) {
 			commonclk_reg = td->sfr + NCLKCTRL0_OFFSET;
 			commonclk_val = readl(commonclk_reg);
-			pr_debug("%s : Port %d interface %s Common CLK Rd Reg:%x",
-				 __func__, td->emac0 ? 0 : 1, priv->dev->name,
-				 commonclk_val);
-			/* Clear Common Clocks only when both port suspends */
 			commonclk_val = commonclk_val | CLK0_BUS_MASK;
 			writel(commonclk_val, commonclk_reg);
-			pr_debug("%s : Port %d interface %s Common CLK WR Reg:%x",
-				 __func__, td->emac0 ? 0 : 1,
-				 priv->dev->name, commonclk_val);
 		}
-		nrst_val = readl(nrst_reg);
-		nclk_val = readl(nclk_reg);
-		pr_debug("%s : Port %d interface %s Rd RST Reg:%x, CLK Reg:%x",
-			 __func__, td->emac0 ? 0 : 1, priv->dev->name,
-			 nrst_val, nclk_val);
+
 		/* Restore values same as before suspend */
-		nrst_val = (nrst_val & ~nrst_mask) | td->pm_saved_emac_rst;
-		nclk_val = nclk_val | td->pm_saved_emac_clk; /* Restore Clock */
+		nclk_val = readl(nclk_reg);
+		nclk_val = nclk_val | td->pm_saved_emac_clk;
 		writel(nclk_val, nclk_reg);
+
+		nrst_val = readl(nrst_reg);
+		nrst_val = (nrst_val & ~nrst_mask) | td->pm_saved_emac_rst;
 		writel(nrst_val, nrst_reg);
 	}
-	pr_debug("%s : Port %d interface %s td->pm_saved_emac_rst %x td->pm_saved_emac_clk %x",
-		 __func__, td->emac0 ? 0 : 1, priv->dev->name,
-		 td->pm_saved_emac_rst, td->pm_saved_emac_clk);
-	pr_debug("%s : Port %d %s Wr RST Reg:%x, CLK Reg:%x", __func__,
-		td->emac0 ? 0 : 1, priv->dev->name,
-		readl(nrst_reg), readl(nclk_reg));
-	pr_debug("<--%s : Port %d interface %s", __func__, td->emac0 ? 0 : 1,
-		 priv->dev->name);
 }
 
 static void tc956x_get_interfaces(struct stmmac_priv *priv, void *bsp_priv,
@@ -2159,36 +2126,38 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 	/* Set reset value for CLK control and RESET Control registers */
 	if (td->emac0) {
 		nrst_reg = td->sfr + NRSTCTRL0_OFFSET;
-		nclk_reg = td->sfr + NCLKCTRL0_OFFSET;
 		nrst_val = readl(nrst_reg);
-		nclk_val = readl(nclk_reg);
 		nrst_val |= NRSTCTRL0_DEFAULT;
+		writel(nrst_val, nrst_reg);
+
+		nclk_reg = td->sfr + NCLKCTRL0_OFFSET;
+		nclk_val = readl(nclk_reg);
 		nclk_val &= ~CLK0_MAC0_CORE_MASK;
 		nclk_val &= ~CLK0_MAC0_IO_MASK;
+		writel(nclk_val, nclk_reg);
 	} else {
 		nrst_reg = td->sfr + NRSTCTRL1_OFFSET;
-		nclk_reg = td->sfr + NCLKCTRL1_OFFSET;
 		nrst_val = RST1_MAC1RST | RST1_MAC1_POWER_MASK;
+		writel(nrst_val, nrst_reg);
+
+		nclk_reg = td->sfr + NCLKCTRL1_OFFSET;
 		nclk_val = 0;
+		writel(nclk_val, nclk_reg);
 	}
-	writel(nrst_val, nrst_reg);
-	writel(nclk_val, nclk_reg);
 
 	/* If exactly one MAC is in use... */
 	if (tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt == 1) {
 		/* Set reset value for Common CLK control and Common RESET Control registers */
 		nrst_reg = td->sfr + NRSTCTRL0_OFFSET;
-		nclk_reg = td->sfr + NCLKCTRL0_OFFSET;
 		nrst_val = readl(nrst_reg);
-		nclk_val = readl(nclk_reg);
 		nrst_val |= RST0_MCU_MASK | RST0_INTRST | RST0_OTHER_MASK;
-		nclk_val |= CLK0_COMMON_MASK;
-		nclk_val &= ~CLK0_OTHER_MASK;
-		nclk_val &= ~CLK0_BUS_MASK;
-		nclk_val &= ~CLK0_MAC0_CORE_MASK;
-		nclk_val &= ~CLK0_MAC0_IO_MASK;
-		nclk_val &= ~CLK0_INTCEN;
 		writel(nrst_val, nrst_reg);
+
+		nclk_reg = td->sfr + NCLKCTRL0_OFFSET;
+		nclk_val = readl(nclk_reg);
+		nclk_val |= CLK0_COMMON_MASK;
+		nclk_val &= ~(CLK0_OTHER_MASK | CLK0_BUS_MASK | CLK0_INTCEN);
+		nclk_val &= ~(CLK0_MAC0_CORE_MASK | CLK0_MAC0_IO_MASK);
 		writel(nclk_val, nclk_reg);
 	}
 	pr_debug("%s : Port %d %s Wr RST Reg:%x, CLK Reg:%x", __func__,
