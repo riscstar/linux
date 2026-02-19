@@ -290,27 +290,27 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 #define CLK1_MAC1_IO_MASK \
 		(CLK1_MAC1TXCEN | CLK1_MAC1RXCEN | CLK1_MAC1ALLCLKEN)
 
-#define NRSTCTRL0_OFFSET	(0x1008)  /* TC956X reset control Register-0 */
-#define NRSTCTRL0_MCURST	BIT(0)		/* M3 system reset */
-#define NRSTCTRL0_MCU1RST	BIT(1)		/* M3 cold reset */
-#define NRSTCTRL0_INTRST	BIT(4)
-#define NRSTCTRL0_MAC0RST	BIT(7)
-#define NRSTCTRL0_UART0RST	BIT(16)
-#define NRSTCTRL0_MSIGENRST	BIT(18)
-#define NRSTCTRL0_MAC0PMARST	BIT(30)
-#define NRSTCTRL0_MAC0PONRST	BIT(31)
+#define NRSTCTRL0_OFFSET	0x1008	/* Reset control register 0 */
+#define RST0_MCURST		BIT(0)		/* M3 system reset */
+#define RST0_MCU1RST		BIT(1)		/* M3 cold reset */
+#define RST0_INTRST		BIT(4)
+#define RST0_MAC0RST		BIT(7)
+#define RST0_UART0RST		BIT(16)
+#define RST0_MSIGENRST		BIT(18)
+#define RST0_MAC0PMARST		BIT(30)
+#define RST0_MAC0PONRST		BIT(31)
 
-#define NRSTCTRL1_OFFSET	(0x1010)  /* TC956X reset control Register-1 for eMAC Port-1*/
-#define NRSTCTRL1_MAC1RST1	BIT(7)
-#define NRSTCTRL1_MAC1PMARST1	BIT(30)
-#define NRSTCTRL1_MAC1PONRST1	BIT(31)
+#define NRSTCTRL1_OFFSET	0x1010	/* Reset control register 1 */
+#define RST1_MAC1RST1		BIT(7)
+#define RST1_MAC1PMARST1	BIT(30)
+#define RST1_MAC1PONRST1	BIT(31)
 
-#define NRSTCTRL_EMAC_MASK     (NRSTCTRL0_MAC0RST | NRSTCTRL0_MAC0PMARST | \
-				 NRSTCTRL0_MAC0PONRST)
-#define NRSTCTRL0_DEFAULT	(NRSTCTRL0_MAC0PONRST | NRSTCTRL0_MAC0PMARST | \
-					NRSTCTRL0_MAC0RST)
-#define NRSTCTRL_COMMON (NRSTCTRL0_MSIGENRST  | NRSTCTRL0_UART0RST | \
-					NRSTCTRL0_INTRST | NRSTCTRL0_MCURST)
+#define NRSTCTRL_EMAC_MASK     (RST0_MAC0RST | RST0_MAC0PMARST | \
+				 RST0_MAC0PONRST)
+#define NRSTCTRL0_DEFAULT	(RST0_MAC0PONRST | RST0_MAC0PMARST | \
+					RST0_MAC0RST)
+#define NRSTCTRL_COMMON (RST0_MSIGENRST  | RST0_UART0RST | \
+					RST0_INTRST | RST0_MCURST)
 
 /* Field in the NCLKCTRL0 register to enable the MSIGEN clock */
 #define TC956X_MSIGENCEN	BIT(18)
@@ -1426,7 +1426,7 @@ static void tc956x_zero_sram(struct tc956x_data *td)
 static void tc956x_m3_reset(struct tc956x_data *td, bool assert)
 {
 	void __iomem *addr = td->sfr + NRSTCTRL0_OFFSET;
-	u32 mask = NRSTCTRL0_MCURST | NRSTCTRL0_MCU1RST;
+	u32 mask = RST0_MCURST | RST0_MCU1RST;
 	u32 val;
 
 	/* Note: 1 means assert */
@@ -1645,12 +1645,12 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 	if (td->emac0) {
 		/* Assertion of PMA & XPCS reset software Reset*/
 		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
-		ret |= (NRSTCTRL0_MAC0PMARST | NRSTCTRL0_MAC0PONRST);
+		ret |= (RST0_MAC0PMARST | RST0_MAC0PONRST);
 		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
 	} else {
 		/* Assertion of PMA &  XPCS reset  software Reset*/
 		ret = readl(td->sfr + NRSTCTRL1_OFFSET);
-		ret |= (NRSTCTRL1_MAC1PMARST1 | NRSTCTRL1_MAC1PONRST1);
+		ret |= (RST1_MAC1PMARST1 | RST1_MAC1PONRST1);
 		writel(ret, td->sfr + NRSTCTRL1_OFFSET);
 	}
 
@@ -1661,14 +1661,14 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 	if (td->emac0) {
 		/* De-assertion of PMA & XPCS reset software Reset*/
 		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
-		ret &= ~(NRSTCTRL0_MAC0PMARST | NRSTCTRL0_MAC0PONRST);
-		ret &= ~(NRSTCTRL0_MAC0RST | NRSTCTRL0_MAC0RST);
+		ret &= ~(RST0_MAC0PMARST | RST0_MAC0PONRST);
+		ret &= ~(RST0_MAC0RST | RST0_MAC0RST);
 
 		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
 	} else {
 		/* De-assertion of PMA &  XPCS reset software Reset*/
 		ret = readl(td->sfr + NRSTCTRL1_OFFSET);
-		ret &= ~(NRSTCTRL1_MAC1PMARST1 | NRSTCTRL1_MAC1PONRST1);
+		ret &= ~(RST1_MAC1PMARST1 | RST1_MAC1PONRST1);
 		writel(ret, td->sfr + NRSTCTRL1_OFFSET);
 	}
 
@@ -1712,9 +1712,9 @@ static void tc956x_intc_reset(struct tc956x_data *td, bool assert)
 	/* Note: 1 means assert */
 	val = readl(addr);
 	if (assert)
-		val |= NRSTCTRL0_INTRST;
+		val |= RST0_INTRST;
 	else
-		val &= ~NRSTCTRL0_INTRST;
+		val &= ~RST0_INTRST;
 	writel(val, addr);
 }
 
@@ -1890,7 +1890,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
 
 		/* Assertion of EMAC Port0 software Reset */
-		ret |= NRSTCTRL0_MAC0RST;
+		ret |= RST0_MAC0RST;
 
 		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
 
@@ -1924,7 +1924,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 		/* De-assertion of EMAC Port0  software Reset*/
 		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
-		ret &= ~(NRSTCTRL0_MAC0RST);
+		ret &= ~(RST0_MAC0RST);
 		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
 	}
 
@@ -1932,7 +1932,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		ret = readl(td->sfr + NRSTCTRL1_OFFSET);
 
 		/* Assertion of EMAC Port1 software Reset*/
-		ret |= NRSTCTRL1_MAC1RST1;
+		ret |= RST1_MAC1RST1;
 		writel(ret, td->sfr + NRSTCTRL1_OFFSET);
 
 		dev_dbg(dev, "Enabling all eMAC clocks for Port 1 Bus number-%x\n", pdev->bus->number);
@@ -1961,7 +1961,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 		/* De-assertion of EMAC Port1  software Reset */
 		ret = readl(td->sfr + NRSTCTRL1_OFFSET);
-		ret &= ~NRSTCTRL1_MAC1RST1;
+		ret &= ~RST1_MAC1RST1;
 		writel(ret, td->sfr + NRSTCTRL1_OFFSET);
 	}
 
@@ -1990,12 +1990,12 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	if (td->emac0) {
 		/* Assertion of PMA & XPCS reset software Reset*/
 		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
-		ret |= (NRSTCTRL0_MAC0PMARST | NRSTCTRL0_MAC0PONRST);
+		ret |= (RST0_MAC0PMARST | RST0_MAC0PONRST);
 		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
 	} else {
 		/* Assertion of PMA &  XPCS reset  software Reset*/
 		ret = readl(td->sfr + NRSTCTRL1_OFFSET);
-		ret |= (NRSTCTRL1_MAC1PMARST1 | NRSTCTRL1_MAC1PONRST1);
+		ret |= (RST1_MAC1PMARST1 | RST1_MAC1PONRST1);
 		writel(ret, td->sfr + NRSTCTRL1_OFFSET);
 	}
 
@@ -2006,14 +2006,14 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	if (td->emac0) {
 		/* De-assertion of PMA & XPCS reset software Reset*/
 		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
-		ret &= ~(NRSTCTRL0_MAC0PMARST | NRSTCTRL0_MAC0PONRST);
-		ret &= ~(NRSTCTRL0_MAC0RST | NRSTCTRL0_MAC0RST);
+		ret &= ~(RST0_MAC0PMARST | RST0_MAC0PONRST);
+		ret &= ~(RST0_MAC0RST | RST0_MAC0RST);
 
 		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
 	} else {
 		/* De-assertion of PMA &  XPCS reset software Reset*/
 		ret = readl(td->sfr + NRSTCTRL1_OFFSET);
-		ret &= ~(NRSTCTRL1_MAC1PMARST1 | NRSTCTRL1_MAC1PONRST1);
+		ret &= ~(RST1_MAC1PMARST1 | RST1_MAC1PONRST1);
 		writel(ret, td->sfr + NRSTCTRL1_OFFSET);
 	}
 
@@ -2357,7 +2357,7 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
 
 		/* Assertion of EMAC Port0 software Reset */
-		ret |= NRSTCTRL0_MAC0RST;
+		ret |= RST0_MAC0RST;
 
 		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
 
@@ -2391,7 +2391,7 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 
 		/* De-assertion of EMAC Port0  software Reset*/
 		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
-		ret &= ~(NRSTCTRL0_MAC0RST);
+		ret &= ~(RST0_MAC0RST);
 		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
 	}
 
@@ -2399,7 +2399,7 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 		ret = readl(td->sfr + NRSTCTRL1_OFFSET);
 
 		/* Assertion of EMAC Port1 software Reset*/
-		ret |= NRSTCTRL1_MAC1RST1;
+		ret |= RST1_MAC1RST1;
 		writel(ret, td->sfr + NRSTCTRL1_OFFSET);
 
 		dev_dbg(dev, "Enabling all eMAC clocks for Port 1 %s\n", priv->dev->name);
@@ -2428,7 +2428,7 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 
 		/* De-assertion of EMAC Port1  software Reset */
 		ret = readl(td->sfr + NRSTCTRL1_OFFSET);
-		ret &= ~NRSTCTRL1_MAC1RST1;
+		ret &= ~RST1_MAC1RST1;
 		writel(ret, td->sfr + NRSTCTRL1_OFFSET);
 	}
 
@@ -2436,12 +2436,12 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 		if (td->emac0) {
 			/* Assertion of PMA &  XPCS reset  software Reset*/
 			ret = readl(td->sfr + NRSTCTRL0_OFFSET);
-			ret |= (NRSTCTRL0_MAC0PMARST | NRSTCTRL0_MAC0PONRST);
+			ret |= (RST0_MAC0PMARST | RST0_MAC0PONRST);
 			writel(ret, td->sfr + NRSTCTRL0_OFFSET);
 		} else {
 			/* Assertion of PMA &  XPCS reset  software Reset*/
 			ret = readl(td->sfr + NRSTCTRL1_OFFSET);
-			ret |= (NRSTCTRL1_MAC1PMARST1 | NRSTCTRL1_MAC1PONRST1);
+			ret |= (RST1_MAC1PMARST1 | RST1_MAC1PONRST1);
 			writel(ret, td->sfr + NRSTCTRL1_OFFSET);
 		}
 
@@ -2452,13 +2452,13 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 		if (td->emac0) {
 			/* De-assertion of PMA &  XPCS reset  software Reset*/
 			ret = readl(td->sfr + NRSTCTRL0_OFFSET);
-			ret &= ~(NRSTCTRL0_MAC0PMARST | NRSTCTRL0_MAC0PONRST);
-			ret &= ~(NRSTCTRL0_MAC0RST | NRSTCTRL0_MAC0RST);
+			ret &= ~(RST0_MAC0PMARST | RST0_MAC0PONRST);
+			ret &= ~(RST0_MAC0RST | RST0_MAC0RST);
 			writel(ret, td->sfr + NRSTCTRL0_OFFSET);
 		} else {
 			/* De-assertion of PMA &  XPCS reset  software Reset*/
 			ret = readl(td->sfr + NRSTCTRL1_OFFSET);
-			ret &= ~(NRSTCTRL1_MAC1PMARST1 | NRSTCTRL1_MAC1PONRST1);
+			ret &= ~(RST1_MAC1PMARST1 | RST1_MAC1PONRST1);
 			writel(ret, td->sfr + NRSTCTRL1_OFFSET);
 		}
 
