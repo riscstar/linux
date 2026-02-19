@@ -1662,7 +1662,7 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 		/* De-assertion of PMA & XPCS reset software Reset*/
 		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
 		ret &= ~(RST0_MAC0PMARST | RST0_MAC0PONRST);
-		ret &= ~(RST0_MAC0RST | RST0_MAC0RST);
+		ret &= ~RST0_MAC0RST;
 
 		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
 	} else {
@@ -1924,7 +1924,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 		/* De-assertion of EMAC Port0  software Reset*/
 		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
-		ret &= ~(RST0_MAC0RST);
+		ret &= ~RST0_MAC0RST;
 		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
 	}
 
@@ -2007,7 +2007,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		/* De-assertion of PMA & XPCS reset software Reset*/
 		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
 		ret &= ~(RST0_MAC0PMARST | RST0_MAC0PONRST);
-		ret &= ~(RST0_MAC0RST | RST0_MAC0RST);
+		ret &= ~RST0_MAC0RST;
 
 		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
 	} else {
@@ -2391,7 +2391,7 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 
 		/* De-assertion of EMAC Port0  software Reset*/
 		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
-		ret &= ~(RST0_MAC0RST);
+		ret &= ~RST0_MAC0RST;
 		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
 	}
 
@@ -2453,7 +2453,7 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 			/* De-assertion of PMA &  XPCS reset  software Reset*/
 			ret = readl(td->sfr + NRSTCTRL0_OFFSET);
 			ret &= ~(RST0_MAC0PMARST | RST0_MAC0PONRST);
-			ret &= ~(RST0_MAC0RST | RST0_MAC0RST);
+			ret &= ~RST0_MAC0RST;
 			writel(ret, td->sfr + NRSTCTRL0_OFFSET);
 		} else {
 			/* De-assertion of PMA &  XPCS reset  software Reset*/
