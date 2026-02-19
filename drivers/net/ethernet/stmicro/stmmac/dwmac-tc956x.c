@@ -311,8 +311,6 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 #define RST1_MAC1_POWER_MASK \
 		(RST1_MAC1PMARST | RST1_MAC1PONRST)
 
-#define NRSTCTRL_EMAC_MASK     (RST0_MAC0RST | RST0_MAC0PMARST | \
-				 RST0_MAC0PONRST)
 #define NRSTCTRL0_DEFAULT	(RST0_MAC0PONRST | RST0_MAC0PMARST | \
 					RST0_MAC0RST)
 #define NRSTCTRL_COMMON (RST0_MSIGENRST  | RST0_UART0RST | \
@@ -1229,12 +1227,12 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 	/* Select register address by port */
 	if (td->emac0) {
 		nrst_reg = td->sfr + NRSTCTRL0_OFFSET;
-		nrst_mask = NRSTCTRL_EMAC_MASK | RST0_MAC0_POWER_MASK;
+		nrst_mask = RST0_MAC0RST | RST0_MAC0_POWER_MASK;
 		nclk_reg = td->sfr + NCLKCTRL0_OFFSET;
 		nclk_mask = CLK0_MAC0_CORE_MASK | CLK0_MAC0_IO_MASK;
 	} else {
 		nrst_reg = td->sfr + NRSTCTRL1_OFFSET;
-		nrst_mask = NRSTCTRL_EMAC_MASK | RST1_MAC1_POWER_MASK;
+		nrst_mask = RST1_MAC1RST | RST1_MAC1_POWER_MASK;
 		nclk_reg = td->sfr + NCLKCTRL1_OFFSET;
 		nclk_mask = CLK1_MAC1_CORE_MASK | CLK1_MAC1_IO_MASK;
 		nclk_mask |= CLK1_MAC1RMCEN;
@@ -2031,23 +2029,31 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 	ret = stmmac_dvr_probe(dev, plat, &res);
 	if (ret) {
-		void *nrst_reg = NULL, *nclk_reg = NULL;
-		u32 nrst_val = 0, nclk_val = 0;
+		void *nrst_reg;
+		void *nclk_reg;
+		u32 nrst_mask;
+		u32 nclk_mask;
+		u32 nrst_val;
+		u32 nclk_val;
+
 		if (td->emac0) {
 			nrst_reg = td->sfr + NRSTCTRL0_OFFSET;
+			nrst_mask = RST0_MAC0RST | RST0_MAC0_POWER_MASK;
 			nclk_reg = td->sfr + NCLKCTRL0_OFFSET;
+			nclk_mask = CLK0_MAC0_CORE_MASK | CLK0_MAC0_IO_MASK;
 		} else {
 			nrst_reg = td->sfr + NRSTCTRL1_OFFSET;
+			nrst_mask = RST1_MAC1RST | RST1_MAC1_POWER_MASK;
 			nclk_reg = td->sfr + NCLKCTRL1_OFFSET;
+			nclk_mask = CLK1_MAC1_CORE_MASK | CLK1_MAC1_IO_MASK;
+			nclk_mask |= CLK1_MAC1RMCEN;
 		}
 		nrst_val = readl(nrst_reg);
 		nclk_val = readl(nclk_reg);
 
 		/* Assert reset and Disable Clock for EMAC */
-		nrst_val = nrst_val | NRSTCTRL_EMAC_MASK;
-		nclk_val &= ~CLK1_MAC1RMCEN;
-		nclk_val &= ~CLK0_MAC0_CORE_MASK;
-		nclk_val &= ~CLK0_MAC0_IO_MASK;
+		nrst_val |= nrst_mask;
+		nclk_val &= ~nclk_mask;
 		writel(nrst_val, nrst_reg);
 		writel(nclk_val, nclk_reg);
 
@@ -2161,7 +2167,7 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 	} else {
 		nrst_reg = td->sfr + NRSTCTRL1_OFFSET;
 		nclk_reg = td->sfr + NCLKCTRL1_OFFSET;
-		nrst_val = NRSTCTRL_EMAC_MASK;
+		nrst_val = RST1_MAC1RST | RST1_MAC1_POWER_MASK;
 		nclk_val = 0;
 	}
 	writel(nrst_val, nrst_reg);
