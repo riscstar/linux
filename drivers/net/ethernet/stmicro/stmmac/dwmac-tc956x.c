@@ -249,32 +249,33 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 #define NMODESTS_OFFSET		(0x0004) /* TC956X current operation mode */
 #define NMODESTS_MODE2		BIT(10)	/* PCIe lanes: 0:  x4x1x1; 1: x2x2x1 */
 
-#define NCLKCTRL0_OFFSET	(0x1004)  /* TC956X clock control Register-0 */
-#define NCLKCTRL0_MCUCEN	BIT(0)	/* COMMON */
-#define NCLKCTRL0_INTCEN	BIT(4)	/* individual */
-#define NCLKCTRL0_MAC0TXCEN	BIT(7)	/* IO */
-#define NCLKCTRL0_PCIECEN	BIT(9)	/* COMMON */
-#define NCLKCTRL0_I2SSPIEN	BIT(12)	/* COMMON */
-#define NCLKCTRL0_SRMCEM	BIT(13)	/* COMMON */
-#define NCLKCTRL0_MAC0RXCEN	BIT(14)	/* IO */
-#define NCLKCTRL0_UARTOCEN	BIT(16)	/* OTHER */
-#define NCLKCTRL0_MSIGENCEN	BIT(18)	/* OTHER */
-#define NCLKCTRL0_POEPLLCEN	BIT(24)	/* BUS */
-#define NCLKCTRL0_SGMPCIEN	BIT(25)	/* BUS */
-#define NCLKCTRL0_REFCLKOCEN	BIT(26)	/* BUS */
-#define NCLKCTRL0_MAC0125CLKEN	BIT(29)	/* CORE */
-#define NCLKCTRL0_MAC0312CLKEN	BIT(30)	/* CORE */
-#define NCLKCTRL0_MAC0ALLCLKEN	BIT(31)	/* IO */
+#define NCLKCTRL0_OFFSET	0x1004	/* Clock control register 0 */
+#define CLK0_MCUCEN		BIT(0)		/* COMMON */
+#define CLK0_INTCEN		BIT(4)		/* individual */
+#define CLK0_MAC0TXCEN		BIT(7)		/* IO */
+#define CLK0_PCIECEN		BIT(9)		/* COMMON */
+#define CLK0_I2SSPIEN		BIT(12)		/* COMMON */
+#define CLK0_SRMCEM		BIT(13)		/* COMMON */
+#define CLK0_MAC0RXCEN		BIT(14)		/* IO */
+#define CLK0_UARTOCEN		BIT(16)		/* OTHER */
+#define CLK0_MSIGENCEN		BIT(18)		/* OTHER */
+#define CLK0_POEPLLCEN		BIT(24)		/* BUS */
+#define CLK0_SGMPCIEN		BIT(25)		/* BUS */
+#define CLK0_REFCLKOCEN		BIT(26)		/* BUS */
+#define CLK0_MAC0125CLKEN	BIT(29)		/* CORE */
+#define CLK0_MAC0312CLKEN	BIT(30)		/* CORE */
+#define CLK0_MAC0ALLCLKEN	BIT(31)		/* IO */
 
-#define CLK0_COMMON_MASK	(NCLKCTRL0_MCUCEN | NCLKCTRL0_PCIECEN | \
-				 NCLKCTRL0_I2SSPIEN | NCLKCTRL0_SRMCEM)
-#define CLK0_MAC0_IO_MASK	(NCLKCTRL0_MAC0TXCEN | NCLKCTRL0_MAC0RXCEN | \
-				 NCLKCTRL0_MAC0ALLCLKEN)
-#define CLK0_MAC0_CORE_MASK	(NCLKCTRL0_MAC0125CLKEN | \
-				 NCLKCTRL0_MAC0312CLKEN)
-#define CLK0_BUS_MASK		(NCLKCTRL0_POEPLLCEN | NCLKCTRL0_SGMPCIEN | \
-				 NCLKCTRL0_REFCLKOCEN)
-#define CLK0_OTHER_MASK		(NCLKCTRL0_UARTOCEN | NCLKCTRL0_MSIGENCEN)
+#define CLK0_MAC0_CORE_MASK \
+		(CLK0_MAC0125CLKEN | CLK0_MAC0312CLKEN)
+#define CLK0_MAC0_IO_MASK \
+		(CLK0_MAC0TXCEN | CLK0_MAC0RXCEN | CLK0_MAC0ALLCLKEN)
+#define CLK0_COMMON_MASK \
+		(CLK0_MCUCEN | CLK0_PCIECEN | CLK0_I2SSPIEN | CLK0_SRMCEM)
+#define CLK0_OTHER_MASK	\
+		(CLK0_UARTOCEN | CLK0_MSIGENCEN)
+#define CLK0_BUS_MASK \
+		(CLK0_POEPLLCEN | CLK0_SGMPCIEN | CLK0_REFCLKOCEN)
 
 #define NRSTCTRL0_OFFSET	(0x1008)  /* TC956X reset control Register-0 */
 #define NRSTCTRL0_MCURST	BIT(0)		/* M3 system reset */
@@ -1875,7 +1876,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		/* Enable the interrupt controller */
 		tc956x_intc_reset(td, true);
 		val = readl(addr);
-		val |= NCLKCTRL0_INTCEN;
+		val |= CLK0_INTCEN;
 		writel(val, addr);
 		tc956x_intc_reset(td, false);
 		tc956x_config_tamap(td);
@@ -2198,7 +2199,7 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 		nclk_val &= ~CLK0_BUS_MASK;
 		nclk_val &= ~CLK0_MAC0_CORE_MASK;
 		nclk_val &= ~CLK0_MAC0_IO_MASK;
-		nclk_val &= ~NCLKCTRL0_INTCEN;
+		nclk_val &= ~CLK0_INTCEN;
 		writel(nrst_val, nrst_reg);
 		writel(nclk_val, nclk_reg);
 	}
