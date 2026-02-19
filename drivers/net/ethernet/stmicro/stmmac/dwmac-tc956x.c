@@ -300,6 +300,8 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 #define RST0_MAC0PMARST		BIT(30)		/* POWER */
 #define RST0_MAC0PONRST		BIT(31)		/* POWER */
 
+#define RST0_MCU_MASK \
+		(RST0_MCURST | RST0_MCU1RST)
 #define RST0_MAC0_POWER_MASK \
 		(RST0_MAC0PMARST | RST0_MAC0PONRST)
 #define RST0_OTHER_MASK	\
@@ -315,8 +317,6 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 
 #define NRSTCTRL0_DEFAULT	(RST0_MAC0PONRST | RST0_MAC0PMARST | \
 					RST0_MAC0RST)
-#define NRSTCTRL_COMMON (RST0_INTRST | RST0_MCURST)
-
 /* Field in the NCLKCTRL0 register to enable the MSIGEN clock */
 #define TC956X_MSIGENCEN	BIT(18)
 
@@ -1431,7 +1431,7 @@ static void tc956x_zero_sram(struct tc956x_data *td)
 static void tc956x_m3_reset(struct tc956x_data *td, bool assert)
 {
 	void __iomem *addr = td->sfr + NRSTCTRL0_OFFSET;
-	u32 mask = RST0_MCURST | RST0_MCU1RST;
+	u32 mask = RST0_MCU_MASK;
 	u32 val;
 
 	/* Note: 1 means assert */
@@ -2181,8 +2181,7 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 		nclk_reg = td->sfr + NCLKCTRL0_OFFSET;
 		nrst_val = readl(nrst_reg);
 		nclk_val = readl(nclk_reg);
-		nrst_val |= NRSTCTRL_COMMON;
-		nrst_val |= RST0_OTHER_MASK;
+		nrst_val |= RST0_MCU_MASK | RST0_INTRST | RST0_OTHER_MASK;
 		nclk_val |= CLK0_COMMON_MASK;
 		nclk_val &= ~CLK0_OTHER_MASK;
 		nclk_val &= ~CLK0_BUS_MASK;
