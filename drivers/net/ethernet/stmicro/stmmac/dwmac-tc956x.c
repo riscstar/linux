@@ -268,6 +268,8 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 
 #define CLK0_COMMON		(NCLKCTRL0_MCUCEN | NCLKCTRL0_PCIECEN | \
 				 NCLKCTRL0_I2SSPIEN | NCLKCTRL0_SRMCEM)
+#define CLK0_MAC0_IO		(NCLKCTRL0_MAC0TXCEN | NCLKCTRL0_MAC0RXCEN | \
+				 NCLKCTRL0_MAC0ALLCLKEN)
 
 #define NRSTCTRL0_OFFSET	(0x1008)  /* TC956X reset control Register-0 */
 #define NRSTCTRL0_MCURST	BIT(0)		/* M3 system reset */
@@ -294,24 +296,20 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 
 #define NRSTCTRL_EMAC_MASK     (NRSTCTRL0_MAC0RST | NRSTCTRL0_MAC0PMARST | \
 				 NRSTCTRL0_MAC0PONRST)
-#define NCLKCTRL_EMAC_MASK     (NCLKCTRL0_MAC0TXCEN | NCLKCTRL0_MAC0RXCEN | \
-				 NCLKCTRL0_MAC0125CLKEN | NCLKCTRL0_MAC0312CLKEN | \
-				 NCLKCTRL1_MAC1RMCEN | NCLKCTRL0_MAC0ALLCLKEN)
+#define NCLKCTRL_EMAC_MASK     (NCLKCTRL0_MAC0125CLKEN | NCLKCTRL0_MAC0312CLKEN | \
+				 NCLKCTRL1_MAC1RMCEN)
 #define NCLKCTRL0_COMMON_EMAC_MASK     (NCLKCTRL0_POEPLLCEN | NCLKCTRL0_SGMPCIEN | \
 				 NCLKCTRL0_REFCLKOCEN)
 #define NRSTCTRL0_DEFAULT	(NRSTCTRL0_MAC0PONRST | NRSTCTRL0_MAC0PMARST | \
 					NRSTCTRL0_MAC0RST)
 #define NRSTCTRL_COMMON (NRSTCTRL0_MSIGENRST  | NRSTCTRL0_UART0RST | \
 					NRSTCTRL0_INTRST | NRSTCTRL0_MCURST)
-#define NCLKCTRL_DISABLE_COMMON_EMAC_MASK (NCLKCTRL0_MAC0ALLCLKEN | NCLKCTRL0_MAC0312CLKEN | \
+#define NCLKCTRL_DISABLE_COMMON_EMAC_MASK (NCLKCTRL0_MAC0312CLKEN | \
 								NCLKCTRL0_MAC0125CLKEN | NCLKCTRL0_REFCLKOCEN | \
 								NCLKCTRL0_SGMPCIEN | NCLKCTRL0_POEPLLCEN | \
-								NCLKCTRL0_MSIGENCEN | NCLKCTRL0_UARTOCEN | \
-								NCLKCTRL0_MAC0RXCEN | NCLKCTRL0_MAC0TXCEN)
+								NCLKCTRL0_MSIGENCEN | NCLKCTRL0_UARTOCEN)
 
-#define NCLKCTRL_PORT0_EMAC_MASK     (NCLKCTRL0_MAC0TXCEN | NCLKCTRL0_MAC0RXCEN | \
-				 NCLKCTRL0_MAC0125CLKEN | NCLKCTRL0_MAC0312CLKEN | \
-				 NCLKCTRL0_MAC0ALLCLKEN)
+#define NCLKCTRL_PORT0_EMAC_MASK     (NCLKCTRL0_MAC0125CLKEN | NCLKCTRL0_MAC0312CLKEN)
 
 /* Field in the NCLKCTRL0 register to enable the MSIGEN clock */
 #define TC956X_MSIGENCEN	BIT(18)
@@ -1265,8 +1263,11 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 		/* Save values before Asserting reset and Clock Disable */
 		td->pm_saved_emac_rst = nrst_val & NRSTCTRL_EMAC_MASK;
 		td->pm_saved_emac_clk = nclk_val & NCLKCTRL_EMAC_MASK;
+		td->pm_saved_emac_clk |= nclk_val & CLK0_MAC0_IO;
+
 		nrst_val = nrst_val | NRSTCTRL_EMAC_MASK;
-		nclk_val = nclk_val & ~NCLKCTRL_EMAC_MASK;
+		nclk_val &= ~NCLKCTRL_EMAC_MASK;
+		nclk_val &= ~CLK0_MAC0_IO;
 		writel(nrst_val, nrst_reg);
 		writel(nclk_val, nclk_reg);
 		/* Zero active means are suspended */
@@ -1924,7 +1925,8 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		/* Enable all clocks to eMAC Port0 */
 		ret = readl(td->sfr + NCLKCTRL0_OFFSET);
 
-		ret |= ((NCLKCTRL0_MAC0TXCEN | NCLKCTRL0_MAC0ALLCLKEN | NCLKCTRL0_MAC0RXCEN));
+		ret |= CLK0_MAC0_IO;
+
 		/* Only if "current" port is SGMII 2.5G, configure below clocks. */
 		if (td->port_interface == ENABLE_SGMII_INTERFACE) {
 			ret &= ~NCLKCTRL0_POEPLLCEN;
@@ -2074,7 +2076,8 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 		/* Assert reset and Disable Clock for EMAC */
 		nrst_val = nrst_val | NRSTCTRL_EMAC_MASK;
-		nclk_val = nclk_val & ~NCLKCTRL_EMAC_MASK;
+		nclk_val &= ~NCLKCTRL_EMAC_MASK;
+		nclk_val &= ~CLK0_MAC0_IO;
 		writel(nrst_val, nrst_reg);
 		writel(nclk_val, nclk_reg);
 
@@ -2184,6 +2187,7 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 		nclk_val = readl(nclk_reg);
 		nrst_val |= NRSTCTRL0_DEFAULT;
 		nclk_val &= ~NCLKCTRL_PORT0_EMAC_MASK;
+		nclk_val &= ~CLK0_MAC0_IO;
 	} else {
 		nrst_reg = td->sfr + NRSTCTRL1_OFFSET;
 		nclk_reg = td->sfr + NCLKCTRL1_OFFSET;
@@ -2203,6 +2207,7 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 		nrst_val |= NRSTCTRL_COMMON;
 		nclk_val |= CLK0_COMMON;
 		nclk_val &= ~NCLKCTRL_DISABLE_COMMON_EMAC_MASK;
+		nclk_val &= ~CLK0_MAC0_IO;
 		nclk_val &= ~NCLKCTRL0_INTCEN;
 		writel(nrst_val, nrst_reg);
 		writel(nclk_val, nclk_reg);
@@ -2390,7 +2395,8 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 		/* Enable all clocks to eMAC Port0 */
 		ret = readl(td->sfr + NCLKCTRL0_OFFSET);
 
-		ret |= ((NCLKCTRL0_MAC0TXCEN | NCLKCTRL0_MAC0ALLCLKEN | NCLKCTRL0_MAC0RXCEN));
+		ret |= CLK0_MAC0_IO;
+
 		if (td->port_interface == ENABLE_SGMII_INTERFACE) {
 			/* Disable Clocks for 2.5Gbps SGMII */
 			ret &= ~NCLKCTRL0_POEPLLCEN;
