@@ -1214,10 +1214,10 @@ struct tc956x_pci_info {
 static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 {
 	struct tc956x_data *td = priv->plat->bsp_priv;
-	void *commonclk_reg;
+	void __iomem *commonclk_reg;
+	void __iomem *nrst_reg;
+	void __iomem *nclk_reg;
 	u32 commonclk_val;
-	void *nrst_reg;
-	void *nclk_reg;
 	u32 nrst_mask;
 	u32 nclk_mask;
 	u32 nrst_val;
@@ -1997,8 +1997,8 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 	ret = stmmac_dvr_probe(dev, plat, &res);
 	if (ret) {
-		void *nrst_reg;
-		void *nclk_reg;
+		void __iomem *nrst_reg;
+		void __iomem *nclk_reg;
 		u32 nrst_mask;
 		u32 nclk_mask;
 		u32 nrst_val;
@@ -2106,8 +2106,10 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 	struct net_device *ndev = dev_get_drvdata(dev);
 	struct stmmac_priv *priv = netdev_priv(ndev);
 	struct tc956x_data *td = priv->plat->bsp_priv;
-	void *nrst_reg, *nclk_reg;
-	u32 nrst_val, nclk_val;
+	void __iomem *nrst_reg;
+	void __iomem *nclk_reg;
+	u32 nrst_val;
+	u32 nclk_val;
 
 	/* phy_addr == -1 indicates that PHY was not found and
 	 * device is registered as only PCIe device. So skip any
