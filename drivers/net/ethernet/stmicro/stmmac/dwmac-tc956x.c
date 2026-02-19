@@ -1236,8 +1236,8 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 		nrst_reg = td->sfr + NRSTCTRL1_OFFSET;
 		nrst_mask = NRSTCTRL_EMAC_MASK | RST1_MAC1_POWER_MASK;
 		nclk_reg = td->sfr + NCLKCTRL1_OFFSET;
-		nclk_mask = CLK1_MAC1RMCEN | CLK1_MAC1_CORE_MASK |
-				CLK1_MAC1_IO_MASK;
+		nclk_mask = CLK1_MAC1_CORE_MASK | CLK1_MAC1_IO_MASK;
+		nclk_mask |= CLK1_MAC1RMCEN;
 	}
 
 	if (suspend) {
@@ -1669,12 +1669,12 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
 		ret &= ~RST0_MAC0_POWER_MASK;
 		ret &= ~RST0_MAC0RST;
-
 		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
 	} else {
 		/* De-assertion of PMA &  XPCS reset software Reset*/
 		ret = readl(td->sfr + NRSTCTRL1_OFFSET);
 		ret &= ~RST1_MAC1_POWER_MASK;
+		/* Is this missing?  ret &= ~RST1_MAC1RST; */
 		writel(ret, td->sfr + NRSTCTRL1_OFFSET);
 	}
 
@@ -1894,10 +1894,8 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 	if (td->emac0) {
 		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
-
 		/* Assertion of EMAC Port0 software Reset */
 		ret |= RST0_MAC0RST;
-
 		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
 
 		dev_dbg(dev, "Enabling all eMAC clocks for Port 0 Bus number %x\n", pdev->bus->number);
@@ -1936,7 +1934,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 	if (!td->emac0) {
 		ret = readl(td->sfr + NRSTCTRL1_OFFSET);
-
 		/* Assertion of EMAC Port1 software Reset*/
 		ret |= RST1_MAC1RST;
 		writel(ret, td->sfr + NRSTCTRL1_OFFSET);
@@ -1970,7 +1967,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		ret &= ~RST1_MAC1RST;
 		writel(ret, td->sfr + NRSTCTRL1_OFFSET);
 	}
-
 
 	res.addr = XGMAC_BASE(td);
 	res.wol_irq = pdev->irq;
@@ -2014,12 +2010,12 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
 		ret &= ~RST0_MAC0_POWER_MASK;
 		ret &= ~RST0_MAC0RST;
-
 		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
 	} else {
 		/* De-assertion of PMA &  XPCS reset software Reset*/
 		ret = readl(td->sfr + NRSTCTRL1_OFFSET);
 		ret &= ~RST1_MAC1_POWER_MASK;
+		/* XXX Is this missing?  ret &= ~RST1_MAC1RST; */
 		writel(ret, td->sfr + NRSTCTRL1_OFFSET);
 	}
 
@@ -2361,10 +2357,8 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 
 	if (td->emac0) {
 		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
-
 		/* Assertion of EMAC Port0 software Reset */
 		ret |= RST0_MAC0RST;
-
 		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
 
 		dev_dbg(dev, "Enabling all eMAC clocks for Port 0 %s\n", priv->dev->name);
@@ -2403,7 +2397,6 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 
 	if (!td->emac0) {
 		ret = readl(td->sfr + NRSTCTRL1_OFFSET);
-
 		/* Assertion of EMAC Port1 software Reset*/
 		ret |= RST1_MAC1RST;
 		writel(ret, td->sfr + NRSTCTRL1_OFFSET);
@@ -2465,6 +2458,7 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 			/* De-assertion of PMA &  XPCS reset  software Reset*/
 			ret = readl(td->sfr + NRSTCTRL1_OFFSET);
 			ret &= ~RST1_MAC1_POWER_MASK;
+			/* XXX Is this missing?  ret &= ~RST1_MAC1RST; */
 			writel(ret, td->sfr + NRSTCTRL1_OFFSET);
 		}
 
