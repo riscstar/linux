@@ -1712,6 +1712,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	uint16_t sh_mem_offset;
 	uint8_t SgmSigPol = 0;
 	void __iomem *virt;
+	bool mode2;
 	u32 pfn;
 	u32 val;
 	int ret;
@@ -2044,35 +2045,25 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	 *   1: setting B: upstream x2, downstream 1 x2, downstream 2 x1
 	 */
 	val = readl(td->sfr + NMODESTS_OFFSET);
-	if (val & NMODESTS_MODE2) {
-		dev_dbg(dev, "%s : Setting B : Adding DSP Cut Through Settings for DSP2", __func__);
-		/* downstream port is selected*/
-		val = readl(td->sfr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
-		val |= SW_DSP2_ENABLE;
-		writel(val, td->sfr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
-		/*Set 0x0 to Rx Bit enable_cut_through_on_receive_path*/
-		val = readl(td->sfr + TC956X_SSREG_K_PCICONF_021_021);
-		val &= ~(ENABLE_CUT_THROUGH_ON_RX_PATH_MASK);
-		writel(val, td->sfr + TC956X_SSREG_K_PCICONF_021_021);
-		/*Set 0x0 to Tx Bit enable_cut_through_on_transmit_path*/
-		val = readl(td->sfr + TC956X_SSREG_K_PCICONF_022_022);
-		val &= ~(ENABLE_CUT_THROUGH_ON_TX_PATH_MASK);
-		writel(val, td->sfr + TC956X_SSREG_K_PCICONF_022_022);
-	} else {
-		dev_dbg(dev, "%s : Setting A : Adding DSP Cut Through Settings for DSP1 & DSP2", __func__);
-		/*DSP1 & DSP2 is selected*/
-		val = readl(td->sfr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
-		val |= SW_DSP1_ENABLE | SW_DSP2_ENABLE;
-		writel(val, td->sfr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
-		/*Set 0x0 to Rx Bit enable_cut_through_on_receive_path*/
-		val = readl(td->sfr + TC956X_SSREG_K_PCICONF_021_021);
-		val &= ~(ENABLE_CUT_THROUGH_ON_RX_PATH_MASK);
-		writel(val, td->sfr + TC956X_SSREG_K_PCICONF_021_021);
-		/*Set 0x00000000 to Tx Bit enable_cut_through_on_transmit_path*/
-		val = readl(td->sfr + TC956X_SSREG_K_PCICONF_022_022);
-		val &= ~(ENABLE_CUT_THROUGH_ON_TX_PATH_MASK);
-		writel(val, td->sfr + TC956X_SSREG_K_PCICONF_022_022);
-	}
+	mode2 = !!(val & NMODESTS_MODE2);
+	dev_dbg(dev, "%s : Setting %c : Adding DSP Cut Through Settings for %sDSP2",
+		__func__, mode2 ? 'B' : 'A', mode2 ? "" : "DSP1 & ");
+
+	val = readl(td->sfr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
+	val |= SW_DSP2_ENABLE;
+	if (!mode2)
+		val |= SW_DSP1_ENABLE;
+	writel(val, td->sfr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
+
+	/*Set 0x0 to Rx Bit enable_cut_through_on_receive_path*/
+	val = readl(td->sfr + TC956X_SSREG_K_PCICONF_021_021);
+	val &= ~ENABLE_CUT_THROUGH_ON_RX_PATH_MASK;
+	writel(val, td->sfr + TC956X_SSREG_K_PCICONF_021_021);
+
+	/*Set 0x00000000 to Tx Bit enable_cut_through_on_transmit_path*/
+	val = readl(td->sfr + TC956X_SSREG_K_PCICONF_022_022);
+	val &= ~ENABLE_CUT_THROUGH_ON_TX_PATH_MASK;
+	writel(val, td->sfr + TC956X_SSREG_K_PCICONF_022_022);
 
 	/* Increment device usage counter */
 	tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt++;
