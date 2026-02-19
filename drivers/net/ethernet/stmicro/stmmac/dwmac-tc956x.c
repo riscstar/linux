@@ -1209,9 +1209,12 @@ struct tc956x_pci_info {
 static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 {
 	struct tc956x_data *td = priv->plat->bsp_priv;
-
-	void *nrst_reg = NULL, *nclk_reg = NULL, *commonclk_reg = NULL;
-	u32 nrst_val = 0, nclk_val = 0, commonclk_val = 0;
+	void *commonclk_reg;
+	u32 commonclk_val;
+	void *nrst_reg;
+	void *nclk_reg;
+	u32 nrst_val;
+	u32 nclk_val;
 
 	pr_debug("-->%s : Port %d interface %s", __func__, td->emac0 ? 0 : 1,
 		 priv->dev->name);
