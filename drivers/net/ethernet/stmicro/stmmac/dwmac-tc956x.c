@@ -270,6 +270,8 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 				 NCLKCTRL0_I2SSPIEN | NCLKCTRL0_SRMCEM)
 #define CLK0_MAC0_IO		(NCLKCTRL0_MAC0TXCEN | NCLKCTRL0_MAC0RXCEN | \
 				 NCLKCTRL0_MAC0ALLCLKEN)
+#define CLK0_MAC0_CORE		(NCLKCTRL0_MAC0125CLKEN | \
+				 NCLKCTRL0_MAC0312CLKEN)
 
 #define NRSTCTRL0_OFFSET	(0x1008)  /* TC956X reset control Register-0 */
 #define NRSTCTRL0_MCURST	BIT(0)		/* M3 system reset */
@@ -296,20 +298,16 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 
 #define NRSTCTRL_EMAC_MASK     (NRSTCTRL0_MAC0RST | NRSTCTRL0_MAC0PMARST | \
 				 NRSTCTRL0_MAC0PONRST)
-#define NCLKCTRL_EMAC_MASK     (NCLKCTRL0_MAC0125CLKEN | NCLKCTRL0_MAC0312CLKEN | \
-				 NCLKCTRL1_MAC1RMCEN)
+#define NCLKCTRL_EMAC_MASK     (NCLKCTRL1_MAC1RMCEN)
 #define NCLKCTRL0_COMMON_EMAC_MASK     (NCLKCTRL0_POEPLLCEN | NCLKCTRL0_SGMPCIEN | \
 				 NCLKCTRL0_REFCLKOCEN)
 #define NRSTCTRL0_DEFAULT	(NRSTCTRL0_MAC0PONRST | NRSTCTRL0_MAC0PMARST | \
 					NRSTCTRL0_MAC0RST)
 #define NRSTCTRL_COMMON (NRSTCTRL0_MSIGENRST  | NRSTCTRL0_UART0RST | \
 					NRSTCTRL0_INTRST | NRSTCTRL0_MCURST)
-#define NCLKCTRL_DISABLE_COMMON_EMAC_MASK (NCLKCTRL0_MAC0312CLKEN | \
-								NCLKCTRL0_MAC0125CLKEN | NCLKCTRL0_REFCLKOCEN | \
+#define NCLKCTRL_DISABLE_COMMON_EMAC_MASK (NCLKCTRL0_REFCLKOCEN | \
 								NCLKCTRL0_SGMPCIEN | NCLKCTRL0_POEPLLCEN | \
 								NCLKCTRL0_MSIGENCEN | NCLKCTRL0_UARTOCEN)
-
-#define NCLKCTRL_PORT0_EMAC_MASK     (NCLKCTRL0_MAC0125CLKEN | NCLKCTRL0_MAC0312CLKEN)
 
 /* Field in the NCLKCTRL0 register to enable the MSIGEN clock */
 #define TC956X_MSIGENCEN	BIT(18)
@@ -753,7 +751,7 @@ static void tc956x_eee_clk_init(struct tc956x_data *td)
 	val = readl(td->sfr + NCLKCTRL0_OFFSET);
 	/* XXX Is this conditional on eMAC0, or on the first to initialize? */
 	if (td->emac0)
-		val |= NCLKCTRL0_MAC0312CLKEN | NCLKCTRL0_MAC0125CLKEN;
+		val |= CLK0_MAC0_CORE;
 	val |= NCLKCTRL0_POEPLLCEN | NCLKCTRL0_SGMPCIEN | NCLKCTRL0_REFCLKOCEN;
 	writel(val, td->sfr + NCLKCTRL0_OFFSET);
 }
@@ -1263,10 +1261,12 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 		/* Save values before Asserting reset and Clock Disable */
 		td->pm_saved_emac_rst = nrst_val & NRSTCTRL_EMAC_MASK;
 		td->pm_saved_emac_clk = nclk_val & NCLKCTRL_EMAC_MASK;
+		td->pm_saved_emac_clk |= nclk_val & CLK0_MAC0_CORE;
 		td->pm_saved_emac_clk |= nclk_val & CLK0_MAC0_IO;
 
 		nrst_val = nrst_val | NRSTCTRL_EMAC_MASK;
 		nclk_val &= ~NCLKCTRL_EMAC_MASK;
+		nclk_val &= ~CLK0_MAC0_CORE;
 		nclk_val &= ~CLK0_MAC0_IO;
 		writel(nrst_val, nrst_reg);
 		writel(nclk_val, nclk_reg);
@@ -1932,8 +1932,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 			ret &= ~NCLKCTRL0_POEPLLCEN;
 			ret &= ~NCLKCTRL0_SGMPCIEN;
 			ret &= ~NCLKCTRL0_REFCLKOCEN;
-			ret &= ~NCLKCTRL0_MAC0125CLKEN;
-			ret &= ~NCLKCTRL0_MAC0312CLKEN;
+			ret &= ~CLK0_MAC0_CORE;
 		}
 		writel(ret, td->sfr + NCLKCTRL0_OFFSET);
 
@@ -2077,6 +2076,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		/* Assert reset and Disable Clock for EMAC */
 		nrst_val = nrst_val | NRSTCTRL_EMAC_MASK;
 		nclk_val &= ~NCLKCTRL_EMAC_MASK;
+		nclk_val &= ~CLK0_MAC0_CORE;
 		nclk_val &= ~CLK0_MAC0_IO;
 		writel(nrst_val, nrst_reg);
 		writel(nclk_val, nclk_reg);
@@ -2186,7 +2186,7 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 		nrst_val = readl(nrst_reg);
 		nclk_val = readl(nclk_reg);
 		nrst_val |= NRSTCTRL0_DEFAULT;
-		nclk_val &= ~NCLKCTRL_PORT0_EMAC_MASK;
+		nclk_val &= ~CLK0_MAC0_CORE;
 		nclk_val &= ~CLK0_MAC0_IO;
 	} else {
 		nrst_reg = td->sfr + NRSTCTRL1_OFFSET;
@@ -2207,6 +2207,7 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 		nrst_val |= NRSTCTRL_COMMON;
 		nclk_val |= CLK0_COMMON;
 		nclk_val &= ~NCLKCTRL_DISABLE_COMMON_EMAC_MASK;
+		nclk_val &= ~CLK0_MAC0_CORE;
 		nclk_val &= ~CLK0_MAC0_IO;
 		nclk_val &= ~NCLKCTRL0_INTCEN;
 		writel(nrst_val, nrst_reg);
@@ -2402,8 +2403,7 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 			ret &= ~NCLKCTRL0_POEPLLCEN;
 			ret &= ~NCLKCTRL0_SGMPCIEN;
 			ret &= ~NCLKCTRL0_REFCLKOCEN;
-			ret &= ~NCLKCTRL0_MAC0125CLKEN;
-			ret &= ~NCLKCTRL0_MAC0312CLKEN;
+			ret &= ~CLK0_MAC0_CORE;
 		}
 		writel(ret, td->sfr + NCLKCTRL0_OFFSET);
 
