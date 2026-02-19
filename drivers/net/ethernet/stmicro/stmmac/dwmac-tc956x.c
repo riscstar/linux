@@ -1957,8 +1957,8 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		/* Enable all clocks to eMAC Port1 */
 		ret = readl(td->sfr + NCLKCTRL1_OFFSET);
 
-		ret |= ((NCLKCTRL1_MAC1TXCEN | NCLKCTRL1_MAC1RXCEN |
-		NCLKCTRL1_MAC1ALLCLKEN1 | 1 << 15));
+		ret |= NCLKCTRL1_MAC1TXCEN | NCLKCTRL1_MAC1RXCEN |
+			NCLKCTRL1_MAC1ALLCLKEN1 | NCLKCTRL1_MAC1RMCEN;
 		if (td->port_interface == ENABLE_SGMII_INTERFACE) {
 			ret &= ~NCLKCTRL1_MAC1125CLKEN1;
 			ret &= ~NCLKCTRL1_MAC1312CLKEN1;
@@ -2427,8 +2427,8 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 		/* Enable all clocks to eMAC Port1 */
 		ret = readl(td->sfr + NCLKCTRL1_OFFSET);
 
-		ret |= ((NCLKCTRL1_MAC1TXCEN | NCLKCTRL1_MAC1RXCEN |
-		NCLKCTRL1_MAC1ALLCLKEN1 | 1 << 15));
+		ret |= NCLKCTRL1_MAC1TXCEN | NCLKCTRL1_MAC1RXCEN |
+			NCLKCTRL1_MAC1ALLCLKEN1 | NCLKCTRL1_MAC1RMCEN;
 		if (td->port_interface == ENABLE_SGMII_INTERFACE) {
 			ret &= ~NCLKCTRL1_MAC1125CLKEN1;
 			ret &= ~NCLKCTRL1_MAC1312CLKEN1;
