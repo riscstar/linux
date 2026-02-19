@@ -1223,16 +1223,15 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 	/* Select register address by port */
 	if (td->emac0) {
 		nrst_reg = td->sfr + NRSTCTRL0_OFFSET;
-		nrst_mask = NRSTCTRL_EMAC_MASK;
+		nrst_mask = NRSTCTRL_EMAC_MASK;		/* XXX fixme */
 		nclk_reg = td->sfr + NCLKCTRL0_OFFSET;
-		nclk_mask = CLK1_MAC1RMCEN | CLK0_MAC0_CORE_MASK |
-				CLK0_MAC0_IO_MASK;
+		nclk_mask = CLK0_MAC0_CORE_MASK | CLK0_MAC0_IO_MASK;
 	} else {
 		nrst_reg = td->sfr + NRSTCTRL1_OFFSET;
-		nrst_mask = NRSTCTRL_EMAC_MASK;
+		nrst_mask = NRSTCTRL_EMAC_MASK;		/* XXX fixme */
 		nclk_reg = td->sfr + NCLKCTRL1_OFFSET;
-		nclk_mask = CLK1_MAC1RMCEN | CLK0_MAC0_CORE_MASK |
-				CLK0_MAC0_IO_MASK;
+		nclk_mask = CLK1_MAC1RMCEN | CLK1_MAC1_CORE_MASK |
+				CLK1_MAC1_IO_MASK;
 	}
 
 	if (suspend) {
