@@ -1426,9 +1426,6 @@ static s32 tc956x_load_firmware(struct tc956x_data *td)
 		return -EINVAL;
 	}
 
-	/* Hold the Cortex M3 in reset while we write its firmware */
-	tc956x_m3_reset(td, true);
-
 	tc956x_zero_sram(td);
 
 	mdelay(10);		/* XXX Why the delay? */
@@ -1832,6 +1829,8 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 
 	if (td->emac0) {
+		/* Keep the M3 in reset */
+		tc956x_m3_reset(td, true);
 		ret = tc956x_load_firmware(td);
 		if (ret)
 			dev_err(dev, "Firmware load failed\n");
