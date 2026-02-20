@@ -57,15 +57,10 @@
 // * TC956x has support for faster MDIO bus scanning (by increasing CSR
 //   clock rate). Should we replicate that?
 // * TC956x has support for phy interrupts. Should that be re-enabled?
-// * I (Alex) have a number of other questions, in particular related
-//   to the firmware on the Cortex M3.  There are a few values stored
-//   in the DMEM portion of SRAM, and they are used to communicate and
-//   coordinate between the host and the M3.
 //
 
 /* PCI BAR assignments */
 #define PCI_BAR_BRIDGE_CONFIG		0
-#define PCI_BAR_SRAM			2
 #define PCI_BAR_SFR			4
 
 /**
@@ -73,7 +68,6 @@
  * @dev:		Device pointer
  * @plat:		Pointer to our stmmac platform data
  * @bridge_config:	Mapped bridge config data (BAR 0)
- * @sram:		Mapped SRAM base address (BAR 2)
  * @sfr:		Mapped SFR region (BAR 4)
  * @emac0:		Which eMAC port this is (true: port 0; false: port 1
  * @is_sgmii_2p5g:	True if PHY uses SGMII and operating at 2.5 Gbps
@@ -93,7 +87,6 @@ struct tc956x_data {
 	struct device *dev;
 	struct plat_stmmacenet_data *plat;
 	void __iomem *bridge_config;
-	void __iomem *sram;
 	void __iomem *sfr;
 	bool emac0;
 	bool is_sgmii_2p5g;
@@ -152,10 +145,6 @@ struct tc956x_data {
 #define NEMACTXCDLY_DEFAULT		0x00000000U
 #define NEMACIOCTL_DEFAULT		0xF300F300
 #endif
-
-/* XXX Values written to SRAM (DMEM) offsets above */
-#define EEPROM_OFFSET			0
-#define EEPROM_MAC_COUNT		14	/* XXX Why 14? */
 
 #define ENABLE_XFI_INTERFACE			1 /* XFI/SFI, this is same as USXGMII, except XPCS autoneg disabled */
 #define ENABLE_SGMII_INTERFACE			4
@@ -1657,14 +1646,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	}
 	td->bridge_config = virt;
 
-	virt = pcim_iomap_region(pdev, PCI_BAR_SRAM, DRIVER_NAME);
-	if (IS_ERR(virt)) {
-		ret = PTR_ERR(virt);
-		dev_err(dev, "failed to map sram region\n");
-		goto err_disable_device;
-	}
-	td->sram = virt;
-
 	virt = pcim_iomap_region(pdev, PCI_BAR_SFR, DRIVER_NAME);
 	if (IS_ERR(td->sfr)) {
 		ret = PTR_ERR(virt);
@@ -1692,7 +1673,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	 */
 	log_mmio_register_range(td->bridge_config, pci_resource_len(pdev, 0),
 				"bridge_cfg");
-	//log_mmio_register_range(td->sram, pci_resource_len(pdev, 2), "sram");
 	log_mmio_register_range(td->sfr, pci_resource_len(pdev, 4), "sfr");
 #endif
 
@@ -2055,8 +2035,6 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 	/* Un-map previously mapped BAR0/2/4 address memory */
 	if (td->sfr)
 		pci_iounmap(pdev, td->sfr);
-	if (td->sram)
-		pci_iounmap(pdev, td->sram);
 	if (td->bridge_config)
 		pci_iounmap(pdev, td->bridge_config);
 	pci_release_regions(pdev);
