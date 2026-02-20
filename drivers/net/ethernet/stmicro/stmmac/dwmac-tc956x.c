@@ -106,7 +106,35 @@ struct tc956x_data {
 	u32 phy_reset_delay;
 	u32 reset_asserted;
 	int wol_irq;
+	struct tc956x_chip *chip;
 };
+
+/**
+ * struct tc956x_chip - Common chip support information
+ * @pci_bus_num:	PCI bus this chip is on
+ * @pci_slot:		PCI slot on its bus this chip fills
+ * @primary:		Data pointer for the primary eMAC interface
+ * @secondary:		Data pointer for the secondary eMAC interface
+ * @links:		Links in the list of all chips
+ *
+ * A single tc956x_chip structure represents the chip as a whole,
+ * collecting resources that are common to both eMAC interfaces.
+ * The first eMAC probed will create one of these when it creates
+ * its tc956x_data structure; this will be the *primary* interface.
+ * The second eMAC (which could be eMAC 0 or 1, assuming it's probed)
+ * will be the *secondary* interface.  The primary interface provides
+ * the mapped SFR memory, and for that reason, cannot be removed
+ * (and unmapped) unless the secondary interface is not in use.
+ */
+struct tc956x_chip {
+	u8 pci_bus_num;
+	u8 pci_slot;
+	struct tc956x_data *primary;
+	struct tc956x_data *secondary;
+	struct list_head links;		/* XXX any locking needed? */
+};
+
+static LIST_HEAD(tc956x_chips);		/* List of TC956x chips */
 
 /* XXX TC9564? Also, this is a physical function; virtual is 0x0221 */
 #define PCI_DEVICE_ID_TOSHIBA_TC956X		0x0220
@@ -1320,6 +1348,74 @@ static struct tc956x_data *tc956x_devm_data_create(struct pci_dev *pdev)
 	return td;
 }
 
+static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
+{
+	u8 pci_bus_num = PCI_BUS_NUM(td->devfn);
+	u8 pci_slot = PCI_SLOT(td->devfn);
+	struct tc956x_chip *tc;
+
+	/* Use the existing chip structure if it's already been created */
+	list_for_each_entry(tc, &tc956x_chips, links) {
+		if (tc->pci_bus_num != pci_bus_num)
+			continue;
+		if (tc->pci_slot != pci_slot)
+			continue;
+
+		/* Make sure the secondary hasn't already been recorded */
+		if (WARN_ON(tc->secondary))
+			return ERR_PTR(-EINVAL);
+
+		tc->secondary = td;
+
+		return tc;
+	}
+
+	/* We need a new chip structure */
+	tc = kzalloc_obj(*tc);
+	if (!tc)
+		return NULL;
+
+	tc->pci_bus_num = pci_bus_num;
+	tc->pci_slot = pci_slot;
+	tc->primary = td;
+
+	list_add(&tc->links, &tc956x_chips);
+
+	return tc;
+#if 0
+	/* Determine physical port number from the resource manager */
+	val = readl(td->bridge_config + RSCMNG_ID_REG);
+	pfn = FIELD_GET(RSCMNG_PFN_MASK, val);
+#endif
+}
+
+static void tc956x_chip_put(struct tc956x_data *td)
+{
+	struct tc956x_chip *tc = td->chip;
+
+	td->chip = NULL;
+
+	/* The primary interface needs to be the last to go */
+	if (tc->secondary) {
+		if (td == tc->secondary)
+			tc->secondary = NULL;
+		return;
+	}
+
+	/*
+	 * XXX This logic is insufficient.  We need to control when the
+	 * XXX memory that the chip structure will point to gets unmapped.
+	 * XXX We'll deal with this later.
+	 */
+	list_del(&tc->links);
+
+	tc->primary = NULL;
+	tc->pci_slot = 0;
+	tc->pci_bus_num = 0;
+
+	kfree(tc);
+}
+
 /**
  * tc956x_pci_probe() - PCI driver probe callback
  * @pdev:	PCI device pointer
@@ -1350,6 +1446,12 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 	pci_set_master(pdev);
 
+	td->chip = tc956x_chip_get(td);
+	if (IS_ERR_OR_NULL(td->chip)) {
+		ret = td->chip ? PTR_ERR(td->chip) : -ENOMEM;
+		goto err_clear_master;
+	}
+
 #if IS_ENABLED(CONFIG_TRACE_MMIO_ACCESS)
 	/*
 	 *  TODO: This is the filtering/tagging support for MMIO tracing.
@@ -1367,7 +1469,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	pfn = FIELD_GET(RSCMNG_PFN_MASK, val);
 	if (WARN_ON(pfn > 1)) {
 		ret = -EINVAL;
-		goto err_clear_master;
+		goto err_chip_put;
 	}
 	td->emac0 = pfn == 0;
 
@@ -1380,7 +1482,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 	ret = tc956x_xgmac3_default_data(pdev, td->plat);
 	if (ret)
-		goto err_clear_master;
+		goto err_chip_put;
 
 	dev_dbg(dev, "port_interface = %d\n", td->port_interface);
 
@@ -1605,6 +1707,8 @@ err_dvr_probe:
 err_platform_probe:
 err_out_msi_failed:
 	pci_free_irq_vectors(pdev);
+err_chip_put:
+	tc956x_chip_put(td);
 err_clear_master:
 	pci_clear_master(pdev);
 
