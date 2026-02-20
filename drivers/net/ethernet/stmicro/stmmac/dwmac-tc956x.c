@@ -1411,16 +1411,6 @@ static void tc956x_config_tamap(struct tc956x_data *td)
 	pr_debug("TRSL_MASK_LO = 0x%08x\n", readl(base + TRSL_MASK_LO_OFFSET));
 }
 
-static int tc956x_dwmac_setup(void *apriv, struct mac_device_info *mac)
-{
-	//struct stmmac_priv *priv = apriv;
-	//struct tc956x_data *td = priv->plat->bsp_priv;
-
-	mac->msi = &tc956x_msigen_ops;
-
-	return 0;
-}
-
 static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 {
 	struct tc956x_data *td = bsp_priv;
@@ -1582,6 +1572,8 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	struct plat_stmmacenet_data *plat;
 	struct stmmac_resources res = { };
 	struct device *dev = &pdev->dev;
+	struct net_device *netdev;
+	struct stmmac_priv *priv;
 	struct tc956x_data *td;
 	/* use signal from EMSPHY */
 	uint16_t sh_mem_offset;
@@ -1670,7 +1662,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	}
 	td->emac0 = pfn == 0;
 
-	plat->mac_setup = &tc956x_dwmac_setup;
 	plat->fix_mac_speed = &tc956x_fix_mac_speed;
 
 	// NCID_OFFSET gives the revision ID (and early revisions are limited
@@ -1894,6 +1885,14 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		/* Make sure probe() succeeds by returning 0 to caller of probe() */
 		ret = 0;	/* XXX Why? */
 	}
+
+	/*
+	 * Install the MSI ops. This is only needed until we have a proper
+	 * irqchip driver for msigen)
+	 */
+	netdev = dev_get_drvdata(dev);
+	priv = netdev_priv(netdev);
+	priv->hw->msi = &tc956x_msigen_ops;
 
 	dev_dbg(dev, "<--%s : Adding DSP Cut Through Settings", __func__);
 

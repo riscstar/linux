@@ -4114,11 +4114,9 @@ static int __stmmac_open(struct net_device *dev,
 	if (ret)
 		goto irq_error;
 
-
 #ifdef TC956X
 	tc956x_msi_intr_en(priv, priv, dev, true);
 #endif
-
 	stmmac_enable_all_queues(priv);
 	netif_tx_start_all_queues(priv->dev);
 #ifdef TC956X
