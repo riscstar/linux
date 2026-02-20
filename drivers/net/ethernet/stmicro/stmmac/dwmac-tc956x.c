@@ -63,7 +63,7 @@
 //   coordinate between the host and the M3.
 //
 
-/* PCI BAR assignments:  bridge_config, SRAM, and SFR regions */
+/* PCI BAR assignments */
 #define PCI_BAR_BRIDGE_CONFIG		0
 #define PCI_BAR_SRAM			2
 #define PCI_BAR_SFR			4
@@ -124,7 +124,7 @@ struct tc956x_data {
 #define AXI4_SLV_TABLE_OFFSET		0x0800
 
 /* Each AXI translation entry has has a block of registers this far apart */
-#define AXI4_TABLE_STRIDE	0x20
+#define AXI4_TABLE_STRIDE		0x20
 #define AXI4_SLV_BASE(tid) \
 		(AXI4_SLV_TABLE_OFFSET + (tid) * AXI4_TABLE_STRIDE)
 
@@ -136,7 +136,7 @@ struct tc956x_data {
 #define TRSL_ADDR_HI_OFFSET		0x0C
 #define TRSL_PARAM_OFFSET		0x10
 #define TRSL_ID_MASK		GENMASK(3, 0)
-#define TRSL_ID_PCIE_TX_RX	0
+#define TRSL_ID_PCIE_TX_RX		0
 #define TRSF_PARAM_MASK		GENMASK(27, 16)
 #define TRSL_MASK_LO_OFFSET		0x18
 #define TRSL_MASK_HI_OFFSET		0x1C
@@ -159,8 +159,14 @@ struct tc956x_data {
 
 /* XXX This stuff must be coordinated with firmware. */
 #define TC956X_M3_SRAM_EEPROM_OFFSET_ADDR	0x47050		/* DMEM addrs 0x20007050U */
+
 #define TC956X_M3_SRAM_EEPROM_MAC_COUNT		0x47051		/* DMEM addrs 0x20007051U */
+
 #define TC956X_M3_INIT_DONE			0x47054		/* DMEM addrs 0x20007054U */
+
+/* XXX Values written to SRAM (DMEM) offsets above */
+#define EEPROM_OFFSET			0
+#define EEPROM_MAC_COUNT		14	/* XXX Why 14? */
 
 #define ENABLE_XFI_INTERFACE			1 /* XFI/SFI, this is same as USXGMII, except XPCS autoneg disabled */
 #define ENABLE_SGMII_INTERFACE			4
@@ -192,8 +198,6 @@ struct tx956x_shrd_mem {
 // Definitions taken from common.h in vendor driver
 //
 
-/* Independent Suspend/Resume Debug */
-#undef TC956X_PM_DEBUG
 #define TC956X_TOT_CASCADE_DEV	7 /* Maximum number of devices for 2 Level cascade setup */
 #define TC956X_PCI_BD_MASK	0xFFF8
 
@@ -232,9 +236,6 @@ enum TC956X_PHY_MDIO_AVAILABILITY {
 /* Broadcast/Multicast packet */
 #define BC_MC_PACKET		TC956X_DA_MAP
 #endif
-
-#define EEPROM_OFFSET		0
-#define EEPROM_MAC_COUNT	14	/* XXX Why 14? */
 
 /************************* TC956X_SRIOV_PF Ends *************************/
 
@@ -818,24 +819,15 @@ static void tc956x_interrupt_en(struct stmmac_priv *priv, struct net_device *dev
 #if 0
 	// This table is copied from tc956xmac_main.c and is almost certainly
 	// wrong in some way (subtle or otherwise)
-	bool tx_ch_in_use[8];
-	bool rx_ch_in_use[8];
-	tx_ch_in_use[0] = true;
-	tx_ch_in_use[1] = false;
-	tx_ch_in_use[2] = false;
-	tx_ch_in_use[3] = false;
-	tx_ch_in_use[4] = true;
-	tx_ch_in_use[5] = true;
-	tx_ch_in_use[6] = true;
-	tx_ch_in_use[7] = true;
-	rx_ch_in_use[0] = true;
-	rx_ch_in_use[1] = false;
-	rx_ch_in_use[2] = false;
-	rx_ch_in_use[3] = true;
-	rx_ch_in_use[4] = true;
-	rx_ch_in_use[5] = true;
-	rx_ch_in_use[6] = true;
-	rx_ch_in_use[7] = true;
+	bool tx_ch_in_use[8];		bool rx_ch_in_use[8];
+	tx_ch_in_use[0] = true;		rx_ch_in_use[0] = true;
+	tx_ch_in_use[1] = false;	rx_ch_in_use[1] = false;
+	tx_ch_in_use[2] = false;	rx_ch_in_use[2] = false;
+	tx_ch_in_use[3] = false;	rx_ch_in_use[3] = true;
+	tx_ch_in_use[4] = true;		rx_ch_in_use[4] = true;
+	rx_ch_in_use[5] = true;		tx_ch_in_use[5] = true;
+	rx_ch_in_use[6] = true;		tx_ch_in_use[6] = true;
+	rx_ch_in_use[7] = true;		tx_ch_in_use[7] = true;
 #endif
 
 	base = td->sfr + MSIGEN_BASE(td->emac0 ? 0 : 1);
@@ -1194,10 +1186,6 @@ struct tc956x_pci_dmi_data {
 	const struct tc956x_pci_func_data *func;
 	size_t nfuncs;
 };
-
-struct tc956x_pci_info {
-	int (*setup)(struct pci_dev *pdev, struct plat_stmmacenet_data *plat);
-};
 #endif
 
 /**
@@ -1397,15 +1385,14 @@ static void tc956x_zero_sram(struct tc956x_data *td)
 static void tc956x_m3_reset(struct tc956x_data *td, bool assert)
 {
 	void __iomem *addr = td->sfr + NRSTCTRL0_OFFSET;
-	u32 mask = RST0_MCU_MASK;
 	u32 val;
 
 	/* Note: 1 means assert */
 	val = readl(addr);
 	if (assert)
-		val |= mask;
+		val |= RST0_MCU_MASK;
 	else
-		val &= ~mask;
+		val &= ~RST0_MCU_MASK;
 	writel(val, addr);
 }
 
@@ -1522,20 +1509,13 @@ static void tc956x_config_tamap(struct tc956x_data *td)
 	writel(val, base + TRSL_ADDR_HI_OFFSET);
 	writel(trsf_param_val, base + TRSL_PARAM_OFFSET);
 
-	pr_debug("SL00 SRC_ADDR HI = 0x%08x\n",
-		readl(base + SRC_ADDR_HI_OFFSET));
-	pr_debug("SL00 SRC_ADDR LO = 0x%08x\n",
-		readl(base + SRC_ADDR_LO_OFFSET));
-	pr_debug("SL00 TRSL_ADDR_HI = 0x%08x\n",
-		readl(base + TRSL_ADDR_HI_OFFSET));
-	pr_debug("SL00 TRSL_ADDR_LO = 0x%08x\n",
-		readl(base + TRSL_ADDR_LO_OFFSET));
-	pr_debug("SL00 TRSL_PARAM = 0x%08x\n",
-		readl(base + TRSL_PARAM_OFFSET));
-	pr_debug("SL00 TRSL_MASK_HI = 0x%08x\n",
-		readl(base + TRSL_MASK_HI_OFFSET));
-	pr_debug("SL00 TRSL_MASK_LO = 0x%08x\n",
-		readl(base + TRSL_MASK_LO_OFFSET));
+	pr_debug("SRC_ADDR HI = 0x%08x\n", readl(base + SRC_ADDR_HI_OFFSET));
+	pr_debug("SRC_ADDR LO = 0x%08x\n", readl(base + SRC_ADDR_LO_OFFSET));
+	pr_debug("TRSL_ADDR_HI = 0x%08x\n", readl(base + TRSL_ADDR_HI_OFFSET));
+	pr_debug("TRSL_ADDR_LO = 0x%08x\n", readl(base + TRSL_ADDR_LO_OFFSET));
+	pr_debug("TRSL_PARAM = 0x%08x\n", readl(base + TRSL_PARAM_OFFSET));
+	pr_debug("TRSL_MASK_HI = 0x%08x\n", readl(base + TRSL_MASK_HI_OFFSET));
+	pr_debug("TRSL_MASK_LO = 0x%08x\n", readl(base + TRSL_MASK_LO_OFFSET));
 }
 
 static int tc956x_dwmac_setup(void *apriv, struct mac_device_info *mac)
@@ -1564,7 +1544,6 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 		/* XXX emac0: td->port_interface = ENABLE_XFI_INTERFACE */
 		/* XXX plat->phy_interface = PHY_INTERFACE_MODE_10GBASER; */
 		/* XXX plat->max_speed = 10000; */
-		/* Enable all clocks to eMAC Port0 */
 		/* Enable all clocks to eMAC Port0 */
 		/* Interface configuration for port0*/
 		ret = readl(td->sfr + NEMAC0CTL_OFFSET);
@@ -1751,11 +1730,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	pci_set_master(pdev);
 
 	/* Request the PCI IO Memory for the device */
-/*
- * irqd_set_trigger_type() suggests that the 0x4 in the bottom bits
- * could represent IRQ_TYPE_LEVEL_HIGH, but I think that's only for
- * IRQ resources.
- */
 	virt = pcim_iomap_region(pdev, PCI_BAR_BRIDGE_CONFIG, DRIVER_NAME);
 	if (IS_ERR(virt)) {
 		ret = PTR_ERR(virt);
@@ -1869,7 +1843,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		ret |= RST0_MAC0RST;
 		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
 
-		dev_dbg(dev, "Enabling all eMAC clocks for Port 0 Bus number %x\n", pdev->bus->number);
 		/* Enable all clocks to eMAC Port0 */
 		ret = readl(td->sfr + NCLKCTRL0_OFFSET);
 
@@ -1908,7 +1881,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		ret |= RST1_MAC1RST;
 		writel(ret, td->sfr + NRSTCTRL1_OFFSET);
 
-		dev_dbg(dev, "Enabling all eMAC clocks for Port 1 Bus number-%x\n", pdev->bus->number);
 		/* Enable all clocks to eMAC Port1 */
 		ret = readl(td->sfr + NCLKCTRL1_OFFSET);
 
@@ -1947,9 +1919,9 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	plat->bus_id = ((pdev->bus->number<<4) | (td->emac0 ? 0 : 1));
 
 	sh_mem_offset = tc956x_get_shared_mem_offset(pdev, pci_dev_id(pdev) & TC956X_PCI_BD_MASK);
-	if (sh_mem_offset < TC956X_TOT_CASCADE_DEV)
+	if (sh_mem_offset < TC956X_TOT_CASCADE_DEV) {
 		td->pci_bd  = sh_mem_offset;
-	else {
+	} else {
 		dev_err(dev, "Error finding shared memory\n");
 		goto err_out_msi_failed;
 	}
@@ -2155,8 +2127,8 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 		writel(nclk_val, nclk_reg);
 	}
 	pr_debug("%s : Port %d %s Wr RST Reg:%x, CLK Reg:%x", __func__,
-			td->emac0 ? 0 : 1, priv->dev->name,
-			readl(nrst_reg), readl(nclk_reg));
+		 td->emac0 ? 0 : 1, priv->dev->name,
+		 readl(nrst_reg), readl(nclk_reg));
 
 	pdev->irq = 0;
 
@@ -2281,14 +2253,9 @@ static int tc956x_pcie_suspend(struct device *dev)
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	int ret;
 
-	/* Decrement device usage counter */
 	tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt--;
-	dev_dbg(dev, "%s : (Number of Ports Left to Suspend = [%d])\n", __func__, tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt);
 
-	/* Call stmmac_suspend() */
 	stmmac_suspend(dev);
-	dev_dbg(dev, "%s : Port %d %s- Platform Suspend",
-			__func__, td->emac0 ? 0 : 1, priv->dev->name);
 	ret = tc956x_platform_suspend(priv);
 	if (ret) {
 		dev_err(dev, "%s: error in calling tc956x_platform_suspend", pci_name(pdev));
@@ -2333,7 +2300,6 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 		ret |= RST0_MAC0RST;
 		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
 
-		dev_dbg(dev, "Enabling all eMAC clocks for Port 0 %s\n", priv->dev->name);
 		/* Enable all clocks to eMAC Port0 */
 		ret = readl(td->sfr + NCLKCTRL0_OFFSET);
 
@@ -2372,7 +2338,6 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 		ret |= RST1_MAC1RST;
 		writel(ret, td->sfr + NRSTCTRL1_OFFSET);
 
-		dev_dbg(dev, "Enabling all eMAC clocks for Port 1 %s\n", priv->dev->name);
 		/* Enable all clocks to eMAC Port1 */
 		ret = readl(td->sfr + NCLKCTRL1_OFFSET);
 
@@ -2475,8 +2440,6 @@ static int tc956x_pcie_resume(struct device *dev)
 
 	tc956x_restore_phy_reset(priv);
 
-	dev_dbg(dev, "%s : Port %d %s - Platform Resume",
-			__func__, td->emac0 ? 0 : 1, priv->dev->name);
 	ret = tc956x_platform_resume(priv);
 	if (ret) {
 		dev_err(dev, "%s: error in calling tc956x_platform_resume", pci_name(pdev));
@@ -2499,7 +2462,6 @@ static int tc956x_pcie_resume(struct device *dev)
 
 	/* Increment device usage counter */
 	tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt++;
-	dev_dbg(dev, "%s : (Number of Ports Resumed = [%d])\n", __func__, tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt);
 
 	return 0;
 }
