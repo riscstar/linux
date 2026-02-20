@@ -1929,7 +1929,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 	return ret;
 
-
 err_dvr_probe:
 	(void) tc956x_platform_remove(td);
 err_platform_probe:
@@ -2019,12 +2018,8 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 	/* Free allocated interrupt vectors for device */
 	pci_free_irq_vectors(pdev);
 
-	/* Un-map previously mapped BAR0/2/4 address memory */
-	if (td->sfr)
-		pci_iounmap(pdev, td->sfr);
-	if (td->bridge_config)
-		pci_iounmap(pdev, td->bridge_config);
-	pci_release_regions(pdev);
+	td->sfr = NULL;
+	td->bridge_config = NULL;
 
 	/* Decrement device usage counter */
 	tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt--;
