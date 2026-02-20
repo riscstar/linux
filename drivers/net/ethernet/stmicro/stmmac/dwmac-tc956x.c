@@ -1591,6 +1591,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	u32 val;
 	int ret;
 
+	/* The platform structure is allocated with devm_kzalloc() */
 	plat = stmmac_plat_dat_alloc(dev);
 	if (!plat)
 		return -ENOMEM;
@@ -1614,8 +1615,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	if (!plat->dma_cfg)
 		return -ENOMEM;
 
-	/* Enable pci device */
-	ret = pci_enable_device(pdev);
+	ret = pcim_enable_device(pdev);
 	if (ret) {
 		dev_err(dev, "%s: ERROR: failed to enable device\n", __func__);
 		return ret;
@@ -1627,7 +1627,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	if (IS_ERR(virt)) {
 		ret = PTR_ERR(virt);
 		dev_err(dev, "failed to map bridge config region\n");
-		goto err_disable_device;
+		goto err_clear_master;
 	}
 	td->bridge_config = virt;
 
@@ -1635,7 +1635,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	if (IS_ERR(td->sfr)) {
 		ret = PTR_ERR(virt);
 		dev_err(dev, "failed to map sfr region\n");
-		goto err_disable_device;
+		goto err_clear_master;
 	}
 	td->sfr = virt;
 
@@ -1666,7 +1666,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	pfn = FIELD_GET(RSCMNG_PFN_MASK, val);
 	if (WARN_ON(pfn > 1)) {
 		ret = -EINVAL;
-		goto err_disable_device;
+		goto err_clear_master;
 	}
 	td->emac0 = pfn == 0;
 
@@ -1682,7 +1682,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 	ret = tc956x_xgmac3_default_data(pdev, plat);
 	if (ret)
-		goto err_disable_device;
+		goto err_clear_master;
 
 	dev_dbg(dev, "port_interface = %d\n", td->port_interface);
 
@@ -1935,9 +1935,8 @@ err_dvr_probe:
 err_platform_probe:
 err_out_msi_failed:
 	pci_free_irq_vectors(pdev);
-err_disable_device:
+err_clear_master:
 	pci_clear_master(pdev);
-	pci_disable_device(pdev);
 
 	return ret;
 }
@@ -2026,8 +2025,6 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 	if (td->bridge_config)
 		pci_iounmap(pdev, td->bridge_config);
 	pci_release_regions(pdev);
-
-	pci_disable_device(pdev);
 
 	/* Decrement device usage counter */
 	tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt--;
