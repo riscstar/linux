@@ -117,10 +117,6 @@ struct tc956x_data {
 // Definitions taken from tc956xmac.h in vendor driver
 //
 
-#define FIRMWARE_NAME			"TC956X_Firmware_PCIeBridge.bin"
-
-#define TC956X_FW_MAX_SIZE		(64 * 1024)
-
 #define AXI4_SLV_TABLE_OFFSET		0x0800
 
 /* Each AXI translation entry has has a block of registers this far apart */
@@ -156,13 +152,6 @@ struct tc956x_data {
 #define NEMACTXCDLY_DEFAULT		0x00000000U
 #define NEMACIOCTL_DEFAULT		0xF300F300
 #endif
-
-/* XXX This stuff must be coordinated with firmware. */
-#define TC956X_M3_SRAM_EEPROM_OFFSET_ADDR	0x47050		/* DMEM addrs 0x20007050U */
-
-#define TC956X_M3_SRAM_EEPROM_MAC_COUNT		0x47051		/* DMEM addrs 0x20007051U */
-
-#define TC956X_M3_INIT_DONE			0x47054		/* DMEM addrs 0x20007054U */
 
 /* XXX Values written to SRAM (DMEM) offsets above */
 #define EEPROM_OFFSET			0
@@ -1369,18 +1358,6 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 	return 0;
 }
 
-/**
- * tc956x_zero_sram() - Reset SRAM region
- * @td:		TC956x driver private data pointer
- *
- * Reset the IMEM and DMEM memory in the tc956x.
- */
-static void tc956x_zero_sram(struct tc956x_data *td)
-{
-	memset_io(td->sram, 0x0, 0x10000);		/* IMEM */
-	memset_io(td->sram + 0x40000, 0x0, 0x10000);	/* DMEM */
-}
-
 /* Assert or deassert the embedded Cortex M3 */
 static void tc956x_m3_reset(struct tc956x_data *td, bool assert)
 {
@@ -1394,61 +1371,6 @@ static void tc956x_m3_reset(struct tc956x_data *td, bool assert)
 	else
 		val &= ~RST0_MCU_MASK;
 	writel(val, addr);
-}
-
-/**
- * tc956x_load_firmware() - Load firmware for the embedded Cortex M3
- * @td:		TC956x driver private data pointer
- *
- * Load the firmware into the SRAM in the TC956x.  The embedded Cortex M3
- * starts executing once the firmware loading is complete.
- *
- * Return:	0 if successful, or an error code if an error occurs
- */
-static s32 tc956x_load_firmware(struct tc956x_data *td)
-{
-	struct device *dev = td->dev;
-	const struct firmware *pfw;
-	void __iomem *addr;
-	u32 init_done;
-	int ret;
-
-	/* Get TC956X FW binary through kernel firmware interface request */
-	ret = request_firmware(&pfw, FIRMWARE_NAME, dev);
-	if (ret) {
-		dev_err(dev, "error %d requesting firmware\n", ret);
-		return ret;
-	}
-
-	if (pfw->size > TC956X_FW_MAX_SIZE) {
-		dev_err(dev, "firmware too big (%zu > %u)\n",
-			pfw->size, TC956X_FW_MAX_SIZE);
-		return -EINVAL;
-	}
-
-	tc956x_zero_sram(td);
-
-	mdelay(10);		/* XXX Why the delay? */
-
-	/*
-	 * XXX Why is this even necessary?  Doesn't it boot at a fixed
-	 * XXX offset?  How does firmware use this?
-	 */
-	/* Tell the Cortex M3 where we put its firmware (boot offset) */
-	iowrite8(EEPROM_OFFSET, td->sram + TC956X_M3_SRAM_EEPROM_OFFSET_ADDR);
-	/* Also tell it how many eMACs we are supporting */
-	iowrite8(EEPROM_MAC_COUNT, td->sram + TC956X_M3_SRAM_EEPROM_MAC_COUNT);
-
-	/* Copy TC956X FW to SRAM */
-	memcpy_toio(td->sram, pfw->data, pfw->size);
-
-	release_firmware(pfw);
-	tc956x_m3_reset(td, false);
-
-	addr = td->sram + TC956X_M3_INIT_DONE;
-	readl_poll_timeout(addr, init_done, init_done != 0, 100, 100000);
-
-	return init_done ? 0 : -EINVAL;
 }
 
 /**
@@ -1828,13 +1750,9 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	pci_write_config_dword(pdev, pdev->msi_cap + PCI_MSI_MASK_64, 0);
 
 
-	if (td->emac0) {
-		/* Keep the M3 in reset */
+	/* Keep the M3 in reset */
+	if (td->emac0)
 		tc956x_m3_reset(td, true);
-		ret = tc956x_load_firmware(td);
-		if (ret)
-			dev_err(dev, "Firmware load failed\n");
-	}
 
 	if (td->emac0) {
 		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
