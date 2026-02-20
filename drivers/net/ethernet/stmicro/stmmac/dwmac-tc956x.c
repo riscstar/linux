@@ -1347,21 +1347,6 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 	return 0;
 }
 
-/* Assert or deassert the embedded Cortex M3 */
-static void tc956x_m3_reset(struct tc956x_data *td, bool assert)
-{
-	void __iomem *addr = td->sfr + NRSTCTRL0_OFFSET;
-	u32 val;
-
-	/* Note: 1 means assert */
-	val = readl(addr);
-	if (assert)
-		val |= RST0_MCU_MASK;
-	else
-		val &= ~RST0_MCU_MASK;
-	writel(val, addr);
-}
-
 /**
  * tc956x_config_tamap() - Populate the table address map registers
  * @td:		TC956x driver private data pointer
@@ -1729,10 +1714,13 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		__func__, pdev->irq, pci_irq_vector(pdev, 0));
 	pci_write_config_dword(pdev, pdev->msi_cap + PCI_MSI_MASK_64, 0);
 
+	if (td->emac0) {
+		void __iomem *addr = td->sfr + NRSTCTRL0_OFFSET;
 
-	/* Keep the M3 in reset */
-	if (td->emac0)
-		tc956x_m3_reset(td, true);
+		val = readl(addr);
+		val |= RST0_MCU_MASK;	/* Keep the M3 in reset */
+		writel(val, addr);
+	}
 
 	if (td->emac0) {
 		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
