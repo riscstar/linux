@@ -1821,7 +1821,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	res.addr = XGMAC_BASE(td);
 	res.wol_irq = pdev->irq;
 	res.irq = pdev->irq;
-	res.lpi_irq = pdev->irq;
 
 	plat->bus_id = ((pdev->bus->number<<4) | (td->emac0 ? 0 : 1));
 
