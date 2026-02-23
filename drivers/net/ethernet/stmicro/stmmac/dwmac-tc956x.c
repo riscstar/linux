@@ -19,8 +19,11 @@
 #include <linux/aer.h>
 #include <linux/iopoll.h>
 #include <linux/gpio/consumer.h>
+#include <linux/pcs/pcs-xpcs.h>
+#include <linux/pcs/pcs-xpcs-regmap.h>
 #include <linux/pinctrl/consumer.h>
 #include <linux/phy.h>
+#include <linux/regmap.h>
 #include <linux/regulator/consumer.h>
 #include <linux/of_irq.h>
 #include <linux/delay.h>
@@ -1409,6 +1412,34 @@ static void tc956x_config_tamap(struct tc956x_data *td)
 	pr_debug("TRSL_PARAM = 0x%08x\n", readl(base + TRSL_PARAM_OFFSET));
 	pr_debug("TRSL_MASK_HI = 0x%08x\n", readl(base + TRSL_MASK_HI_OFFSET));
 	pr_debug("TRSL_MASK_LO = 0x%08x\n", readl(base + TRSL_MASK_LO_OFFSET));
+}
+
+static int tc956x_pcs_init(struct stmmac_priv *priv)
+{
+	struct tc956x_data *td = priv->plat->bsp_priv;
+	struct xpcs_regmap_config xpcs_regmap_cfg = {
+		.reg_indir = true,
+		// TODO: no need to carry reg_width, regmap solves that for us
+		.reg_width = 4,
+	};
+	struct regmap_config regmap_cfg = {
+		.reg_bits = 32,
+		.val_bits = 32,
+		//.reg_shift = REGMAP_UPSHIFT(1),
+	};
+	struct dw_xpcs *xpcs;
+
+	xpcs_regmap_cfg.regmap = devm_regmap_init_mmio(
+		priv->device, XGMAC_BASE(td) + XPCS_XGMAC_OFFSET, &regmap_cfg);
+	if (IS_ERR(xpcs_regmap_cfg.regmap))
+		return PTR_ERR(xpcs_regmap_cfg.regmap);
+
+	xpcs = devm_xpcs_regmap_register(priv->device, &xpcs_regmap_cfg);
+	if (IS_ERR(xpcs))
+		return PTR_ERR(xpcs);
+
+	priv->hw->xpcs = xpcs;
+	return 0;
 }
 
 static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
