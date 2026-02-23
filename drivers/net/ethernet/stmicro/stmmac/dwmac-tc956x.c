@@ -28,7 +28,7 @@
 #include "dwxgmac2.h"
 #include "common.h"
 
-#define DRIVER_NAME "dwmac-tc956x-pci"
+#define DRIVER_NAME "dwmac-tc956x"
 
 /*
  * XXX TC956X_AXI4_SLV00_ATR_SIZE (36) defines the source translation
