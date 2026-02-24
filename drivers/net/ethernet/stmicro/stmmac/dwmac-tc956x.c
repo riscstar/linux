@@ -19,12 +19,14 @@
 #include <linux/aer.h>
 #include <linux/iopoll.h>
 #include <linux/gpio/consumer.h>
+#include <linux/gpio/driver.h>
 #include <linux/pcs/pcs-xpcs.h>
 #include <linux/pcs/pcs-xpcs-regmap.h>
 #include <linux/pinctrl/consumer.h>
 #include <linux/phy.h>
 #include <linux/regmap.h>
 #include <linux/regulator/consumer.h>
+#include <linux/string_choices.h>
 #include <linux/of_irq.h>
 #include <linux/delay.h>
 #include "stmmac.h"
@@ -66,6 +68,8 @@
 #define PCI_BAR_BRIDGE_CONFIG		0
 #define PCI_BAR_SFR			4
 
+#define TC956X_GPIO_COUNT	37	/* Number of GPIOs (20-21 reserved) */
+
 /**
  * struct tc956x_data - Toshiba-specific platform data
  * @dev:		Device pointer
@@ -73,7 +77,7 @@
  * @plat:		Pointer to our stmmac platform data
  * @bridge_config:	Mapped bridge config data (BAR 0)
  * @sfr:		Mapped SFR region (BAR 4)
- * @emac0:		Which eMAC port this is (true: port 0; false: port 1
+ * @emac0:		Which eMAC port this is (true: port 0; false: port 1)
  * @is_sgmii_2p5g:	True if PHY uses SGMII and operating at 2.5 Gbps
  * @port_interface:	Operating more of the port (XFI or SGMII)
  * @pm_saved_emac_rst:	Saved eMAC reset control register value
@@ -86,6 +90,7 @@
  * @phy_reset_delay:	Delay (milliseconds) after PHY reset
  * @reset_asserted:	Whether reset on this PHY is currently asserted
  * @wol_irq:		Wake-on-LAN IRQ number
+ * @chip:		Pointer to the containing chip information
  */
 struct tc956x_data {
 	struct device *dev;
@@ -109,12 +114,25 @@ struct tc956x_data {
 	struct tc956x_chip *chip;
 };
 
+/*
+ * struct tc956x_gpio - Information related to the embedded GPIO controller
+ * @chip:		GPIO chip structure
+ * @virt:		Memory mapped register address, from primary BAR
+ * @input_only:		Bitmap indicating which GPIOs are input-only
+ */
+struct tc956x_gpio {
+	struct gpio_chip chip;
+	void __iomem *virt;
+	DECLARE_BITMAP(input_only, TC956X_GPIO_COUNT);
+};
+
 /**
  * struct tc956x_chip - Common chip support information
  * @pci_bus_num:	PCI bus this chip is on
  * @pci_slot:		PCI slot on its bus this chip fills
  * @primary:		Data pointer for the primary eMAC interface
  * @secondary:		Data pointer for the secondary eMAC interface
+ * @gpio:		Pointer to GPIO information
  * @links:		Links in the list of all chips
  *
  * A single tc956x_chip structure represents the chip as a whole,
@@ -131,6 +149,7 @@ struct tc956x_chip {
 	u8 pci_slot;
 	struct tc956x_data *primary;
 	struct tc956x_data *secondary;
+	struct tc956x_gpio gpio;
 	struct list_head links;		/* XXX any locking needed? */
 };
 
@@ -334,8 +353,10 @@ struct tx956x_shrd_mem {
 #define SP_ETH_100M				3
 #define SP_ETH_10M				7
 
+#define GPIOI0_OFFSET		0x1200	/* GPIO00 enable register */
+#define GPIOI1_OFFSET		0x1204	/* GPIO01 enable register */
 #define GPIOE0_OFFSET		0x1208	/* GPIO00 enable register */
-#define GPIOE1_OFFSET		0x120C	/* GPIO01 enable register */
+#define GPIOE1_OFFSET		0x120c	/* GPIO01 enable register */
 #define GPIOO0_OFFSET		0x1210	/* GPIO00 output register */
 #define GPIOO1_OFFSET		0x1214	/* GPIO01 output register */
 
@@ -1277,6 +1298,215 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 	}
 }
 
+static int tc956x_gpio_request(struct gpio_chip *gc, unsigned int offset)
+{
+	printk(" === %s %u\n", __func__, offset);
+	/* Probably not needed */
+	return 0;
+}
+
+static void tc956x_gpio_free(struct gpio_chip *gc, unsigned int offset)
+{
+	/* Probably not needed */
+	printk(" === %s %u\n", __func__, offset);
+}
+
+
+static int tc956x_gpio_get_direction(struct gpio_chip *gc, unsigned int offset)
+{
+	struct tc956x_gpio *tg = gpiochip_get_data(gc);
+	void __iomem *gpioe;
+	u32 val;
+
+	printk(" === %s %u\n", __func__, offset);
+
+	if (test_bit(offset, tg->input_only))
+		return GPIO_LINE_DIRECTION_IN;
+
+	gpioe = tg->virt + (offset < 32 ? GPIOE0_OFFSET : GPIOE1_OFFSET);
+
+	val = readl(gpioe);
+	if (val & BIT(offset % 32))
+		return GPIO_LINE_DIRECTION_IN;
+
+	return GPIO_LINE_DIRECTION_OUT;
+}
+
+static int tc956x_gpio_direction_input(struct gpio_chip *gc,
+				       unsigned int offset)
+{
+	struct tc956x_gpio *tg = gpiochip_get_data(gc);
+	void __iomem *gpioe;
+	u32 val;
+
+	printk(" === %s %u\n", __func__, offset);
+
+	gpioe = tg->virt + (offset < 32 ? GPIOE0_OFFSET : GPIOE1_OFFSET);
+	val = readl(gpioe);
+	val |= BIT(offset % 32);	/* Set line for input */
+	writel(val, gpioe);
+
+	return 0;
+}
+
+static int tc956x_gpio_direction_output(struct gpio_chip *gc,
+					unsigned int offset, int value)
+{
+	struct tc956x_gpio *tg = gpiochip_get_data(gc);
+	void __iomem *gpioo;
+	void __iomem *gpioe;
+	u32 val;
+
+	printk(" === %s %u %s\n", __func__, offset, str_on_off(!!value));
+
+	if (test_bit(offset, tg->input_only))
+		return -EINVAL;
+
+	gpioo = tg->virt + (offset < 32 ? GPIOO0_OFFSET : GPIOO1_OFFSET);
+	val = readl(gpioo);
+	if (value)
+		val |= BIT(offset % 32);
+	else
+		val &= ~BIT(offset % 32);
+	writel(val, gpioo);
+
+	gpioe = tg->virt + (offset < 32 ? GPIOE0_OFFSET : GPIOE1_OFFSET);
+	val = readl(gpioe);
+	val &= ~BIT(offset % 32);	/* Set line for output */
+	writel(val, gpioe);
+
+	return 0;
+}
+
+static int tc956x_gpio_get(struct gpio_chip *gc, unsigned int offset)
+{
+	struct tc956x_gpio *tg = gpiochip_get_data(gc);
+	void __iomem *gpioi;
+
+	printk(" === %s %u\n", __func__, offset);
+
+	gpioi = tg->virt + (offset < 32 ? GPIOI0_OFFSET : GPIOI1_OFFSET);
+
+	return readl(gpioi) & BIT(offset % 32) ? 1 : 0;
+}
+
+static int tc956x_gpio_set(struct gpio_chip *gc, unsigned int offset, int value)
+{
+	struct tc956x_gpio *tg = gpiochip_get_data(gc);
+	void __iomem *gpioo;
+	u32 val;
+
+	printk(" === %s %u %s\n", __func__, offset, str_on_off(!!value));
+
+	gpioo = tg->virt + (offset < 32 ? GPIOO0_OFFSET : GPIOO1_OFFSET);
+
+	val = readl(gpioo);
+	if (value)
+		val |= BIT(offset % 32);
+	else
+		val &= ~BIT(offset % 32);
+	writel(val, gpioo);
+
+	return 0;
+}
+
+static int tc956x_gpio_init_valid_mask(struct gpio_chip *gc,
+				       unsigned long *valid_mask,
+				       unsigned int ngpios)
+{
+	printk(" === %s\n", __func__);
+
+	/* GPIOs 20 and 21 are reserved (and not usable) */
+	bitmap_fill(valid_mask, TC956X_GPIO_COUNT);
+	bitmap_clear(valid_mask, 20, 2);
+
+	return 0;
+}
+
+static int tc956x_gpio_init(struct tc956x_chip *tc)
+{
+	struct tc956x_data *td = tc->primary;
+	struct tc956x_gpio *tg;
+	struct gpio_chip *gc;
+	int ret;
+
+	/*
+	 * "Up to 35 GPIOs by share function"
+	 *
+	 * 00-19
+	 * 20-21				reserved
+	 * 22, 23, 24, 27, 28, 31		input only
+	 * 32, 33
+	 * 34					input only
+	 * 35, 36
+	 *
+	 * GPIOI0  	0x1200
+	 * 	GPIO 00-19, 22-31 input value (input mode)
+	 *	20-21 are reserved
+	 * GPIOE0  	0x1208
+	 * 	00-19, 25-26, 29-30	0 output, 1 input
+	 *	20-21 are reserved
+	 * 	22-24, 27-28, 31	0 output low, 1 input or Hi-Z
+	 * 	25-26, 29-30		0 output, 1 input
+	 * GPIOO0  	0x1210
+	 * 	00-19, 25-26, 29-30	output value
+	 *	20-21 are reserved
+	 *	22-24, 27-28, 31  	reserved	 (not output)
+	 *
+	 * GPIOI1	0x1204
+	 * 	GPIO 32-36 input value (input mode)
+	 * GPIOE1	0x120c
+	 * 	32-33, 35-36		0 output, 1 input
+	 * 	34			0 output low, 1 input or Hi-Z
+	 * GPIOO1	0x1214
+	 * 	32-33, 35-36		output value
+	 * 	34			reserved	(not output)
+	 *
+	 */
+
+	tg = &tc->gpio;
+
+	tg->virt = td->sfr;
+
+	/* GPIOs 22, 23, 24, 27, 28, 31, and 34 are input only */
+	bitmap_set(tg->input_only, 22, 3);
+	bitmap_set(tg->input_only, 27, 2);
+	set_bit(31, tg->input_only);
+	set_bit(34, tg->input_only);
+
+	gc = &tg->chip;
+
+	gc->label = "tc956x-gpio";
+	gc->parent = get_device(td->dev);
+
+	gc->request = tc956x_gpio_request;
+	gc->free = tc956x_gpio_free;
+	gc->get_direction = tc956x_gpio_get_direction;
+	gc->direction_input = tc956x_gpio_direction_input;
+	gc->direction_output = tc956x_gpio_direction_output;
+	gc->get = tc956x_gpio_get;
+	gc->set = tc956x_gpio_set;
+	gc->init_valid_mask = tc956x_gpio_init_valid_mask;
+
+	gc->base = -1;
+	gc->ngpio = TC956X_GPIO_COUNT;
+	gc->can_sleep = false;
+
+	ret = gpiochip_add_data(gc, tg);
+	if (ret)
+		put_device(gc->parent);
+
+	return ret;
+}
+
+static void tc956x_gpio_exit(struct tc956x_chip *tc)
+{
+	struct gpio_chip *gc = &tc->gpio.chip;
+
+	gpiochip_remove(gc);
+	put_device(gc->parent);
+}
+
 static struct tc956x_data *tc956x_devm_data_create(struct pci_dev *pdev)
 {
 	struct plat_stmmacenet_data *plat;
@@ -1353,6 +1583,7 @@ static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 	u8 pci_bus_num = PCI_BUS_NUM(td->devfn);
 	u8 pci_slot = PCI_SLOT(td->devfn);
 	struct tc956x_chip *tc;
+	int ret;
 
 	/* Use the existing chip structure if it's already been created */
 	list_for_each_entry(tc, &tc956x_chips, links) {
@@ -1379,9 +1610,18 @@ static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 	tc->pci_slot = pci_slot;
 	tc->primary = td;
 
+	ret = tc956x_gpio_init(tc);
+	if (ret)
+		goto err_free_tc;
+
 	list_add(&tc->links, &tc956x_chips);
 
 	return tc;
+
+err_free_tc:
+	kfree(tc);
+
+	return ERR_PTR(ret);
 #if 0
 	/* Determine physical port number from the resource manager */
 	val = readl(td->bridge_config + RSCMNG_ID_REG);
@@ -1408,6 +1648,8 @@ static void tc956x_chip_put(struct tc956x_data *td)
 	 * XXX We'll deal with this later.
 	 */
 	list_del(&tc->links);
+
+	tc956x_gpio_exit(tc);
 
 	tc->primary = NULL;
 	tc->pci_slot = 0;
@@ -1655,9 +1897,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 		if (ret != -ENODEV)
 			goto err_dvr_probe;
-
-		/* Make sure probe() succeeds by returning 0 to caller of probe() */
-		ret = 0;	/* XXX Why? */
 	}
 
 	/*
@@ -1700,10 +1939,10 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	/* Increment device usage counter */
 	tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt++;
 
-	return ret;
+	return 0;
 
 err_dvr_probe:
-	(void) tc956x_platform_remove(td);
+	(void)tc956x_platform_remove(td);
 err_platform_probe:
 err_out_msi_failed:
 	pci_free_irq_vectors(pdev);
