@@ -69,6 +69,7 @@
 /**
  * struct tc956x_data - Toshiba-specific platform data
  * @dev:		Device pointer
+ * @devfn:		PCI device/function id
  * @plat:		Pointer to our stmmac platform data
  * @bridge_config:	Mapped bridge config data (BAR 0)
  * @sfr:		Mapped SFR region (BAR 4)
@@ -88,6 +89,7 @@
  */
 struct tc956x_data {
 	struct device *dev;
+	unsigned int devfn;
 	struct plat_stmmacenet_data *plat;
 	void __iomem *bridge_config;
 	void __iomem *sfr;
@@ -1266,6 +1268,7 @@ static struct tc956x_data *tc956x_devm_data_create(struct pci_dev *pdev)
 
 	td->plat = plat;
 	td->dev = dev;
+	td->devfn = pdev->devfn;
 
 	plat->bsp_priv = td;
 	plat->fix_mac_speed = tc956x_fix_mac_speed;
