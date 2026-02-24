@@ -1247,77 +1247,60 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 	}
 }
 
-/**
- * tc956x_pci_probe() - PCI driver probe callback
- * @pdev:	PCI device pointer
- * @id:		Pointer to the matching PCI device ID table entry
- *
- * Set up a PCI device whose VID/PID match what we support.  This includes
- * allocating a driver private structure, requesting memory regions,
- * setting up interrupt handling, and so on.
- */
-static int tc956x_pci_probe(struct pci_dev *pdev,
-			    const struct pci_device_id *id)
+static struct tc956x_data *tc956x_devm_data_create(struct pci_dev *pdev)
 {
 	struct plat_stmmacenet_data *plat;
-	struct stmmac_resources res = { };
 	struct device *dev = &pdev->dev;
-	struct net_device *netdev;
-	struct stmmac_priv *priv;
 	struct tc956x_data *td;
-	/* use signal from EMSPHY */
-	uint16_t sh_mem_offset;
 	void __iomem *virt;
-	bool mode2;
-	u32 pfn;
-	u32 val;
 	int ret;
+
+	td = devm_kzalloc(dev, sizeof(*td), GFP_KERNEL);
+	if (!td)
+		return NULL;
 
 	/* The platform structure is allocated with devm_kzalloc() */
 	plat = stmmac_plat_dat_alloc(dev);
 	if (!plat)
-		return -ENOMEM;
+		return NULL;
 
-	td = devm_kzalloc(dev, sizeof(*td), GFP_KERNEL);
-	if (!td)
-		return -ENOMEM;
-
-	plat->bsp_priv = td;
 	td->plat = plat;
 	td->dev = dev;
+
+	plat->bsp_priv = td;
+	plat->fix_mac_speed = tc956x_fix_mac_speed;
+	plat->pcs_init = tc956x_pcs_init;
+	plat->select_pcs = tc956x_select_pcs;
 
 	/* XXX We don't initialize this; what is required? */
 	plat->mdio_bus_data = devm_kzalloc(dev, sizeof(*plat->mdio_bus_data),
 					   GFP_KERNEL);
 	if (!plat->mdio_bus_data)
-		return -ENOMEM;
+		return NULL;
 
 	/* XXX We initialize two (four) fields here; what is required? */
 	plat->dma_cfg = devm_kzalloc(dev, sizeof(*plat->dma_cfg), GFP_KERNEL);
 	if (!plat->dma_cfg)
-		return -ENOMEM;
+		return NULL;
 
 	ret = pcim_enable_device(pdev);
 	if (ret) {
 		dev_err(dev, "%s: ERROR: failed to enable device\n", __func__);
-		return ret;
+		return ERR_PTR(ret);
 	}
-	pci_set_master(pdev);
 
 	/* Request the PCI IO Memory for the device */
 	virt = pcim_iomap_region(pdev, PCI_BAR_BRIDGE_CONFIG, DRIVER_NAME);
 	if (IS_ERR(virt)) {
-		ret = PTR_ERR(virt);
 		dev_err(dev, "failed to map bridge config region\n");
-		goto err_clear_master;
+		return ERR_CAST(virt);
 	}
 	td->bridge_config = virt;
 
 	virt = pcim_iomap_region(pdev, PCI_BAR_SFR, DRIVER_NAME);
 	if (IS_ERR(virt)) {
-		ret = PTR_ERR(virt);
 		dev_err(dev, "failed to map sfr region\n");
-		goto err_clear_master;
+		return ERR_CAST(virt);
 	}
 	td->sfr = virt;
 
@@ -1330,6 +1313,39 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	dev_dbg(dev, "BAR4 physical address = 0x%llx length 0x%llx\n",
 		(u64)pci_resource_start(pdev, 4),
 		(u64)pci_resource_len(pdev, 4));
+
+	return td;
+}
+
+/**
+ * tc956x_pci_probe() - PCI driver probe callback
+ * @pdev:	PCI device pointer
+ * @id:		Pointer to the matching PCI device ID table entry
+ *
+ * Set up a PCI device whose VID/PID match what we support.  This includes
+ * allocating a driver private structure, requesting memory regions,
+ * setting up interrupt handling, and so on.
+ */
+static int tc956x_pci_probe(struct pci_dev *pdev,
+			    const struct pci_device_id *id)
+{
+	struct stmmac_resources res = { };
+	struct device *dev = &pdev->dev;
+	struct net_device *netdev;
+	struct stmmac_priv *priv;
+	struct tc956x_data *td;
+	/* use signal from EMSPHY */
+	uint16_t sh_mem_offset;
+	bool mode2;
+	u32 pfn;
+	u32 val;
+	int ret;
+
+	td = tc956x_devm_data_create(pdev);
+	if (IS_ERR_OR_NULL(td))
+		return td ? PTR_ERR(td) : -ENOMEM;
+
+	pci_set_master(pdev);
 
 #if IS_ENABLED(CONFIG_TRACE_MMIO_ACCESS)
 	/*
@@ -1352,10 +1368,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	}
 	td->emac0 = pfn == 0;
 
-	plat->fix_mac_speed = tc956x_fix_mac_speed;
-	plat->pcs_init = tc956x_pcs_init;
-	plat->select_pcs = tc956x_select_pcs;
-
 	// NCID_OFFSET gives the revision ID (and early revisions are limited
 	// to 2.5G)
 	pr_debug("NCID Register value: %x\n", readl(td->sfr + NCID_OFFSET));
@@ -1363,7 +1375,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	td->port_interface = td->emac0 ? ENABLE_XFI_INTERFACE
 				       : ENABLE_SGMII_INTERFACE;
 
-	ret = tc956x_xgmac3_default_data(pdev, plat);
+	ret = tc956x_xgmac3_default_data(pdev, td->plat);
 	if (ret)
 		goto err_clear_master;
 
@@ -1474,7 +1486,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	res.wol_irq = pdev->irq;
 	res.irq = pdev->irq;
 
-	plat->bus_id = ((pdev->bus->number<<4) | (td->emac0 ? 0 : 1));
+	td->plat->bus_id = ((pdev->bus->number<<4) | (td->emac0 ? 0 : 1));
 
 	sh_mem_offset = tc956x_get_shared_mem_offset(pdev, pci_dev_id(pdev) & TC956X_PCI_BD_MASK);
 	if (sh_mem_offset < TC956X_TOT_CASCADE_DEV) {
@@ -1505,7 +1517,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		writel(ret, td->sfr + NRSTCTRL1_OFFSET);
 	}
 
-	ret = stmmac_dvr_probe(dev, plat, &res);
+	ret = stmmac_dvr_probe(dev, td->plat, &res);
 	if (ret) {
 		void __iomem *nrst_reg;
 		void __iomem *nclk_reg;
