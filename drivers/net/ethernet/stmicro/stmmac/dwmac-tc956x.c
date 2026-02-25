@@ -665,7 +665,14 @@ static int tc956x_phy_power_off(struct tc956x_data *td)
 	return ret;
 }
 
-static int tc956x_platform_of_parse(struct tc956x_data *td)
+/*
+ * XXX This will come from a normal GPIO specification in DTS eventually
+ *
+ * phy-reset-gpios = <&tc956x_gpio 0 GPIO_ACTIVE_LOW>;
+ *
+ * desc = gpiod_get(dev, "phy-reset", GPIOD_OUT_LOW);
+ */
+static int tc956x_reset_gpio_get(struct tc956x_data *td)
 {
 	struct device *dev = td->dev;
 	struct device_node *np;
@@ -681,11 +688,12 @@ static int tc956x_platform_of_parse(struct tc956x_data *td)
 		dev_err(dev, "failed to get qcom,phy-reset-gpio property\n");
 		return ret;
 	}
+
 	/* The only values used currently are 0 and 1; we'll generalize later */
 	if (td->phy_reset_gpio && td->phy_reset_gpio != 1) {
 		dev_err(dev, "bad qcom,phy-reset-gpio property (%u)\n",
 			td->phy_reset_gpio);
-		return ret;
+		return -EINVAL;
 	}
 
 	/* XXX Can we use a good constant and avoid having to specify this? * */
@@ -696,33 +704,66 @@ static int tc956x_platform_of_parse(struct tc956x_data *td)
 		return ret;
 	}
 
+	return 0;
+}
+
+static void tc956x_reset_gpio_put(struct tc956x_data *td)
+{
+	/* Nothing needed here yet */
+}
+
+static int tc956x_platform_of_parse(struct tc956x_data *td)
+{
+	struct device *dev = td->dev;
+	struct device_node *np;
+	int ret;
+
+	np = dev_of_node(dev);
+	if (!np)
+		return -EINVAL;
+
+	ret = tc956x_reset_gpio_get(td);
+	if (ret)
+		return ret;
+
 	ret = of_irq_get_byname(np, "wake-on-lan");
 	if (ret <= 0) {
 		dev_err(dev, "failed to get wake-on-lan property\n");
-		return ret ? : -EINVAL;
+		if (!ret)
+			ret = -EINVAL;
+		goto err_put_gpio;
 	}
 	td->wol_irq = ret;
 
 	td->phy_supply = devm_regulator_get(dev, "phy");
 	if (IS_ERR(td->phy_supply)) {
 		dev_err(dev, "failed to get phy-supply\n");
-		return PTR_ERR(td->phy_supply);
+		ret = PTR_ERR(td->phy_supply);
+		goto err_put_gpio;
 	}
 
+	/* XXX Have to chase down why the following is necessary... */
 	td->pinctrl = devm_pinctrl_get(dev);
 	if (IS_ERR(td->pinctrl)) {
 		dev_err(dev, "failed to get pinctrl handle\n");
-		return PTR_ERR(td->pinctrl);
+		ret = PTR_ERR(td->pinctrl);
+		goto err_put_gpio;
 	}
 
 	td->pinctrl_default = pinctrl_lookup_state(td->pinctrl,
 						   PINCTRL_STATE_DEFAULT);
 	if (IS_ERR(td->pinctrl_default)) {
 		dev_err(dev, "failed to look up default pinctrl state\n");
-		return PTR_ERR(td->pinctrl_default);
+		ret = PTR_ERR(td->pinctrl_default);
+		goto err_put_gpio;
 	}
 
 	return 0;
+
+err_put_gpio:
+	tc956x_reset_gpio_put(td);
+
+	return ret;
 }
 
 static int tc956x_platform_probe(struct tc956x_data *td,
