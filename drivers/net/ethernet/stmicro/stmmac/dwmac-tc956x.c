@@ -1338,13 +1338,15 @@ static int tc956x_gpio_direction_input(struct gpio_chip *gc,
 	struct tc956x_gpio *tg = gpiochip_get_data(gc);
 	void __iomem *gpioe;
 	u32 val;
+	u32 new;
 
 	printk(" === %s %u\n", __func__, offset);
 
 	gpioe = tg->virt + (offset < 32 ? GPIOE0_OFFSET : GPIOE1_OFFSET);
 	val = readl(gpioe);
-	val |= BIT(offset % 32);	/* Set line for input */
-	writel(val, gpioe);
+	new = val | BIT(offset % 32);	/* Set line for input */
+	if (new != val)
+		writel(val, gpioe);
 
 	return 0;
 }
@@ -1353,9 +1355,11 @@ static int tc956x_gpio_direction_output(struct gpio_chip *gc,
 					unsigned int offset, int value)
 {
 	struct tc956x_gpio *tg = gpiochip_get_data(gc);
+	u32 mask = BIT(offset % 32);
 	void __iomem *gpioo;
 	void __iomem *gpioe;
 	u32 val;
+	u32 new;
 
 	printk(" === %s %u %s\n", __func__, offset, str_on_off(!!value));
 
@@ -1365,15 +1369,17 @@ static int tc956x_gpio_direction_output(struct gpio_chip *gc,
 	gpioo = tg->virt + (offset < 32 ? GPIOO0_OFFSET : GPIOO1_OFFSET);
 	val = readl(gpioo);
 	if (value)
-		val |= BIT(offset % 32);
+		new = val | mask;
 	else
-		val &= ~BIT(offset % 32);
-	writel(val, gpioo);
+		new = val & ~mask;
+	if (new != val)
+		writel(val, gpioo);
 
 	gpioe = tg->virt + (offset < 32 ? GPIOE0_OFFSET : GPIOE1_OFFSET);
 	val = readl(gpioe);
-	val &= ~BIT(offset % 32);	/* Set line for output */
-	writel(val, gpioe);
+	new = val & ~mask;	/* Set line for output */
+	if (new != val)
+		writel(val, gpioe);
 
 	return 0;
 }
@@ -1393,8 +1399,10 @@ static int tc956x_gpio_get(struct gpio_chip *gc, unsigned int offset)
 static int tc956x_gpio_set(struct gpio_chip *gc, unsigned int offset, int value)
 {
 	struct tc956x_gpio *tg = gpiochip_get_data(gc);
+	u32 mask = BIT(offset % 32);
 	void __iomem *gpioo;
 	u32 val;
+	u32 new;
 
 	printk(" === %s %u %s\n", __func__, offset, str_on_off(!!value));
 
@@ -1402,10 +1410,11 @@ static int tc956x_gpio_set(struct gpio_chip *gc, unsigned int offset, int value)
 
 	val = readl(gpioo);
 	if (value)
-		val |= BIT(offset % 32);
+		new = val | mask;
 	else
-		val &= ~BIT(offset % 32);
-	writel(val, gpioo);
+		new = val & ~mask;
+	if (new != val)
+		writel(val, gpioo);
 
 	return 0;
 }
