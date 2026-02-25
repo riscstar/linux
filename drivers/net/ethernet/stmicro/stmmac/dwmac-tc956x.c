@@ -218,10 +218,6 @@ struct tx956x_shrd_mem {
 
 #define XGMAC_BASE(td)	((td)->sfr + ((td)->emac0 ? 0x40000 : 0x48000))
 
-#define RSC_MNG_OFFSET		0x2000
-#define RSCMNG_ID_REG		(RSC_MNG_OFFSET + 0x00000000)
-#define RSCMNG_PFN_MASK		GENMASK(3, 0)
-
 /*	Configuration Register Address	*/
 #define NCID_OFFSET			(0x0000) /* TC956X Chip and revision ID */
 #define NMODESTS_OFFSET		(0x0004) /* TC956X current operation mode */
@@ -1631,11 +1627,6 @@ err_free_tc:
 	kfree(tc);
 
 	return ERR_PTR(ret);
-#if 0
-	/* Determine physical port number from the resource manager */
-	val = readl(td->bridge_config + RSCMNG_ID_REG);
-	pfn = FIELD_GET(RSCMNG_PFN_MASK, val);
-#endif
 }
 
 static void tc956x_chip_put(struct tc956x_data *td)
@@ -1715,9 +1706,8 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	log_mmio_register_range(td->sfr, pci_resource_len(pdev, 4), "sfr");
 #endif
 
-	/* Determine physical port number from the resource manager */
-	val = readl(td->bridge_config + RSCMNG_ID_REG);
-	pfn = FIELD_GET(RSCMNG_PFN_MASK, val);
+	/* The physical port number matches from the PCI function number */
+	pfn = PCI_FUNC(pdev->devfn);
 	if (WARN_ON(pfn > 1)) {
 		ret = -EINVAL;
 		goto err_chip_put;
