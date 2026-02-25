@@ -20,6 +20,7 @@
 #include <linux/iopoll.h>
 #include <linux/gpio/consumer.h>
 #include <linux/gpio/driver.h>
+#include <linux/gpio/machine.h>
 #include <linux/pcs/pcs-xpcs.h>
 #include <linux/pcs/pcs-xpcs-regmap.h>
 #include <linux/pinctrl/consumer.h>
@@ -70,6 +71,9 @@
 
 #define TC956X_GPIO_COUNT	37	/* Number of GPIOs (20-21 reserved) */
 
+#define	EMAC_RESET_NAME	"emacX_phy_reset"	/* X is 0 or 1 */
+#define	EMAC_DIGIT_POSN	4			/* Position of 'X' in NAME */
+
 /**
  * struct tc956x_data - Toshiba-specific platform data
  * @dev:		Device pointer
@@ -86,6 +90,7 @@
  * @pinctrl:		Pin control structure
  * @pinctrl_default:	Pin control default value
  * @phy_supply:		PHY supply egulator
+ * @phy_reset:		Descriptor for GPIO used for PHY reset
  * @phy_reset_gpio:	GPIO used for PHY reset
  * @phy_reset_delay:	Delay (milliseconds) after PHY reset
  * @reset_asserted:	Whether reset on this PHY is currently asserted
@@ -107,6 +112,7 @@ struct tc956x_data {
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *pinctrl_default;
 	struct regulator *phy_supply;
+	struct gpio_desc *phy_reset;
 	u32 phy_reset_gpio;
 	u32 phy_reset_delay;
 	u32 reset_asserted;
@@ -427,18 +433,13 @@ static void tc956x_phy_reset_pin_config(struct tc956x_data *td)
  */
 static int __tc956x_assert_phy_reset(struct tc956x_data *td, bool assert)
 {
-	u32 gpio_pin = td->phy_reset_gpio;
-	void __iomem *addr;
+	int ret;
 
 	tc956x_phy_reset_pin_config(td);
 
-	/* Output value for both pins is in the GPIOO0 register */
-	addr = td->sfr + GPIOO0_OFFSET;
-	tc956x_reg_update(addr, BIT(gpio_pin), assert ? 0 : 1);
-
-	/* Configure the GPIO pin in output direction */
-	addr = td->sfr + GPIOE0_OFFSET;
-	tc956x_reg_update(addr, BIT(gpio_pin), 0);
+	ret = gpiod_set_value(td->phy_reset, assert ? 0 : 1);
+	if (ret)
+		return ret;
 
 	td->reset_asserted = assert;
 
@@ -678,42 +679,63 @@ static int tc956x_phy_power_off(struct tc956x_data *td)
  */
 static int tc956x_reset_gpio_get(struct tc956x_data *td)
 {
+	struct gpio_chip *chip = &td->chip->gpio.chip;
+	char name[] = EMAC_RESET_NAME;
 	struct device *dev = td->dev;
+	struct gpio_desc *phy_reset;
 	struct device_node *np;
+	u32 index;
+	u32 delay;
 	int ret;
 
 	np = dev_of_node(dev);
 	if (!np)
 		return -EINVAL;
 
-	ret = of_property_read_u32(np, "qcom,phy-reset-gpio",
-				   &td->phy_reset_gpio);
+	ret = of_property_read_u32(np, "qcom,phy-reset-gpio", &index);
 	if (ret) {
 		dev_err(dev, "failed to get qcom,phy-reset-gpio property\n");
 		return ret;
 	}
 
 	/* The only values used currently are 0 and 1; we'll generalize later */
-	if (td->phy_reset_gpio && td->phy_reset_gpio != 1) {
-		dev_err(dev, "bad qcom,phy-reset-gpio property (%u)\n",
-			td->phy_reset_gpio);
+	if (index && index != 1) {
+		dev_err(dev, "bad qcom,phy-reset-gpio property (%u)\n", index);
 		return -EINVAL;
 	}
 
 	/* XXX Can we use a good constant and avoid having to specify this? * */
-	ret = of_property_read_u32(np, "qcom,phy-reset-delay",
-				   &td->phy_reset_delay);
+	ret = of_property_read_u32(np, "qcom,phy-reset-delay", &delay);
 	if (ret) {
 		dev_err(dev, "failed to get qcom,phy-reset-delay property\n");
 		return ret;
 	}
+
+	/* Fix the name to indicate interface 0 or 1 */
+	name[EMAC_DIGIT_POSN] = '0' + (td->emac0 ? 0 : 1);
+
+	/* We say ACTIVE_HIGH because we'll handle polarity inversion */
+	phy_reset = gpiochip_request_own_desc(chip, index, name,
+					      GPIO_ACTIVE_HIGH, GPIOD_OUT_LOW);
+	if (IS_ERR(phy_reset))
+		return PTR_ERR(phy_reset);
+
+	td->phy_reset = phy_reset;
+	td->phy_reset_gpio = index;
+	td->phy_reset_delay = delay;
 
 	return 0;
 }
 
 static void tc956x_reset_gpio_put(struct tc956x_data *td)
 {
-	/* Nothing needed here yet */
+	struct gpio_desc *phy_reset = td->phy_reset;
+
+	td->phy_reset_delay = 0;
+	td->phy_reset_gpio = 0;
+	td->phy_reset = NULL;
+
+	gpiochip_free_own_desc(phy_reset);
 }
 
 static int tc956x_platform_of_parse(struct tc956x_data *td)
