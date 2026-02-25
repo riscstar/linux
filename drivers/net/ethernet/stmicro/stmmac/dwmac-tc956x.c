@@ -425,13 +425,13 @@ static void tc956x_phy_reset_pin_config(struct tc956x_data *td)
  *  @td: driver private structure
  *  @assert: true is assert the reset signal (drive low); false is deassert
  */
-static void __tc956x_assert_phy_reset(struct tc956x_data *td, bool assert)
+static int __tc956x_assert_phy_reset(struct tc956x_data *td, bool assert)
 {
 	void __iomem *addr;
 	u32 gpio_pin;
 
 	if (assert == td->reset_asserted)
-		return;
+		return 0;
 
 	tc956x_phy_reset_pin_config(td);
 
@@ -445,16 +445,18 @@ static void __tc956x_assert_phy_reset(struct tc956x_data *td, bool assert)
 	tc956x_reg_update(addr, BIT(gpio_pin), 0);
 
 	td->reset_asserted = assert;
+
+	return 0;
 }
 
-static void tc956x_assert_phy_reset(struct tc956x_data *td)
+static int tc956x_assert_phy_reset(struct tc956x_data *td)
 {
-	__tc956x_assert_phy_reset(td, true);
+	return __tc956x_assert_phy_reset(td, true);
 }
 
-static void tc956x_deassert_phy_reset(struct tc956x_data *td)
+static int tc956x_deassert_phy_reset(struct tc956x_data *td)
 {
-	__tc956x_assert_phy_reset(td, false);
+	return __tc956x_assert_phy_reset(td, false);
 }
 
 /**
@@ -642,7 +644,12 @@ static int tc956x_phy_power_on(struct tc956x_data *td)
 		return ret;
 	}
 
-	tc956x_deassert_phy_reset(td);
+	ret = tc956x_deassert_phy_reset(td);
+	if (ret) {
+		(void)regulator_disable(td->phy_supply);
+		dev_err(td->dev, "failed to deassert PHY reset\n");
+		return ret;
+	}
 
 	msleep(td->phy_reset_delay);
 
@@ -653,12 +660,16 @@ static int tc956x_phy_power_off(struct tc956x_data *td)
 {
 	int ret = 0;
 
-	tc956x_assert_phy_reset(td);
+	ret = tc956x_assert_phy_reset(td);
+	if (ret) {
+		dev_err(td->dev, "failed to assert PHY reset\n");
+		return ret;
+	}
 
 	ret = regulator_disable(td->phy_supply);
 	if (ret) {
 		dev_err(td->dev, "Failed to disable PHY supply with error %d\n", ret);
-		tc956x_deassert_phy_reset(td);
+		(void)tc956x_deassert_phy_reset(td);
 		/* XXX Any need for the phy_reset_delay here? */
 	}
 
@@ -779,7 +790,11 @@ static int tc956x_platform_probe(struct tc956x_data *td,
 
 	/* Hold the PHY in reset until we're ready */
 	td->reset_asserted = false;
-	tc956x_assert_phy_reset(td);
+	ret = tc956x_assert_phy_reset(td);
+	if (ret) {
+		dev_err(td->dev, "failed to assert PHY reset\n");
+		return ret;
+	}
 
 	ret = pinctrl_select_state(td->pinctrl, td->pinctrl_default);
 	if (ret) {
