@@ -427,16 +427,12 @@ static void tc956x_phy_reset_pin_config(struct tc956x_data *td)
  */
 static int __tc956x_assert_phy_reset(struct tc956x_data *td, bool assert)
 {
+	u32 gpio_pin = td->phy_reset_gpio;
 	void __iomem *addr;
-	u32 gpio_pin;
-
-	if (assert == td->reset_asserted)
-		return 0;
 
 	tc956x_phy_reset_pin_config(td);
 
 	/* Output value for both pins is in the GPIOO0 register */
-	gpio_pin = td->phy_reset_gpio;
 	addr = td->sfr + GPIOO0_OFFSET;
 	tc956x_reg_update(addr, BIT(gpio_pin), assert ? 0 : 1);
 
@@ -451,11 +447,17 @@ static int __tc956x_assert_phy_reset(struct tc956x_data *td, bool assert)
 
 static int tc956x_assert_phy_reset(struct tc956x_data *td)
 {
+	if (td->reset_asserted)
+		return 0;
+
 	return __tc956x_assert_phy_reset(td, true);
 }
 
 static int tc956x_deassert_phy_reset(struct tc956x_data *td)
 {
+	if (!td->reset_asserted)
+		return 0;
+
 	return __tc956x_assert_phy_reset(td, false);
 }
 
