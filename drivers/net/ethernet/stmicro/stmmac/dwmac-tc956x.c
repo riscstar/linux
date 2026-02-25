@@ -465,20 +465,11 @@ static int tc956x_deassert_phy_reset(struct tc956x_data *td)
  * tc956x_restore_phy_reset() - Restore the saved PHY reset configuration
  * @priv:	STMMAC driver private data pointer
  */
-static void tc956x_restore_phy_reset(struct stmmac_priv *priv)
+static int tc956x_restore_phy_reset(struct stmmac_priv *priv)
 {
 	struct tc956x_data *td = priv->plat->bsp_priv;
-	u32 gpio_pin = td->phy_reset_gpio;
-	void __iomem *addr;
 
-	tc956x_phy_reset_pin_config(td);
-
-	addr = td->sfr + GPIOO0_OFFSET;
-	tc956x_reg_update(addr, BIT(gpio_pin), td->reset_asserted ? 0 : 1);
-
-	/* Configure the GPIO pin in output direction */
-	addr = td->sfr + GPIOE0_OFFSET;
-	tc956x_reg_update(addr, BIT(gpio_pin), 0);
+	return __tc956x_assert_phy_reset(td, td->reset_asserted);
 }
 
 //
@@ -2358,7 +2349,14 @@ static int tc956x_pcie_resume(struct device *dev)
 
 	tc956x_pm_set_power(priv, false);
 
-	tc956x_restore_phy_reset(priv);
+	/* XXX Error handling in this function needs work */
+	ret = tc956x_restore_phy_reset(priv);
+	if (ret) {
+		dev_err(dev, "error restoring PHY reset state");
+		pci_disable_device(pdev);
+
+		return ret;
+	}
 
 	ret = tc956x_platform_resume(priv);
 	if (ret) {
