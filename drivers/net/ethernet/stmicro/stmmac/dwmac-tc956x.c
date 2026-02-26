@@ -145,17 +145,6 @@ struct tc956x_data {
 
 #define CM3_TAMAP_COUNT			4
 
-#if 0
-struct tc956x_version {
-	unsigned char rel_dbg; /* 'R' for release, 'D' for debug */
-	unsigned char major;
-	unsigned char minor;
-	unsigned char sub_minor;
-	unsigned char patch_rel_major;
-	unsigned char patch_rel_minor;
-};
-#endif
-
 //
 // Definitions taken from tc956xmac_inc.h in vendor driver
 //
