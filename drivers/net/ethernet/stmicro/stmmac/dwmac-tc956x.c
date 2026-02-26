@@ -1577,6 +1577,7 @@ static struct tc956x_data *tc956x_devm_data_create(struct pci_dev *pdev)
 	td->devfn = pdev->devfn;
 
 	plat->bsp_priv = td;
+	plat->bus_id = pci_dev_id(pdev);
 	plat->fix_mac_speed = tc956x_fix_mac_speed;
 	plat->pcs_init = tc956x_pcs_init;
 	plat->select_pcs = tc956x_select_pcs;
@@ -1769,8 +1770,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		goto err_chip_put;
 
 	dev_dbg(dev, "port_interface = %d\n", td->port_interface);
-
-	td->plat->bus_id = ((pdev->bus->number<<4) | (td->emac0 ? 0 : 1));
 
 	/* XXX eMAC0, or first one probed? */
 	if (td->emac0)
