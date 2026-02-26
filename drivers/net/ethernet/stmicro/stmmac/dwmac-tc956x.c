@@ -462,17 +462,6 @@ static int tc956x_deassert_phy_reset(struct tc956x_data *td)
 	return __tc956x_assert_phy_reset(td, false);
 }
 
-/**
- * tc956x_restore_phy_reset() - Restore the saved PHY reset configuration
- * @priv:	STMMAC driver private data pointer
- */
-static int tc956x_restore_phy_reset(struct stmmac_priv *priv)
-{
-	struct tc956x_data *td = priv->plat->bsp_priv;
-
-	return __tc956x_assert_phy_reset(td, td->reset_asserted);
-}
-
 //
 // Code from tc956x_msigen.c in vendor driver
 //
@@ -2372,7 +2361,7 @@ static int tc956x_pcie_resume(struct device *dev)
 	tc956x_pm_set_power(priv, false);
 
 	/* XXX Error handling in this function needs work */
-	ret = tc956x_restore_phy_reset(priv);
+	ret __tc956x_assert_phy_reset(td, td->reset_asserted);
 	if (ret) {
 		dev_err(dev, "error restoring PHY reset state");
 		pci_disable_device(pdev);
