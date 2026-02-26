@@ -21,6 +21,7 @@
 #include <linux/gpio/consumer.h>
 #include <linux/gpio/driver.h>
 #include <linux/gpio/machine.h>
+#include <linux/mfd/core.h>
 #include <linux/pcs/pcs-xpcs.h>
 #include <linux/pcs/pcs-xpcs-regmap.h>
 #include <linux/pinctrl/consumer.h>
@@ -156,6 +157,7 @@ struct tc956x_chip {
 	struct tc956x_data *primary;
 	struct tc956x_data *secondary;
 	struct tc956x_gpio gpio;
+	struct regmap *gpio_regmap;
 	struct list_head links;		/* XXX any locking needed? */
 };
 
@@ -1358,6 +1360,30 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 	}
 }
 
+static const struct mfd_cell tc956x_mfd_cells[] = {
+	{ .name = "tc956x-gpio", }
+};
+
+static int tc956x_mfd_init(struct tc956x_chip *tc)
+{
+	struct device *dev = tc->primary->dev;
+	void __iomem *regs = tc->primary->sfr;
+	struct regmap *regmap;
+
+	printk(" === %s\n", __func__);
+
+	/* Note: no need to check for errors on read/write for MMIO regmap */
+	regmap = devm_regmap_init_mmio(dev, regs, &tc956x_gpio_regmap_config);
+	if (IS_ERR(regmap))
+		return PTR_ERR(regmap);
+	tc->gpio_regmap = regmap;
+
+	return devm_mfd_add_devices(dev, PLATFORM_DEVID_AUTO,
+				    tc956x_mfd_cells,
+				    ARRAY_SIZE(tc956x_mfd_cells),
+				    NULL, 0, NULL);
+}
+
 static int tc956x_gpio_request(struct gpio_chip *gc, unsigned int offset)
 {
 	printk(" === %s %u\n", __func__, offset);
@@ -1495,7 +1521,6 @@ static int tc956x_gpio_init(struct tc956x_chip *tc)
 {
 	struct tc956x_data *td = tc->primary;
 	struct tc956x_gpio *tg;
-	struct regmap *regmap;
 	struct gpio_chip *gc;
 	int ret;
 
@@ -1535,12 +1560,7 @@ static int tc956x_gpio_init(struct tc956x_chip *tc)
 
 	tg = &tc->gpio;
 
-	/* Note: no need to check for errors on read/write for MMIO regmap */
-	regmap = devm_regmap_init_mmio(td->dev, td->sfr,
-				       &tc956x_gpio_regmap_config);
-	if (IS_ERR(regmap))
-		return PTR_ERR(regmap);
-	tg->regmap = regmap;
+	tg->regmap = tc->gpio_regmap;
 
 	/* GPIOs 22, 23, 24, 27, 28, 31, and 34 are input only */
 	bitmap_set(tg->input_only, 22, 3);
@@ -1701,6 +1721,10 @@ static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 	tc->pci_bus_num = pci_bus_num;
 	tc->pci_slot = pci_slot;
 	tc->primary = td;
+
+	ret = tc956x_mfd_init(tc);
+	if (ret)
+		goto err_free_tc;
 
 	ret = tc956x_gpio_init(tc);
 	if (ret)
