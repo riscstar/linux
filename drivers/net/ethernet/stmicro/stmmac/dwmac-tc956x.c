@@ -1296,13 +1296,11 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 		/* De-assertion of PMA reset software Reset*/
 		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
 		ret &= ~RST0_MAC0PMARST;
-		ret &= ~RST0_MAC0RST;
 		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
 	} else {
 		/* De-assertion of PMA reset software Reset*/
 		ret = readl(td->sfr + NRSTCTRL1_OFFSET);
 		ret &= ~RST1_MAC1PMARST;
-		/* Is this missing?  ret &= ~RST1_MAC1RST; */
 		writel(ret, td->sfr + NRSTCTRL1_OFFSET);
 	}
 
@@ -1618,13 +1616,11 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		/* De-assertion of PMA & XPCS reset software Reset*/
 		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
 		ret &= ~(RST0_MAC0PMARST | RST0_MAC0XPCSRST);
-		ret &= ~RST0_MAC0RST;
 		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
 	} else {
 		/* De-assertion of PMA &  XPCS reset software Reset*/
 		ret = readl(td->sfr + NRSTCTRL1_OFFSET);
 		ret &= ~(RST1_MAC1PMARST | RST1_MAC1XPCSRST);
-		/* XXX Is this missing?  ret &= ~RST1_MAC1RST; */
 		writel(ret, td->sfr + NRSTCTRL1_OFFSET);
 	}
 
@@ -2049,13 +2045,11 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 			/* De-assertion of PMA &  XPCS reset  software Reset*/
 			ret = readl(td->sfr + NRSTCTRL0_OFFSET);
 			ret &= ~RST0_MAC0PMARST;
-			ret &= ~RST0_MAC0RST;
 			writel(ret, td->sfr + NRSTCTRL0_OFFSET);
 		} else {
 			/* De-assertion of PMA &  XPCS reset  software Reset*/
 			ret = readl(td->sfr + NRSTCTRL1_OFFSET);
 			ret &= ~RST1_MAC1PMARST;
-			/* XXX Is this missing?  ret &= ~RST1_MAC1RST; */
 			writel(ret, td->sfr + NRSTCTRL1_OFFSET);
 		}
 
