@@ -140,15 +140,6 @@ struct tc956x_data {
 /* XXX This is an invalid value; 0x00000017 is the minimum allowed */
 #define TC956X_AXI4_SLV00_SRC_ADDR_LO_VAL_DEFAULT  (0x0000007FU)
 
-#if 0
-/* XXX What are these?  EMAC control */
-#define TC9563_CFG_NEMACTXCDLY		0x1050U
-#define TC9563_CFG_NEMACIOCTL		0x107CU
-
-#define NEMACTXCDLY_DEFAULT		0x00000000U
-#define NEMACIOCTL_DEFAULT		0xF300F300
-#endif
-
 #define ENABLE_XFI_INTERFACE			1 /* XFI/SFI, this is same as USXGMII, except XPCS autoneg disabled */
 #define ENABLE_SGMII_INTERFACE			4
 
