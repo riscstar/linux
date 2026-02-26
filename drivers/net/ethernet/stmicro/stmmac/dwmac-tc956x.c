@@ -940,24 +940,6 @@ static uint16_t tc956x_get_shared_mem_offset(struct pci_dev *pdev, uint16_t pci_
 	return 0xFFFF;
 }
 
-#if 0
-/*
- * This struct is used to associate PCI Function of MAC controller on a board,
- * discovered via DMI, with the address of PHY connected to the MAC. The
- * negative value of the address means that MAC controller is not connected
- * with PHY.
- */
-struct tc956x_pci_func_data {
-	unsigned int func;
-	int phy_addr;
-};
-
-struct tc956x_pci_dmi_data {
-	const struct tc956x_pci_func_data *func;
-	size_t nfuncs;
-};
-#endif
-
 /**
  * tc956x_pm_set_power() - Set clock and reset for suspend or resume
  * @priv:	STMMAC driver private data pointer
