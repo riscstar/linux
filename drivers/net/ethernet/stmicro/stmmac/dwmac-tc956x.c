@@ -1314,7 +1314,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	td->bridge_config = virt;
 
 	virt = pcim_iomap_region(pdev, PCI_BAR_SFR, DRIVER_NAME);
-	if (IS_ERR(td->sfr)) {
+	if (IS_ERR(virt)) {
 		ret = PTR_ERR(virt);
 		dev_err(dev, "failed to map sfr region\n");
 		goto err_clear_master;
