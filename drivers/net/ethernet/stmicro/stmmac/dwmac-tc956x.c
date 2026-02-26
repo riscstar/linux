@@ -91,7 +91,6 @@
  * @pinctrl_default:	Pin control default value
  * @phy_supply:		PHY supply egulator
  * @phy_reset:		Descriptor for GPIO used for PHY reset
- * @phy_reset_gpio:	GPIO used for PHY reset
  * @phy_reset_delay:	Delay (milliseconds) after PHY reset
  * @reset_asserted:	Whether reset on this PHY is currently asserted
  * @wol_irq:		Wake-on-LAN IRQ number
@@ -113,7 +112,6 @@ struct tc956x_data {
 	struct pinctrl_state *pinctrl_default;
 	struct regulator *phy_supply;
 	struct gpio_desc *phy_reset;
-	u32 phy_reset_gpio;
 	u32 phy_reset_delay;
 	u32 reset_asserted;
 	int wol_irq;
@@ -698,7 +696,6 @@ static int tc956x_reset_gpio_get(struct tc956x_data *td)
 		return PTR_ERR(phy_reset);
 
 	td->phy_reset = phy_reset;
-	td->phy_reset_gpio = index;
 	td->phy_reset_delay = delay;
 
 	return 0;
@@ -709,7 +706,6 @@ static void tc956x_reset_gpio_put(struct tc956x_data *td)
 	struct gpio_desc *phy_reset = td->phy_reset;
 
 	td->phy_reset_delay = 0;
-	td->phy_reset_gpio = 0;
 	td->phy_reset = NULL;
 
 	gpiochip_free_own_desc(phy_reset);
