@@ -167,29 +167,6 @@ struct tx956x_shrd_mem {
 
 #define TC956X_DA_MAP		0xF
 
-/************************ TC956X_SRIOV_PF Starts ************************/
-
-#if 0
-/* Unicast/Untagged packet */
-#define LEG_UNTAGGED_PACKET	TC956X_DA_MAP
-/* VLAN tagged packets */
-#define LEG_TAGGED_PACKET	TC956X_DA_MAP
-/* Untagged gPTP packet */
-#define UNTAGGED_GPTP_PACKET	4
-/* Untagged AV Control Packet */
-#define UNTAGGED_AVCTRL_PACKET	3
-/* Class B AVB Packet */
-#define AVB_CLASS_B_PACKET	5
-/* Class A AVB Packet */
-#define AVB_CLASS_A_PACKET	6
-/* TSN Class CDT Packet */
-#define TSN_CLASS_CDT_PACKET	7
-/* Broadcast/Multicast packet */
-#define BC_MC_PACKET		TC956X_DA_MAP
-#endif
-
-/************************* TC956X_SRIOV_PF Ends *************************/
-
 #define XGMAC_BASE(td)	((td)->sfr + ((td)->emac0 ? 0x40000 : 0x48000))
 
 #define RSC_MNG_OFFSET		0x2000
