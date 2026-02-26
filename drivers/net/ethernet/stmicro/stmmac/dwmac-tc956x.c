@@ -1555,26 +1555,16 @@ static void tc956x_gpio_exit(struct tc956x_chip *tc)
 	put_device(gc->parent);
 }
 
-static struct tc956x_data *tc956x_devm_data_create(struct pci_dev *pdev)
+static struct plat_stmmacenet_data *
+tc956x_plat_dat_alloc(struct tc956x_data *td, struct pci_dev *pdev)
 {
 	struct plat_stmmacenet_data *plat;
 	struct device *dev = &pdev->dev;
-	struct tc956x_data *td;
-	void __iomem *virt;
-	int ret;
-
-	td = devm_kzalloc(dev, sizeof(*td), GFP_KERNEL);
-	if (!td)
-		return NULL;
 
 	/* The platform structure is allocated with devm_kzalloc() */
 	plat = stmmac_plat_dat_alloc(dev);
 	if (!plat)
 		return NULL;
-
-	td->plat = plat;
-	td->dev = dev;
-	td->devfn = pdev->devfn;
 
 	plat->bsp_priv = td;
 	plat->bus_id = pci_dev_id(pdev);
@@ -1592,6 +1582,27 @@ static struct tc956x_data *tc956x_devm_data_create(struct pci_dev *pdev)
 	plat->dma_cfg = devm_kzalloc(dev, sizeof(*plat->dma_cfg), GFP_KERNEL);
 	if (!plat->dma_cfg)
 		return NULL;
+
+	return plat;
+}
+
+static struct tc956x_data *tc956x_devm_data_create(struct pci_dev *pdev)
+{
+	struct device *dev = &pdev->dev;
+	struct tc956x_data *td;
+	void __iomem *virt;
+	int ret;
+
+	td = devm_kzalloc(dev, sizeof(*td), GFP_KERNEL);
+	if (!td)
+		return NULL;
+
+	td->plat = tc956x_plat_dat_alloc(td, pdev);
+	if (!td->plat)
+		return NULL;
+
+	td->dev = dev;
+	td->devfn = pdev->devfn;
 
 	ret = pcim_enable_device(pdev);
 	if (ret) {
