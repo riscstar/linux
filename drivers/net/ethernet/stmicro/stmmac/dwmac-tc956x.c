@@ -427,11 +427,11 @@ static void tc956x_phy_reset_pin_config(struct tc956x_data *td)
 }
 
 /**
- * __tc956x_assert_phy_reset() - Assert or deassert the PHY resetn output
+ * tc956x_assert_phy_reset() - Assert or deassert the PHY resetn output
  *  @td: driver private structure
  *  @assert: true is assert the reset signal (drive low); false is deassert
  */
-static int __tc956x_assert_phy_reset(struct tc956x_data *td, bool assert)
+static int tc956x_assert_phy_reset(struct tc956x_data *td, bool assert)
 {
 	int ret;
 
@@ -444,14 +444,6 @@ static int __tc956x_assert_phy_reset(struct tc956x_data *td, bool assert)
 	td->reset_asserted = assert;
 
 	return 0;
-}
-
-static int tc956x_deassert_phy_reset(struct tc956x_data *td)
-{
-	if (!td->reset_asserted)
-		return 0;
-
-	return __tc956x_assert_phy_reset(td, false);
 }
 
 //
@@ -619,14 +611,16 @@ static int tc956x_phy_power_on(struct tc956x_data *td)
 		return ret;
 	}
 
-	ret = tc956x_deassert_phy_reset(td);
-	if (ret) {
-		(void)regulator_disable(td->phy_supply);
-		dev_err(td->dev, "failed to deassert PHY reset\n");
-		return ret;
-	}
+	if (td->reset_asserted) {
+		ret = tc956x_assert_phy_reset(td, false);
+		if (ret) {
+			(void)regulator_disable(td->phy_supply);
+			dev_err(td->dev, "failed to deassert PHY reset\n");
+			return ret;
+		}
 
-	msleep(td->phy_reset_delay);
+		msleep(td->phy_reset_delay);
+	}
 
 	return ret;
 }
@@ -636,7 +630,7 @@ static int tc956x_phy_power_off(struct tc956x_data *td)
 	int ret = 0;
 
 	if (!td->reset_asserted) {
-		ret = __tc956x_assert_phy_reset(td, true);
+		ret = tc956x_assert_phy_reset(td, true);
 		if (ret) {
 			dev_err(td->dev, "failed to assert PHY reset\n");
 			return ret;
@@ -646,7 +640,7 @@ static int tc956x_phy_power_off(struct tc956x_data *td)
 	ret = regulator_disable(td->phy_supply);
 	if (ret) {
 		dev_err(td->dev, "Failed to disable PHY supply with error %d\n", ret);
-		(void)tc956x_deassert_phy_reset(td);
+		(void)tc956x_assert_phy_reset(td, false);
 		/* XXX Any need for the phy_reset_delay here? */
 	}
 
@@ -788,7 +782,7 @@ static int tc956x_platform_probe(struct tc956x_data *td,
 
 	/* Hold the PHY in reset until we're ready */
 	td->reset_asserted = false;
-	ret = __tc956x_assert_phy_reset(td, true);
+	ret = tc956x_assert_phy_reset(td, true);
 	if (ret) {
 		dev_err(td->dev, "failed to assert PHY reset\n");
 		return ret;
@@ -2355,7 +2349,7 @@ static int tc956x_pcie_resume(struct device *dev)
 	tc956x_pm_set_power(priv, false);
 
 	/* XXX Error handling in this function needs work */
-	ret = __tc956x_assert_phy_reset(td, td->reset_asserted);
+	ret = tc956x_assert_phy_reset(td, td->reset_asserted);
 	if (ret) {
 		dev_err(dev, "error restoring PHY reset state");
 		pci_disable_device(pdev);
