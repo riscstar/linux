@@ -95,6 +95,7 @@
  * @reset_asserted:	Whether reset on this PHY is currently asserted
  * @wol_irq:		Wake-on-LAN IRQ number
  * @chip:		Pointer to the containing chip information
+ * @regmap:		Register map for SFR region access
  */
 struct tc956x_data {
 	struct device *dev;
@@ -116,6 +117,7 @@ struct tc956x_data {
 	u32 reset_asserted;
 	int wol_irq;
 	struct tc956x_chip *chip;
+	struct regmap *regmap;
 };
 
 /*
@@ -158,6 +160,15 @@ struct tc956x_chip {
 };
 
 static LIST_HEAD(tc956x_chips);		/* List of TC956x chips */
+
+static const struct regmap_config tc956x_regmap_config = {
+	.name		= "tc956x",
+	.reg_bits	= 32,
+	.reg_stride	= 4,
+	.reg_base	= 0,
+	.val_bits	= 32,
+	/* .max_register	= xxx, */
+};
 
 /* XXX TC9564? Also, this is a physical function; virtual is 0x0221 */
 #define PCI_DEVICE_ID_TOSHIBA_TC956X		0x0220
@@ -1624,6 +1635,12 @@ static struct tc956x_data *tc956x_devm_data_create(struct pci_dev *pdev)
 		return ERR_CAST(virt);
 	}
 	td->sfr = virt;
+
+	td->regmap = devm_regmap_init_mmio(dev, virt, &tc956x_regmap_config);
+	if (IS_ERR(td->regmap)) {
+		dev_err(dev, "failed to initialize regmap\n");
+		return ERR_CAST(td->regmap);
+	}
 
 	dev_dbg(dev, "BAR0 physical address = 0x%llx length 0x%llx\n",
 		(u64)pci_resource_start(pdev, 0),
