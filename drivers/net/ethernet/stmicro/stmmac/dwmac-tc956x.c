@@ -1169,10 +1169,8 @@ static struct phylink_pcs *tc956x_select_pcs(struct stmmac_priv *priv,
 static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 {
 	struct tc956x_data *td = bsp_priv;
-	void __iomem *xgmac = XGMAC_BASE(td);
 	struct plat_stmmacenet_data *plat = td->plat;
-	int ret, reg = 0, val;
-	bool enable_an = true;
+	int ret, reg = 0;
 
 	// TODO: copied from vendor drivers customizations in
 	//       tc956x_speed_change_init_mac()
@@ -1244,10 +1242,8 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 		 * Disable AN only if SGMII 2.5G is Enabled.
 		 */
 		td->is_sgmii_2p5g = true;
-		enable_an = false;
 	} else {
 		td->is_sgmii_2p5g = false;
-		enable_an = true;
 	}
 }
 
@@ -1818,7 +1814,6 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	/* use signal from MSPHY */
 	int ret = 0;
-	u32 val;
 
 	/* Skip Config when Port unavailable */
 	if (priv->dma_cap.sma_mdio == 1) {
