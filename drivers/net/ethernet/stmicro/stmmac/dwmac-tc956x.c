@@ -1978,7 +1978,6 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 	struct net_device *ndev = dev_get_drvdata(dev);
 	struct stmmac_priv *priv = netdev_priv(ndev);
 	struct tc956x_data *td = priv->plat->bsp_priv;
-	/* use signal from MSPHY */
 	int ret = 0;
 
 	/* Skip Config when Port unavailable */
