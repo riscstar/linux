@@ -175,7 +175,9 @@ unevaluatedProperties: false
 
 examples:
   - |
+    #include <dt-bindings/clock/toshiba,tc9564.h>
     #include <dt-bindings/interrupt-controller/irq.h>
+    #include <dt-bindings/reset/toshiba,tc9564.h>
 
     ethernet@48000 {
         compatible = "toshiba,tc9564-xgmac";
@@ -184,10 +186,10 @@ examples:
 
         clocks = <&tc9564_ref_125mhz_clk>,
                  <&tc9564_ref_250mhz_clk>,
-                 <&tc9564_clock0 13>,
-                 <&tc9564_clock0 14>,
-                 <&tc9564_clock0 18>,
-                 <&tc9564_clock0 15>;
+                 <&tc9564_clock0 CLOCK_MAC1_TX>,
+                 <&tc9564_clock0 CLOCK_MAC1_RX>,
+                 <&tc9564_clock0 CLOCK_MAC1_ALL>,
+                 <&tc9564_clock0 CLOCK_MAC1_RMII>;
         clock-names = "stmmaceth",
                       "ptp_ref",
                       "mac-tx-clock",
@@ -195,9 +197,9 @@ examples:
                       "mac-all-clock",
                       "mac-rmii-clock";
 
-        resets = <&tc9564_reset0 8>,
-                 <&tc9564_reset0 9>,
-                 <&tc9564_reset0 10>;
+        resets = <&tc9564_reset0 RESET_MAC1_MAC>,
+                 <&tc9564_reset0 RESET_MAC1_PMA>,
+                 <&tc9564_reset0 RESET_MAC1_XPCS>;
         reset-names = "mac-reset",
                       "pma-reset",
                       "xpcs-reset";
