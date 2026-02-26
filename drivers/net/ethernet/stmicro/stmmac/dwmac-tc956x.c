@@ -162,16 +162,6 @@ struct tx956x_shrd_mem {
 #define TC956X_TOT_CASCADE_DEV	7 /* Maximum number of devices for 2 Level cascade setup */
 #define TC956X_PCI_BD_MASK	0xFFF8
 
-#if 0
-/* PHY/MDIO configurations */
-enum TC956X_PHY_MDIO_AVAILABILITY {
-	PHY_ON_MDIO_ON = 0, /* PHY and MDIO available */
-	PHY_ON_MDIO_OFF,    /* PHY available and MDIO not available */ /* Not supported currently */
-	PHY_OFF_MDIO_ON,    /* PHY not available and MDIO available */ /* Not supported currrently */
-	PHY_OFF_MDIO_OFF    /* PHY not available and MDIO not available */
-};
-#endif
-
 // TODO: this was unifdef'ed (some build options result in the value being two)
 #define TC956X_TOT_MSI_VEC	1
 
