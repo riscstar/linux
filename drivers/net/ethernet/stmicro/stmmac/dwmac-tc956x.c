@@ -859,15 +859,26 @@ static int tc956x_platform_resume(struct stmmac_priv *priv)
 // Code from tc956x_pma.c in vendor driver
 //
 
-static int tc956x_pma_init(struct stmmac_priv *priv, void __iomem *pmaaddr)
+static int tc956x_pma_init(struct tc956x_data *td)
 {
+	void __iomem *pmaaddr = XGMAC_BASE(td) + PMA_XGMAC_OFFSET;
+	u32 val;
 
-	u32 reg_value;
+	/* Assertion of PMA reset  software Reset*/
+	if (td->emac0) {
+		val = readl(td->sfr + NRSTCTRL0_OFFSET);
+		val |= RST0_MAC0PMARST;
+		writel(val, td->sfr + NRSTCTRL0_OFFSET);
+	} else {
+		val = readl(td->sfr + NRSTCTRL1_OFFSET);
+		val |= RST1_MAC1PMARST;
+		writel(val, td->sfr + NRSTCTRL1_OFFSET);
+	}
 
 	/*Power on CML buffer*/
-	reg_value = readl(pmaaddr + XGMAC_PMA_GL_PM_CFG0);
-	reg_value = XGMAC_PMA_OFFSET0;
-	writel(reg_value, pmaaddr + XGMAC_PMA_GL_PM_CFG0);
+	val = readl(pmaaddr + XGMAC_PMA_GL_PM_CFG0);
+	val = XGMAC_PMA_OFFSET0;
+	writel(val, pmaaddr + XGMAC_PMA_GL_PM_CFG0);
 
 	/*Switch clock from C0_REFCK to CLK_REF_I*/
 	writel(XGMAC_PMA_OFFSET1, pmaaddr + XGMAC_PMA_CFG_0_1_R0);
@@ -888,8 +899,21 @@ static int tc956x_pma_init(struct stmmac_priv *priv, void __iomem *pmaaddr)
 	writel(XGMAC_PMA_OFFSET0, pmaaddr + XGMAC_PMA_HWT_REFCK_R_EN_R4);
 	writel(XGMAC_PMA_OFFSET0, pmaaddr + XGMAC_PMA_HWT_REFCK_TERM_EN_R4);
 
-	return 0;
+	/* De-assertion of PMA reset  software Reset*/
+	if (td->emac0) {
+		val = readl(td->sfr + NRSTCTRL0_OFFSET);
+		val &= ~RST0_MAC0PMARST;
+		writel(val, td->sfr + NRSTCTRL0_OFFSET);
+	} else {
+		val = readl(td->sfr + NRSTCTRL1_OFFSET);
+		val &= ~RST1_MAC1PMARST;
+		writel(val, td->sfr + NRSTCTRL1_OFFSET);
+	}
 
+	/* TODO: Is this the right bit to poll for a PMA only reset? */
+	return readl_poll_timeout(td->sfr + (td->emac0 ? NEMAC0CTL_OFFSET :
+							 NEMAC1CTL_OFFSET),
+				  val, val & EMAC_INIT_DONE, 50, 1000000);
 }
 
 //
@@ -1275,39 +1299,9 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 
 	}
 
-	if (td->emac0) {
-		/* Assertion of PMA reset software Reset*/
-		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
-		ret |= RST0_MAC0PMARST;
-		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
-	} else {
-		/* Assertion of PMA reset  software Reset*/
-		ret = readl(td->sfr + NRSTCTRL1_OFFSET);
-		ret |= RST1_MAC1PMARST;
-		writel(ret, td->sfr + NRSTCTRL1_OFFSET);
-	}
-
-	ret = tc956x_pma_init(NULL, xgmac + PMA_XGMAC_OFFSET);
+	ret = tc956x_pma_init(td);
 	if (ret < 0)
-		pr_info("PMA switching to internal clock Failed\n");
-
-	if (td->emac0) {
-		/* De-assertion of PMA reset software Reset*/
-		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
-		ret &= ~RST0_MAC0PMARST;
-		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
-	} else {
-		/* De-assertion of PMA reset software Reset*/
-		ret = readl(td->sfr + NRSTCTRL1_OFFSET);
-		ret &= ~RST1_MAC1PMARST;
-		writel(ret, td->sfr + NRSTCTRL1_OFFSET);
-	}
-
-	ret = readl_poll_timeout(td->sfr + (td->emac0 ? NEMAC0CTL_OFFSET
-						           : NEMAC1CTL_OFFSET),
-				 val, val & EMAC_INIT_DONE, 50, 1000000);
-	if (ret < 0)
-		dev_err(td->dev, "PMA/XPCS failed to come out of reset\n");
+		pr_info("PMA did not re-initialize correctly\n");
 
 	/*
 	 * TODO:
@@ -1571,39 +1565,20 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		goto err_platform_probe;
 	}
 
+	ret = tc956x_pma_init(td);
+	if (ret < 0)
+		pr_info("PMA did not initialize correctly\n");
+
+	/* Take XPCS out of reset */
 	if (td->emac0) {
-		/* Assertion of PMA & XPCS reset software Reset*/
 		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
-		ret |= RST0_MAC0PMARST | RST0_MAC0XPCSRST;
+		ret &= ~RST0_MAC0XPCSRST;
 		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
 	} else {
-		/* Assertion of PMA &  XPCS reset  software Reset*/
 		ret = readl(td->sfr + NRSTCTRL1_OFFSET);
-		ret |= RST1_MAC1PMARST | RST1_MAC1XPCSRST;
+		ret &= ~RST1_MAC1XPCSRST;
 		writel(ret, td->sfr + NRSTCTRL1_OFFSET);
 	}
-
-	ret = tc956x_pma_init(NULL, res.addr + PMA_XGMAC_OFFSET);
-	if (ret < 0)
-		pr_info("PMA switching to internal clock Failed\n");
-
-	if (td->emac0) {
-		/* De-assertion of PMA & XPCS reset software Reset*/
-		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
-		ret &= ~(RST0_MAC0PMARST | RST0_MAC0XPCSRST);
-		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
-	} else {
-		/* De-assertion of PMA &  XPCS reset software Reset*/
-		ret = readl(td->sfr + NRSTCTRL1_OFFSET);
-		ret &= ~(RST1_MAC1PMARST | RST1_MAC1XPCSRST);
-		writel(ret, td->sfr + NRSTCTRL1_OFFSET);
-	}
-
-	ret = readl_poll_timeout(td->sfr + (td->emac0 ? NEMAC0CTL_OFFSET :
-							     NEMAC1CTL_OFFSET),
-				 val, val & EMAC_INIT_DONE, 50, 1000000);
-	if (ret < 0)
-		dev_err(dev, "PMA/XPCS failed to come out of reset\n");
 
 	ret = stmmac_dvr_probe(dev, plat, &res);
 	if (ret) {
@@ -1999,42 +1974,22 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 		writel(ret, td->sfr + NRSTCTRL1_OFFSET);
 	}
 
-	if (priv->hw->xpcs) {
-		if (td->emac0) {
-			/* Assertion of PMA reset  software Reset*/
-			ret = readl(td->sfr + NRSTCTRL0_OFFSET);
-			ret |= RST0_MAC0PMARST;
-			writel(ret, td->sfr + NRSTCTRL0_OFFSET);
-		} else {
-			/* Assertion of PMA reset  software Reset*/
-			ret = readl(td->sfr + NRSTCTRL1_OFFSET);
-			ret |= RST1_MAC1PMARST;
-			writel(ret, td->sfr + NRSTCTRL1_OFFSET);
-		}
+	ret = tc956x_pma_init(td);
+	if (ret < 0)
+		pr_info("PMA did not initialize correctly\n");
 
-		ret = tc956x_pma_init(priv, priv->ioaddr + PMA_XGMAC_OFFSET);
-		if (ret < 0)
-			pr_info("PMA switching to internal clock Failed\n");
-
-		if (td->emac0) {
-			/* De-assertion of PMA &  XPCS reset  software Reset*/
-			ret = readl(td->sfr + NRSTCTRL0_OFFSET);
-			ret &= ~RST0_MAC0PMARST;
-			writel(ret, td->sfr + NRSTCTRL0_OFFSET);
-		} else {
-			/* De-assertion of PMA &  XPCS reset  software Reset*/
-			ret = readl(td->sfr + NRSTCTRL1_OFFSET);
-			ret &= ~RST1_MAC1PMARST;
-			writel(ret, td->sfr + NRSTCTRL1_OFFSET);
-		}
-
-		/* TODO: Is this the right bit to poll for a PMA only reset? */
-		ret = readl_poll_timeout(
-			td->sfr + (td->emac0 ? NEMAC0CTL_OFFSET : NEMAC1CTL_OFFSET),
-			val, val & EMAC_INIT_DONE, 50, 1000000);
-		if (ret < 0)
-			dev_err(dev, "PMA/XPCS failed to come out of reset\n");
+	/* Take XPCS out of reset */
+	if (td->emac0) {
+		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
+		ret &= ~RST0_MAC0XPCSRST;
+		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
+	} else {
+		ret = readl(td->sfr + NRSTCTRL1_OFFSET);
+		ret &= ~RST1_MAC1XPCSRST;
+		writel(ret, td->sfr + NRSTCTRL1_OFFSET);
 	}
+
+	return 0;
 
 err_phy_addr:
 	return ret;
