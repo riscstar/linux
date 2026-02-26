@@ -19,8 +19,11 @@
 #include <linux/aer.h>
 #include <linux/iopoll.h>
 #include <linux/gpio/consumer.h>
+#include <linux/pcs/pcs-xpcs.h>
+#include <linux/pcs/pcs-xpcs-regmap.h>
 #include <linux/pinctrl/consumer.h>
 #include <linux/phy.h>
+#include <linux/regmap.h>
 #include <linux/regulator/consumer.h>
 #include <linux/of_irq.h>
 #include <linux/delay.h>
@@ -481,190 +484,6 @@ static void tc956x_restore_phy_reset(struct stmmac_priv *priv)
 }
 
 //
-// Code from tc956x_xpcs.h in vendor driver
-//
-
-#define XPCS_XGMAC_OFFSET	0x3A00
-
-/*XPCS registers*/
-#define XGMAC_SR_MII_CTRL				0x7C0000
-#define XGMAC_VR_MII_AN_CTRL			0x7e0004
-#define XGMAC_VR_MII_DIG_CTRL1			0x7e0000
-#define XGMAC_SR_XS_PCS_CTRL1			0xC0000
-#define XGMAC_SR_XS_PCS_CTRL2			0xC001C
-#define XGMAC_SR_XS_PCS_EEE_ABL			0xC0050
-#define XGMAC_VR_XS_PCS_DIG_CTRL1		0xe0000
-#define XGMAC_VR_XS_PCS_EEE_MCTRL0		0xe0018
-#define XGMAC_VR_XS_PCS_EEE_MCTRL1		0xe002c
-#define XGMAC_VR_XS_PCS_KR_CTRL			0xe001c
-#define XGMAC_VR_XS_PCS_EEE_TXTIMER		0xe0020
-#define XGMAC_VR_XS_PCS_EEE_RXTIMER		0xe0024
-#define XGMAC_VR_XS_PCS_DIG_STS			0xe0040
-
-#define XGMAC_LPI_ENABLE			0x0800
-#define XGMAC_PSEQ_STATE			0x001C
-#define XGMAC_KXEEE				0x0010
-#define XGMAC_MULT_FACT_100NS			0x0F00
-#define XGMAC_SIGN_BIT				0x40
-#define XGMAC_TX_RX_EN				0x90
-#define XGMAC_EEE_RX_TIMER			0x3FFF
-#define XGMAC_EEE_TX_TIMER			0x1FFF
-#define XGMAC_TX_RX_QUIET_EN			0x000F
-#define XGMAC_MULT_FACT_100NS_MAC		0xB00
-#define XGMAC_EEE_TX_TIMER_MAC_CONT		0x0543
-#define XGMAC_EEE_RX_TIMER_MAC_CONT		0x062A
-#define XGMAC_TRN_LPI				0x1
-
-/*XPCS Register value*/
-#define XGMAC_PCS_MODE_MASK				0xFFFFFFF9
-#define XGMAC_SGMII_MODE				0x00000004
-#define XGMAC_TX_CFIG_INTR_EN_MASK		0xFFFFFFF6/*Mask TX_CONFIG & MII_AN_INTR_EN*/
-#define XGMAC_MII_AN_INTR_EN			0x00000001/*MII_AN_INTR_EN*/
-#define XGMAC_MAC_AUTO_SW_EN			0x00000200/*MAC_AUTO_SW*/
-#define XGMAC_AN_37_ENABLE				0x00001000/*AN_EN*/
-#define XGMAC_PCS_TYPE_SEL				0xFFFFFFF0/*PCS_TYPE_SEL: 0x0000*/
-#define XGMAC_USXG_EN					0x00000200/*USXG_EN enable*/
-#define XGMAC_USXG_MODE					0x00001c00/*USXG_MODE: 0x000*/
-#define XGMAC_VR_RST					0x00008000/*set VR_RST*/
-#define XGMAC_SOFT_RST					0x00008000/*SOFT RST*/
-
-#define XPCS_REG_BASE_ADDR_MASK				GENMASK(31, 10)
-#define XPCS_REG_OFFSET_MASK				GENMASK(9, 0)
-#define	XPCS_IND_ACCESS					0x3fc
-
-#if 0
-#define XPCS_USX_5G_MODE				(0x1 << 10)
-#define XPCS_USX_2_5G_MODE				(0x2 << 10)
-#endif
-
-//
-// Code from tc956x_xpcs.c in vendor driver
-//
-
-static u32 tc956x_xpcs_read(void __iomem *xpcsaddr, u32 pcs_reg_num)
-{
-	u16 base_address = FIELD_GET(XPCS_REG_BASE_ADDR_MASK, pcs_reg_num);
-	u16 offset = FIELD_GET(XPCS_REG_OFFSET_MASK, pcs_reg_num);
-
-	/* Write the base address into indirect access register */
-	writel(base_address, (xpcsaddr + XPCS_IND_ACCESS));
-
-	/* Then read the value from the offset register */
-
-	return readl(xpcsaddr + offset);
-}
-
-static void
-tc956x_xpcs_write(void __iomem *xpcsaddr, u32 pcs_reg_num, u32 value)
-{
-	u16 base_address = FIELD_GET(XPCS_REG_BASE_ADDR_MASK, pcs_reg_num);
-	u16 offset = FIELD_GET(XPCS_REG_OFFSET_MASK, pcs_reg_num);
-
-	/* Write the base address into indirect access register */
-	writel(base_address, xpcsaddr + XPCS_IND_ACCESS);
-
-	/* Then write the value to the offset register */
-	writel(value, xpcsaddr + offset);
-}
-
-static void tc956x_xpcs_modify(void __iomem *xpcsaddr, u32 pcs_reg_num,
-			       u32 mask, u32 set)
-{
-	u32 val = tc956x_xpcs_read(xpcsaddr, pcs_reg_num);
-	u32 new = (val & ~mask) | set;
-
-	if (val == new)
-		return;
-
-	tc956x_xpcs_write(xpcsaddr, pcs_reg_num, new);
-}
-
-static int tc956x_xpcs_init(struct plat_stmmacenet_data *plat)
-{
-	struct tc956x_data *td = plat->bsp_priv;
-	void __iomem *xpcs = XGMAC_BASE(td) + XPCS_XGMAC_OFFSET;
-	u32 reg_value;
-
-	/* a.k.a. xpcs_poll_reset(xpcs, MDIO_MMD_VEND2) */
-	/* 1f_0000: Check if device is still resetting */
-	reg_value = tc956x_xpcs_read(xpcs, XGMAC_SR_MII_CTRL);
-	if (reg_value & XGMAC_SOFT_RST)
-		return -1;
-
-	/*Clause 37 autoneg related settings*/
-	if (plat->phy_interface == PHY_INTERFACE_MODE_SGMII) {
-		/* a.k.a. xpcs_modify(xpcs, MDIO_MMD_PCS, MDIO_CTRL2, MDIO_PMA_CTRL2_TYPE, MDIO_PCS_CTRL2_10GBX) */
-		/* 03_0007: PCS_TYPE_SEL as 10GBASE-X PCS */
-		tc956x_xpcs_modify(xpcs, XGMAC_SR_XS_PCS_CTRL2, ~XGMAC_PCS_TYPE_SEL, 1);
-
-		/* a.k.a. xpcs_modify(xpcs, MDIO_MMD_VEND2, DW_VR_MII_AN_CTRL, DW_VR_MII_PCS_MODE_MASK, FIELD_PREP(DW_VR_MII_PCS_MODE_MASK, DW_VR_MII_PCS_MODE_C37_SGMII)) */
-		/* 1f_8001: SGMII PCS MODE */
-		tc956x_xpcs_modify(xpcs, XGMAC_VR_MII_AN_CTRL, ~XGMAC_PCS_MODE_MASK, XGMAC_SGMII_MODE);
-
-		/* THIS BIT IS SHARED WITH BIT[2] of VR_MII_DIG_CTRL1 (which in this XPCS design is read only) */
-		/* a.k.a. xpcs_modify(xpcs, MDIO_MMD_PCS, 0x8000, BIT(2), c ? BIT(2) : 0) */
-		/* 03_8000: Enable only if SGMII 2.5G is enabled */
-		tc956x_xpcs_modify(xpcs, XGMAC_VR_XS_PCS_DIG_CTRL1, 4, td->is_sgmii_2p5g ? 4 : 0);
-	}
-	if ((plat->phy_interface == PHY_INTERFACE_MODE_USXGMII) ||
-	    (plat->phy_interface == PHY_INTERFACE_MODE_10GKR) ||
-	    (plat->phy_interface == PHY_INTERFACE_MODE_10GBASER)) {
-		/* a.k.a. xpcs_modify(xpcs, MDIO_MMD_PCS, MDIO_CTRL2, MDIO_PMA_CTRL2_TYPE, MDIO_PCS_CTRL2_10GBR) */
-		/* 03_0007: PCS_TYPE_SEL as 10GBASE-R PCS */
-		tc956x_xpcs_modify(xpcs, XGMAC_SR_XS_PCS_CTRL2, ~XGMAC_PCS_TYPE_SEL, 0);
-
-		/* a.k.a. xpcs_modify(xpcs, MDIO_MMD_PCS, 0x8000, BIT(9), c ? BIT(9) : 0) */
-		/* 03_8000: Set or clear USXG_EN */
-		if (plat->phy_interface == PHY_INTERFACE_MODE_10GKR ||
-		    plat->phy_interface == PHY_INTERFACE_MODE_10GBASER) {
-			tc956x_xpcs_modify(xpcs, XGMAC_VR_XS_PCS_DIG_CTRL1, XGMAC_USXG_EN, 0);
-		} else {
-			tc956x_xpcs_modify(xpcs, XGMAC_VR_XS_PCS_DIG_CTRL1, 0, XGMAC_USXG_EN);
-		}
-
-		/* a.k.a. xpcs_modify(xpcs, MDIO_MMD_PCS, 0x8007, 0x001c00, 0) */
-		/* 03_8007: USXG_MODE : 0x000 */
-		tc956x_xpcs_modify(xpcs, XGMAC_VR_XS_PCS_KR_CTRL, XGMAC_USXG_MODE, 0);
-
-		/* a.k.a. xpcs_modify(xpcs, MDIO_MMD_PCS, 0x8000, 0, BIT(15)) */
-		/* 03_8000: set VR_RST */
-		tc956x_xpcs_modify(xpcs, XGMAC_VR_XS_PCS_DIG_CTRL1, 0, XGMAC_VR_RST);
-
-		/* Wait for Reset to clear */
-		do {
-			/* a.k.a. xpcs_read(xpcs, MDIO_MMD_PCS, 0x8000) & BIT(15)) */
-			reg_value = tc956x_xpcs_read(xpcs, XGMAC_VR_XS_PCS_DIG_CTRL1);
-		} while ((XGMAC_VR_RST & reg_value) == XGMAC_VR_RST);
-	}
-
-	/* a.k.a. xpcs_modify(xpcs, MDIO_MMD_PCS, 0x8010, 0x1c, 0) */
-	/* 03_8010: PSEQ_STATE(B4:2)=3'b000 */
-	tc956x_xpcs_modify(xpcs, XGMAC_VR_XS_PCS_DIG_STS, XGMAC_PSEQ_STATE, 0);
-
-	/* a.k.a. xpcs_modify(xpcs, MDIO_MMD_VEND2, DW_VR_MII_AN_CTRL, DW_VR_MII_TX_CONFIG_MASK, FIELD_PREP(DW_VR_MII_TX_CONFIG_MASK, DW_VR_MII_TX_CONFIG_MAC_SIDE_SGMII) | DW_VR_MII_AN_INTR_EN) */
-	/* 1f_8001: Set TX_CONFIG MAC side, enable AN_INTR */
-	tc956x_xpcs_modify(xpcs, XGMAC_VR_MII_AN_CTRL,
-			 ~XGMAC_TX_CFIG_INTR_EN_MASK, XGMAC_MII_AN_INTR_EN);
-
-	/* a.k.a. xpcs_modify(xpcs, MDIO_MMD_VEND2, DW_VR_MII_DIG_CTRL1, DW_VR_MII_DIG_CTRL1_MAC_AUTO_SW, c ? DW_VR_MII_DIG_CTRL1_MAC_AUTO_SW : 0)) */
-	/* 1f_8000: Enable only if SGMII 2.5G is not enabled. */
-	tc956x_xpcs_modify(xpcs, XGMAC_VR_MII_DIG_CTRL1, XGMAC_MAC_AUTO_SW_EN,
-			   td->is_sgmii_2p5g ? 0 : XGMAC_MAC_AUTO_SW_EN);
-
-	return 0;
-}
-
-static void tc956x_xpcs_ctrl_ane(struct tc956x_data *td, bool ane)
-{
-	void __iomem *xpcs = XGMAC_BASE(td) + XPCS_XGMAC_OFFSET;
-
-	/* a.k.a. xpcs_modify(xpcs, MDIO_MMD_VEND2, MDIO_CTRL1, MDIO_AN_CTRL1_ENABLE, ane ? MDIO_AN_CTRL1_ENABLE : 0) */
-	/* 1f_0000: Set C37 auto-negotiation */
-	tc956x_xpcs_modify(xpcs, XGMAC_SR_MII_CTRL, XGMAC_AN_37_ENABLE,
-			   ane ? XGMAC_AN_37_ENABLE : 0);
-}
-
-//
 // Code from tc956x_msigen.c in vendor driver
 //
 
@@ -1010,6 +829,7 @@ static int tc956x_platform_resume(struct stmmac_priv *priv)
 // Code from tc956x_pma.h in vendor driver
 //
 
+#define XPCS_XGMAC_OFFSET  0x3A00
 #define PMA_XGMAC_OFFSET   0x4000
 
 /*PMA registers*/
@@ -1359,13 +1179,47 @@ static void tc956x_config_tamap(struct tc956x_data *td)
 	pr_debug("TRSL_MASK_LO = 0x%08x\n", readl(base + TRSL_MASK_LO_OFFSET));
 }
 
+static int tc956x_pcs_init(struct stmmac_priv *priv)
+{
+	struct tc956x_data *td = priv->plat->bsp_priv;
+	struct xpcs_regmap_config xpcs_regmap_cfg = {
+		.reg_indir = true,
+	};
+	struct regmap_config regmap_cfg = {
+		.reg_bits = 32,
+		.val_bits = 32,
+		.reg_shift = REGMAP_UPSHIFT(2),
+	};
+	struct dw_xpcs *xpcs;
+	int ret;
+
+	xpcs_regmap_cfg.regmap = devm_regmap_init_mmio(
+		priv->device, XGMAC_BASE(td) + XPCS_XGMAC_OFFSET, &regmap_cfg);
+	if (IS_ERR(xpcs_regmap_cfg.regmap))
+		return PTR_ERR(xpcs_regmap_cfg.regmap);
+
+	xpcs = devm_xpcs_regmap_register(priv->device, &xpcs_regmap_cfg);
+	if (IS_ERR(xpcs))
+		return PTR_ERR(xpcs);
+
+	xpcs_config_eee_mult_fact(xpcs, priv->plat->mult_fact_100ns);
+	priv->hw->phylink_pcs = xpcs_to_phylink_pcs(xpcs);
+
+	return ret;
+}
+
+static struct phylink_pcs *tc956x_select_pcs(struct stmmac_priv *priv,
+					     phy_interface_t interface)
+{
+	return priv->hw->phylink_pcs;
+}
+
 static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 {
 	struct tc956x_data *td = bsp_priv;
 	void __iomem *xgmac = XGMAC_BASE(td);
 	struct plat_stmmacenet_data *plat = td->plat;
-	int ret, reg = 0, val, reg_value;
-	void __iomem *xpcs = xgmac + XPCS_XGMAC_OFFSET;
+	int ret, reg = 0, val;
 	bool enable_an = true;
 
 	// TODO: copied from vendor drivers customizations in
@@ -1380,9 +1234,6 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 		ret = readl(td->sfr + NEMAC0CTL_OFFSET);
 		ret &= ~EMAC_SP_SEL_MASK;
 		ret &= ~EMAC_PHY_INF_SEL_MASK;
-		reg_value = tc956x_xpcs_read(xpcs, XGMAC_VR_XS_PCS_KR_CTRL);
-		reg_value &= ~XGMAC_USXG_MODE; /*USXG_MODE : 0x000*/
-		tc956x_xpcs_write(xpcs, XGMAC_VR_XS_PCS_KR_CTRL, reg_value);
 		ret &= ~EMAC_INV_SGM_SIG_DET;
 		ret |= FIELD_PREP(EMAC_PHY_INF_SEL_MASK, PCS_CLK_PHY);
 		ret |= EMAC_LPIHWCLKEN;
@@ -1415,10 +1266,6 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 			else
 				ret |= FIELD_PREP(EMAC_SP_SEL_MASK,
 						  SPEED_SGMII_1000M);
-		} else {
-			reg_value = tc956x_xpcs_read(xpcs, XGMAC_VR_XS_PCS_KR_CTRL);
-			reg_value &= ~XGMAC_USXG_MODE; /*USXG_MODE : 0x000*/
-			tc956x_xpcs_write(xpcs, XGMAC_VR_XS_PCS_KR_CTRL, reg_value);
 		}
 
 		ret &= ~EMAC_INV_SGM_SIG_DET;
@@ -1430,14 +1277,14 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 	}
 
 	if (td->emac0) {
-		/* Assertion of PMA & XPCS reset software Reset*/
+		/* Assertion of PMA reset software Reset*/
 		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
-		ret |= RST0_MAC0PMARST | RST0_MAC0XPCSRST;
+		ret |= RST0_MAC0PMARST;
 		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
 	} else {
-		/* Assertion of PMA &  XPCS reset  software Reset*/
+		/* Assertion of PMA reset  software Reset*/
 		ret = readl(td->sfr + NRSTCTRL1_OFFSET);
-		ret |= RST1_MAC1PMARST | RST1_MAC1XPCSRST;
+		ret |= RST1_MAC1PMARST;
 		writel(ret, td->sfr + NRSTCTRL1_OFFSET);
 	}
 
@@ -1446,15 +1293,15 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 		pr_info("PMA switching to internal clock Failed\n");
 
 	if (td->emac0) {
-		/* De-assertion of PMA & XPCS reset software Reset*/
+		/* De-assertion of PMA reset software Reset*/
 		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
-		ret &= ~(RST0_MAC0PMARST | RST0_MAC0XPCSRST);
+		ret &= ~RST0_MAC0PMARST;
 		ret &= ~RST0_MAC0RST;
 		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
 	} else {
-		/* De-assertion of PMA &  XPCS reset software Reset*/
+		/* De-assertion of PMA reset software Reset*/
 		ret = readl(td->sfr + NRSTCTRL1_OFFSET);
-		ret &= ~(RST1_MAC1PMARST | RST1_MAC1XPCSRST);
+		ret &= ~RST1_MAC1PMARST;
 		/* Is this missing?  ret &= ~RST1_MAC1RST; */
 		writel(ret, td->sfr + NRSTCTRL1_OFFSET);
 	}
@@ -1482,12 +1329,6 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 		td->is_sgmii_2p5g = false;
 		enable_an = true;
 	}
-
-	ret = tc956x_xpcs_init(td->plat);
-	if (ret < 0)
-		dev_err(td->dev, "XPCS initialization error\n");
-
-	tc956x_xpcs_ctrl_ane(td, enable_an);
 }
 
 /* Assert or deassert the interrupt controller (INTC) */
@@ -1610,7 +1451,9 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	}
 	td->emac0 = pfn == 0;
 
-	plat->fix_mac_speed = &tc956x_fix_mac_speed;
+	plat->fix_mac_speed = tc956x_fix_mac_speed;
+	plat->pcs_init = tc956x_pcs_init;
+	plat->select_pcs = tc956x_select_pcs;
 
 	// NCID_OFFSET gives the revision ID (and early revisions are limited
 	// to 2.5G)
@@ -1790,10 +1633,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 				 val, val & EMAC_INIT_DONE, 50, 1000000);
 	if (ret < 0)
 		dev_err(dev, "PMA/XPCS failed to come out of reset\n");
-
-	ret = tc956x_xpcs_init(plat);
-	if (ret < 0)
-		dev_err(dev, "XPCS initialization error\n");
 
 	ret = stmmac_dvr_probe(dev, plat, &res);
 	if (ret) {
@@ -2191,14 +2030,14 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 
 	if (priv->hw->xpcs) {
 		if (td->emac0) {
-			/* Assertion of PMA &  XPCS reset  software Reset*/
+			/* Assertion of PMA reset  software Reset*/
 			ret = readl(td->sfr + NRSTCTRL0_OFFSET);
-			ret |= RST0_MAC0PMARST | RST0_MAC0XPCSRST;
+			ret |= RST0_MAC0PMARST;
 			writel(ret, td->sfr + NRSTCTRL0_OFFSET);
 		} else {
-			/* Assertion of PMA &  XPCS reset  software Reset*/
+			/* Assertion of PMA reset  software Reset*/
 			ret = readl(td->sfr + NRSTCTRL1_OFFSET);
-			ret |= RST1_MAC1PMARST | RST1_MAC1XPCSRST;
+			ret |= RST1_MAC1PMARST;
 			writel(ret, td->sfr + NRSTCTRL1_OFFSET);
 		}
 
@@ -2209,26 +2048,23 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 		if (td->emac0) {
 			/* De-assertion of PMA &  XPCS reset  software Reset*/
 			ret = readl(td->sfr + NRSTCTRL0_OFFSET);
-			ret &= ~(RST0_MAC0PMARST | RST0_MAC0XPCSRST);
+			ret &= ~RST0_MAC0PMARST;
 			ret &= ~RST0_MAC0RST;
 			writel(ret, td->sfr + NRSTCTRL0_OFFSET);
 		} else {
 			/* De-assertion of PMA &  XPCS reset  software Reset*/
 			ret = readl(td->sfr + NRSTCTRL1_OFFSET);
-			ret &= ~(RST1_MAC1PMARST | RST1_MAC1XPCSRST);
+			ret &= ~RST1_MAC1PMARST;
 			/* XXX Is this missing?  ret &= ~RST1_MAC1RST; */
 			writel(ret, td->sfr + NRSTCTRL1_OFFSET);
 		}
 
+		/* TODO: Is this the right bit to poll for a PMA only reset? */
 		ret = readl_poll_timeout(
 			td->sfr + (td->emac0 ? NEMAC0CTL_OFFSET : NEMAC1CTL_OFFSET),
 			val, val & EMAC_INIT_DONE, 50, 1000000);
 		if (ret < 0)
 			dev_err(dev, "PMA/XPCS failed to come out of reset\n");
-
-		ret = tc956x_xpcs_init(priv->plat);
-		if (ret < 0)
-			pr_info("XPCS initialization error\n");
 	}
 
 err_phy_addr:
