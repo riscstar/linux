@@ -1191,7 +1191,6 @@ static int tc956x_pcs_init(struct stmmac_priv *priv)
 		.reg_shift = REGMAP_UPSHIFT(2),
 	};
 	struct dw_xpcs *xpcs;
-	int ret;
 
 	xpcs_regmap_cfg.regmap = devm_regmap_init_mmio(
 		priv->device, XGMAC_BASE(td) + XPCS_XGMAC_OFFSET, &regmap_cfg);
@@ -1205,7 +1204,7 @@ static int tc956x_pcs_init(struct stmmac_priv *priv)
 	xpcs_config_eee_mult_fact(xpcs, priv->plat->mult_fact_100ns);
 	priv->hw->phylink_pcs = xpcs_to_phylink_pcs(xpcs);
 
-	return ret;
+	return 0;
 }
 
 static struct phylink_pcs *tc956x_select_pcs(struct stmmac_priv *priv,
