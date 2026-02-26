@@ -756,12 +756,14 @@ static int xpcs_config_aneg_c37_sgmii(struct dw_xpcs *xpcs,
 	/* For AN for C37 SGMII mode, the settings are :-
 	 * 1) VR_MII_MMD_CTRL Bit(12) [AN_ENABLE] = 0b (Disable SGMII AN in case
 	      it is already enabled)
-	 * 2) VR_MII_AN_CTRL Bit(2:1)[PCS_MODE] = 10b (SGMII AN)
-	 * 3) VR_MII_AN_CTRL Bit(3) [TX_CONFIG] = 0b (MAC side SGMII)
+	 * 2) SR_XS_PCS_CTRL2 Bit(3:0) [TYPE] = 0001b (Ensure a 10GBase-X/R PCS
+	 *    is configured for Base-X)
+	 * 3) VR_MII_AN_CTRL Bit(2:1)[PCS_MODE] = 10b (SGMII AN)
+	 * 4) VR_MII_AN_CTRL Bit(3) [TX_CONFIG] = 0b (MAC side SGMII)
 	 *    DW xPCS used with DW EQoS MAC is always MAC side SGMII.
-	 * 4) VR_MII_DIG_CTRL1 Bit(9) [MAC_AUTO_SW] = 1b (Automatic
+	 * 5) VR_MII_DIG_CTRL1 Bit(9) [MAC_AUTO_SW] = 1b (Automatic
 	 *    speed/duplex mode change by HW after SGMII AN complete)
-	 * 5) VR_MII_MMD_CTRL Bit(12) [AN_ENABLE] = 1b (Enable SGMII AN)
+	 * 6) VR_MII_MMD_CTRL Bit(12) [AN_ENABLE] = 1b (Enable SGMII AN)
 	 *
 	 * Note that VR_MII_MMD_CTRL is MII_BMCR.
 	 *
@@ -781,6 +783,12 @@ static int xpcs_config_aneg_c37_sgmii(struct dw_xpcs *xpcs,
 		if (ret < 0)
 			return ret;
 	}
+
+	/* It is the Base-X that matters here, ignore the speed */
+	ret = xpcs_modify(xpcs, MDIO_MMD_PCS, MDIO_CTRL2,
+	                  MDIO_PMA_CTRL2_TYPE, MDIO_PCS_CTRL2_10GBX);
+	if (ret < 0)
+		return ret;
 
 	mask = DW_VR_MII_PCS_MODE_MASK | DW_VR_MII_TX_CONFIG_MASK;
 	val = FIELD_PREP(DW_VR_MII_PCS_MODE_MASK,
@@ -850,6 +858,12 @@ static int xpcs_config_aneg_c37_1000basex(struct dw_xpcs *xpcs,
 			return ret;
 	}
 
+	/* It is the Base-X that matters here, ignore the speed */
+	ret = xpcs_modify(xpcs, MDIO_MMD_PCS, MDIO_CTRL2,
+	                  MDIO_PMA_CTRL2_TYPE, MDIO_PCS_CTRL2_10GBX);
+	if (ret < 0)
+		return ret;
+
 	mask = DW_VR_MII_PCS_MODE_MASK;
 	val = FIELD_PREP(DW_VR_MII_PCS_MODE_MASK,
 			 DW_VR_MII_PCS_MODE_C37_1000BASEX);
@@ -895,6 +909,12 @@ static int xpcs_config_aneg_c37_1000basex(struct dw_xpcs *xpcs,
 static int xpcs_config_2500basex(struct dw_xpcs *xpcs)
 {
 	int ret;
+
+	/* It is the Base-X that matters here, ignore the speed */
+	ret = xpcs_modify(xpcs, MDIO_MMD_PCS, MDIO_CTRL2,
+	                  MDIO_PMA_CTRL2_TYPE, MDIO_PCS_CTRL2_10GBX);
+	if (ret < 0)
+		return ret;
 
 	ret = xpcs_modify(xpcs, MDIO_MMD_VEND2, DW_VR_MII_DIG_CTRL1,
 			  DW_VR_MII_DIG_CTRL1_2G5_EN |
