@@ -567,127 +567,89 @@ tc956x_xpcs_write(void __iomem *xpcsaddr, u32 pcs_reg_num, u32 value)
 	writel(value, xpcsaddr + offset);
 }
 
+static void tc956x_xpcs_modify(void __iomem *xpcsaddr, u32 pcs_reg_num,
+			       u32 mask, u32 set)
+{
+	u32 val = tc956x_xpcs_read(xpcsaddr, pcs_reg_num);
+	u32 new = (val & ~mask) | set;
+
+	if (val == new)
+		return;
+
+	tc956x_xpcs_write(xpcsaddr, pcs_reg_num, new);
+}
+
 static int tc956x_xpcs_init(struct plat_stmmacenet_data *plat)
 {
 	struct tc956x_data *td = plat->bsp_priv;
 	void __iomem *xpcs = XGMAC_BASE(td) + XPCS_XGMAC_OFFSET;
 	u32 reg_value;
 
+	/* a.k.a. xpcs_poll_reset(xpcs, MDIO_MMD_VEND2) */
+	/* 1f_0000: Check if device is still resetting */
 	reg_value = tc956x_xpcs_read(xpcs, XGMAC_SR_MII_CTRL);
 	if (reg_value & XGMAC_SOFT_RST)
 		return -1;
 
 	/*Clause 37 autoneg related settings*/
 	if (plat->phy_interface == PHY_INTERFACE_MODE_SGMII) {
-		//DK2
-		//PCS Type Select SR_XS_PCS_CTRL2  PCS_TYPE_SEL -> 1
-		reg_value = tc956x_xpcs_read(xpcs, XGMAC_SR_XS_PCS_CTRL2);
-		reg_value &= XGMAC_PCS_TYPE_SEL;
-		reg_value |= 0x1;
-		tc956x_xpcs_write(xpcs, XGMAC_SR_XS_PCS_CTRL2, reg_value);
+		/* a.k.a. xpcs_modify(xpcs, MDIO_MMD_PCS, MDIO_CTRL2, MDIO_PMA_CTRL2_TYPE, MDIO_PCS_CTRL2_10GBX) */
+		/* 03_0007: PCS_TYPE_SEL as 10GBASE-X PCS */
+		tc956x_xpcs_modify(xpcs, XGMAC_SR_XS_PCS_CTRL2, ~XGMAC_PCS_TYPE_SEL, 1);
 
-		reg_value = tc956x_xpcs_read(xpcs, XGMAC_VR_MII_AN_CTRL);
-		reg_value &= XGMAC_PCS_MODE_MASK;
-		reg_value |= XGMAC_SGMII_MODE; /*SGMII PCS MODE*/
-		tc956x_xpcs_write(xpcs, XGMAC_VR_MII_AN_CTRL, reg_value);
+		/* a.k.a. xpcs_modify(xpcs, MDIO_MMD_VEND2, DW_VR_MII_AN_CTRL, DW_VR_MII_PCS_MODE_MASK, FIELD_PREP(DW_VR_MII_PCS_MODE_MASK, DW_VR_MII_PCS_MODE_C37_SGMII)) */
+		/* 1f_8001: SGMII PCS MODE */
+		tc956x_xpcs_modify(xpcs, XGMAC_VR_MII_AN_CTRL, ~XGMAC_PCS_MODE_MASK, XGMAC_SGMII_MODE);
 
-		if (td->is_sgmii_2p5g == true) {
-			reg_value = tc956x_xpcs_read(xpcs,
-						     XGMAC_VR_XS_PCS_DIG_CTRL1);
-			reg_value &= ~(0x4);
-			/* Enable only if SGMII 2.5G is enabled */
-			reg_value |= 0x4; /*EN_2_5G_MODE*/
-			tc956x_xpcs_write(xpcs, XGMAC_VR_XS_PCS_DIG_CTRL1,
-					  reg_value);
-		}
+		/* THIS BIT IS SHARED WITH BIT[2] of VR_MII_DIG_CTRL1 (which in this XPCS design is read only) */
+		/* a.k.a. xpcs_modify(xpcs, MDIO_MMD_PCS, 0x8000, BIT(2), c ? BIT(2) : 0) */
+		/* 03_8000: Enable only if SGMII 2.5G is enabled */
+		tc956x_xpcs_modify(xpcs, XGMAC_VR_XS_PCS_DIG_CTRL1, 4, td->is_sgmii_2p5g ? 4 : 0);
 	}
 	if ((plat->phy_interface == PHY_INTERFACE_MODE_USXGMII) ||
-			(plat->phy_interface == PHY_INTERFACE_MODE_10GKR) ||
-			(plat->phy_interface == PHY_INTERFACE_MODE_10GBASER)) {
-		reg_value = tc956x_xpcs_read(xpcs, XGMAC_SR_XS_PCS_CTRL2);
-		reg_value &= XGMAC_PCS_TYPE_SEL;/*PCS_TYPE_SEL as 10GBASE-R PCS */
-		tc956x_xpcs_write(xpcs, XGMAC_SR_XS_PCS_CTRL2, reg_value);
+	    (plat->phy_interface == PHY_INTERFACE_MODE_10GKR) ||
+	    (plat->phy_interface == PHY_INTERFACE_MODE_10GBASER)) {
+		/* a.k.a. xpcs_modify(xpcs, MDIO_MMD_PCS, MDIO_CTRL2, MDIO_PMA_CTRL2_TYPE, MDIO_PCS_CTRL2_10GBR) */
+		/* 03_0007: PCS_TYPE_SEL as 10GBASE-R PCS */
+		tc956x_xpcs_modify(xpcs, XGMAC_SR_XS_PCS_CTRL2, ~XGMAC_PCS_TYPE_SEL, 0);
 
-		reg_value = tc956x_xpcs_read(xpcs, XGMAC_VR_XS_PCS_DIG_CTRL1);
-		if (plat->phy_interface == PHY_INTERFACE_MODE_10GKR
-			|| (plat->phy_interface == PHY_INTERFACE_MODE_10GBASER)
-			) {
-			reg_value &= (~XGMAC_USXG_EN); /*Disable USXG_EN*/
+		/* a.k.a. xpcs_modify(xpcs, MDIO_MMD_PCS, 0x8000, BIT(9), c ? BIT(9) : 0) */
+		/* 03_8000: Set or clear USXG_EN */
+		if (plat->phy_interface == PHY_INTERFACE_MODE_10GKR ||
+		    plat->phy_interface == PHY_INTERFACE_MODE_10GBASER) {
+			tc956x_xpcs_modify(xpcs, XGMAC_VR_XS_PCS_DIG_CTRL1, XGMAC_USXG_EN, 0);
 		} else {
-			reg_value |= XGMAC_USXG_EN; /*set USXG_EN*/
+			tc956x_xpcs_modify(xpcs, XGMAC_VR_XS_PCS_DIG_CTRL1, 0, XGMAC_USXG_EN);
 		}
 
-		tc956x_xpcs_write(xpcs, XGMAC_VR_XS_PCS_DIG_CTRL1, reg_value);
+		/* a.k.a. xpcs_modify(xpcs, MDIO_MMD_PCS, 0x8007, 0x001c00, 0) */
+		/* 03_8007: USXG_MODE : 0x000 */
+		tc956x_xpcs_modify(xpcs, XGMAC_VR_XS_PCS_KR_CTRL, XGMAC_USXG_MODE, 0);
 
-		reg_value = tc956x_xpcs_read(xpcs, XGMAC_VR_XS_PCS_KR_CTRL);
-		reg_value &= ~XGMAC_USXG_MODE;/*USXG_MODE : 0x000*/
-		tc956x_xpcs_write(xpcs, XGMAC_VR_XS_PCS_KR_CTRL, reg_value);
+		/* a.k.a. xpcs_modify(xpcs, MDIO_MMD_PCS, 0x8000, 0, BIT(15)) */
+		/* 03_8000: set VR_RST */
+		tc956x_xpcs_modify(xpcs, XGMAC_VR_XS_PCS_DIG_CTRL1, 0, XGMAC_VR_RST);
 
-		reg_value = tc956x_xpcs_read(xpcs, XGMAC_VR_XS_PCS_DIG_CTRL1);
-		reg_value |= XGMAC_VR_RST;/*set VR_RST*/
-		tc956x_xpcs_write(xpcs, XGMAC_VR_XS_PCS_DIG_CTRL1, reg_value);
-
-		/*Wait for Reset to clear*/
+		/* Wait for Reset to clear */
 		do {
+			/* a.k.a. xpcs_read(xpcs, MDIO_MMD_PCS, 0x8000) & BIT(15)) */
 			reg_value = tc956x_xpcs_read(xpcs, XGMAC_VR_XS_PCS_DIG_CTRL1);
 		} while ((XGMAC_VR_RST & reg_value) == XGMAC_VR_RST);
-
 	}
-	reg_value = tc956x_xpcs_read(xpcs, XGMAC_SR_XS_PCS_CTRL1);
-	reg_value |= XGMAC_LPI_ENABLE;/* LPM : power down */
-	tc956x_xpcs_write(xpcs, XGMAC_SR_XS_PCS_CTRL1, reg_value);
 
-	reg_value = tc956x_xpcs_read(xpcs, XGMAC_VR_XS_PCS_DIG_STS);
-	reg_value &= ~(XGMAC_PSEQ_STATE);/* PSEQ_STATE(B4:2)=3'b000 */
-	tc956x_xpcs_write(xpcs, XGMAC_VR_XS_PCS_DIG_STS, reg_value);
+	/* a.k.a. xpcs_modify(xpcs, MDIO_MMD_PCS, 0x8010, 0x1c, 0) */
+	/* 03_8010: PSEQ_STATE(B4:2)=3'b000 */
+	tc956x_xpcs_modify(xpcs, XGMAC_VR_XS_PCS_DIG_STS, XGMAC_PSEQ_STATE, 0);
 
-	reg_value = tc956x_xpcs_read(xpcs, XGMAC_SR_XS_PCS_CTRL1);
-	reg_value &= ~(XGMAC_LPI_ENABLE);/* LPM : Normal Operation */
-	tc956x_xpcs_write(xpcs, XGMAC_SR_XS_PCS_CTRL1, reg_value);
+	/* a.k.a. xpcs_modify(xpcs, MDIO_MMD_VEND2, DW_VR_MII_AN_CTRL, DW_VR_MII_TX_CONFIG_MASK, FIELD_PREP(DW_VR_MII_TX_CONFIG_MASK, DW_VR_MII_TX_CONFIG_MAC_SIDE_SGMII) | DW_VR_MII_AN_INTR_EN) */
+	/* 1f_8001: Set TX_CONFIG MAC side, enable AN_INTR */
+	tc956x_xpcs_modify(xpcs, XGMAC_VR_MII_AN_CTRL,
+			 ~XGMAC_TX_CFIG_INTR_EN_MASK, XGMAC_MII_AN_INTR_EN);
 
-	reg_value = tc956x_xpcs_read(xpcs, XGMAC_SR_XS_PCS_EEE_ABL);
-	reg_value |= XGMAC_KXEEE;/* KXEEE */
-	tc956x_xpcs_write(xpcs, XGMAC_SR_XS_PCS_EEE_ABL, reg_value);
-
-	reg_value = tc956x_xpcs_read(xpcs, XGMAC_VR_XS_PCS_EEE_MCTRL0);
-	reg_value &= ~(XGMAC_MULT_FACT_100NS);
-	reg_value |= XGMAC_MULT_FACT_100NS_MAC; /* MULT_FACT_100NS */
-	reg_value |= XGMAC_SIGN_BIT;/* SIGN_BIT */
-	reg_value |= XGMAC_TX_RX_EN;/* TX_EN_CTRL, RX_EN_CTRL */
-	tc956x_xpcs_write(xpcs, XGMAC_VR_XS_PCS_EEE_MCTRL0, reg_value);
-
-	reg_value = tc956x_xpcs_read(xpcs, XGMAC_VR_XS_PCS_EEE_TXTIMER);
-	reg_value &= ~(XGMAC_EEE_TX_TIMER);
-	reg_value |= XGMAC_EEE_TX_TIMER_MAC_CONT; /* TWL_RES=0x5, T1U_RES=0x1, TSL_RES=0x3 */
-	tc956x_xpcs_write(xpcs, XGMAC_VR_XS_PCS_EEE_TXTIMER, reg_value);
-
-	reg_value = tc956x_xpcs_read(xpcs, XGMAC_VR_XS_PCS_EEE_RXTIMER);
-	reg_value &= ~(XGMAC_EEE_RX_TIMER);
-	reg_value |= XGMAC_EEE_RX_TIMER_MAC_CONT; /* TWR_RES=0x6, RES_100U=0x42 */
-	tc956x_xpcs_write(xpcs, XGMAC_VR_XS_PCS_EEE_RXTIMER, reg_value);
-
-	reg_value = tc956x_xpcs_read(xpcs, XGMAC_VR_XS_PCS_EEE_MCTRL1);
-	reg_value |= XGMAC_TRN_LPI;
-	tc956x_xpcs_write(xpcs, XGMAC_VR_XS_PCS_EEE_MCTRL1, reg_value);
-
-	reg_value = tc956x_xpcs_read(xpcs, XGMAC_VR_XS_PCS_EEE_MCTRL0);
-
-	reg_value &= ~XGMAC_TX_RX_QUIET_EN;
-	reg_value |= XGMAC_TX_RX_QUIET_EN; /* RX_QUIET_EN, TX_QUIET_EN, LRX_EN, LTX_EN */
-
-	tc956x_xpcs_write(xpcs, XGMAC_VR_XS_PCS_EEE_MCTRL0, reg_value);
-
-	reg_value = tc956x_xpcs_read(xpcs, XGMAC_VR_MII_AN_CTRL);
-	reg_value &= XGMAC_TX_CFIG_INTR_EN_MASK;/*TX_CONFIG MAC SIDE*/
-	reg_value |= XGMAC_MII_AN_INTR_EN;/*MII_AN_INTR_EN enabe*/
-	tc956x_xpcs_write(xpcs, XGMAC_VR_MII_AN_CTRL, reg_value);
-
-	reg_value = tc956x_xpcs_read(xpcs, XGMAC_VR_MII_DIG_CTRL1);
-	reg_value &= ~XGMAC_MAC_AUTO_SW_EN;/*MAC_AUTO_SW enable*/
-	if (td->is_sgmii_2p5g != true)
-		/* Enable only if SGMII 2.5G is not enabled. */
-		reg_value |= XGMAC_MAC_AUTO_SW_EN;
-	tc956x_xpcs_write(xpcs, XGMAC_VR_MII_DIG_CTRL1, reg_value);
+	/* a.k.a. xpcs_modify(xpcs, MDIO_MMD_VEND2, DW_VR_MII_DIG_CTRL1, DW_VR_MII_DIG_CTRL1_MAC_AUTO_SW, c ? DW_VR_MII_DIG_CTRL1_MAC_AUTO_SW : 0)) */
+	/* 1f_8000: Enable only if SGMII 2.5G is not enabled. */
+	tc956x_xpcs_modify(xpcs, XGMAC_VR_MII_DIG_CTRL1, XGMAC_MAC_AUTO_SW_EN,
+			   td->is_sgmii_2p5g ? 0 : XGMAC_MAC_AUTO_SW_EN);
 
 	return 0;
 }
@@ -695,18 +657,11 @@ static int tc956x_xpcs_init(struct plat_stmmacenet_data *plat)
 static void tc956x_xpcs_ctrl_ane(struct tc956x_data *td, bool ane)
 {
 	void __iomem *xpcs = XGMAC_BASE(td) + XPCS_XGMAC_OFFSET;
-	u32 reg_value;
 
-	reg_value = tc956x_xpcs_read(xpcs, XGMAC_SR_MII_CTRL);
-	if (ane) {
-		reg_value |= XGMAC_AN_37_ENABLE;
-		dev_dbg(td->dev, "%s Enable AN", __func__);
-	} else {
-		reg_value &= (~XGMAC_AN_37_ENABLE);
-		dev_dbg(td->dev, "%s Disable AN", __func__);
-	}
-
-	tc956x_xpcs_write(xpcs, XGMAC_SR_MII_CTRL, reg_value);
+	/* a.k.a. xpcs_modify(xpcs, MDIO_MMD_VEND2, MDIO_CTRL1, MDIO_AN_CTRL1_ENABLE, ane ? MDIO_AN_CTRL1_ENABLE : 0) */
+	/* 1f_0000: Set C37 auto-negotiation */
+	tc956x_xpcs_modify(xpcs, XGMAC_SR_MII_CTRL, XGMAC_AN_37_ENABLE,
+			   ane ? XGMAC_AN_37_ENABLE : 0);
 }
 
 //
