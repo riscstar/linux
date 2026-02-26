@@ -1089,7 +1089,6 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 	if (td->port_interface == ENABLE_SGMII_INTERFACE)
 		plat->mac_port_sel_speed = 2500;
 
-	plat->bus_id = 1;
 	plat->pdev = pdev;
 	plat->clk_ptp_rate = 50000000;
 
@@ -1771,6 +1770,8 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 	dev_dbg(dev, "port_interface = %d\n", td->port_interface);
 
+	td->plat->bus_id = ((pdev->bus->number<<4) | (td->emac0 ? 0 : 1));
+
 	/* XXX eMAC0, or first one probed? */
 	if (td->emac0)
 		tc956x_config_tamap(td);
@@ -1875,8 +1876,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	res.addr = XGMAC_BASE(td);
 	res.wol_irq = pdev->irq;
 	res.irq = pdev->irq;
-
-	td->plat->bus_id = ((pdev->bus->number<<4) | (td->emac0 ? 0 : 1));
 
 	sh_mem_offset = tc956x_get_shared_mem_offset(pdev, pci_dev_id(pdev) & TC956X_PCI_BD_MASK);
 	if (sh_mem_offset < TC956X_TOT_CASCADE_DEV) {
