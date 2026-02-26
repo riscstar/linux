@@ -1328,21 +1328,6 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 	}
 }
 
-/* Assert or deassert the interrupt controller (INTC) */
-static void tc956x_intc_reset(struct tc956x_data *td, bool assert)
-{
-	void __iomem *addr = td->sfr + NRSTCTRL0_OFFSET;
-	u32 val;
-
-	/* Note: 1 means assert */
-	val = readl(addr);
-	if (assert)
-		val |= RST0_INTRST;
-	else
-		val &= ~RST0_INTRST;
-	writel(val, addr);
-}
-
 /**
  * tc956x_pci_probe() - PCI driver probe callback
  * @pdev:	PCI device pointer
@@ -1466,17 +1451,8 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	dev_dbg(dev, "port_interface = %d\n", td->port_interface);
 
 	/* XXX eMAC0, or first one probed? */
-	if (td->emac0) {
-		void __iomem *addr = td->sfr + NCLKCTRL0_OFFSET;
-
-		/* Enable the interrupt controller */
-		tc956x_intc_reset(td, true);
-		val = readl(addr);
-		val |= CLK0_INTCEN;
-		writel(val, addr);
-		tc956x_intc_reset(td, false);
+	if (td->emac0)
 		tc956x_config_tamap(td);
-	}
 	dev_dbg(dev, "Initialising eMAC Port %d bus number-%x\n",
 		 td->emac0 ? 0 : 1, pdev->bus->number);
 	/* Enable MSI  and Allocate Vectors */
