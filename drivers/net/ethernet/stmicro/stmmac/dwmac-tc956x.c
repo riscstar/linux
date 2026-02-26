@@ -123,12 +123,12 @@ struct tc956x_data {
 /*
  * struct tc956x_gpio - Information related to the embedded GPIO controller
  * @chip:		GPIO chip structure
- * @virt:		Memory mapped register address, from primary BAR
+ * @regmap:		MMIO register map for SFR GPIO region access
  * @input_only:		Bitmap indicating which GPIOs are input-only
  */
 struct tc956x_gpio {
 	struct gpio_chip chip;
-	void __iomem *virt;
+	struct regmap *regmap;
 	DECLARE_BITMAP(input_only, TC956X_GPIO_COUNT);
 };
 
@@ -160,6 +160,15 @@ struct tc956x_chip {
 };
 
 static LIST_HEAD(tc956x_chips);		/* List of TC956x chips */
+
+static const struct regmap_config tc956x_gpio_regmap_config = {
+	.name		= "tc956x-gpio",
+	.reg_bits	= 32,
+	.reg_stride	= 4,
+	.reg_base	= 0x1200,	/* Register GPIOI0 */
+	.val_bits	= 32,
+	.max_register	= 0x1214,	/* Register GPIOO1 */
+};
 
 static const struct regmap_config tc956x_regmap_config = {
 	.name		= "tc956x",
@@ -364,12 +373,13 @@ struct tx956x_shrd_mem {
 #define SP_ETH_100M				3
 #define SP_ETH_10M				7
 
-#define GPIOI0_OFFSET		0x1200	/* GPIO00 enable register */
-#define GPIOI1_OFFSET		0x1204	/* GPIO01 enable register */
-#define GPIOE0_OFFSET		0x1208	/* GPIO00 enable register */
-#define GPIOE1_OFFSET		0x120c	/* GPIO01 enable register */
-#define GPIOO0_OFFSET		0x1210	/* GPIO00 output register */
-#define GPIOO1_OFFSET		0x1214	/* GPIO01 output register */
+/* The GPIO offsets are relative to 0x1200 in SFR space */
+#define GPIO_IN0_OFFSET		0x00		/* Input value (0-31) */
+#define GPIO_IN1_OFFSET		0x04		/* Input value (32-36) */
+#define GPIO_EN0_OFFSET		0x08		/* 0: out; 1: in (0-31) */
+#define GPIO_EN1_OFFSET		0x0c		/* 0: out; 1: in (32-36) */
+#define GPIO_OUT0_OFFSET	0x10		/* Output value (0-31) */
+#define GPIO_OUT1_OFFSET	0x14		/* Output value (32-36) */
 
 /* Pin configuration for PHY resets; eMAC0 uses GPIO00, eMAC1 uses GPIO01 */
 #define NFUNCEN4_OFFSET		0x1528
@@ -1365,7 +1375,7 @@ static void tc956x_gpio_free(struct gpio_chip *gc, unsigned int offset)
 static int tc956x_gpio_get_direction(struct gpio_chip *gc, unsigned int offset)
 {
 	struct tc956x_gpio *tg = gpiochip_get_data(gc);
-	void __iomem *gpioe;
+	u32 reg;
 	u32 val;
 
 	printk(" === %s %u\n", __func__, offset);
@@ -1373,9 +1383,8 @@ static int tc956x_gpio_get_direction(struct gpio_chip *gc, unsigned int offset)
 	if (test_bit(offset, tg->input_only))
 		return GPIO_LINE_DIRECTION_IN;
 
-	gpioe = tg->virt + (offset < 32 ? GPIOE0_OFFSET : GPIOE1_OFFSET);
-
-	val = readl(gpioe);
+	reg = offset < 32 ? GPIO_EN0_OFFSET : GPIO_EN1_OFFSET;
+	regmap_read(tg->regmap, reg, &val);
 	if (val & BIT(offset % 32))
 		return GPIO_LINE_DIRECTION_IN;
 
@@ -1386,17 +1395,17 @@ static int tc956x_gpio_direction_input(struct gpio_chip *gc,
 				       unsigned int offset)
 {
 	struct tc956x_gpio *tg = gpiochip_get_data(gc);
-	void __iomem *gpioe;
+	u32 reg;
 	u32 val;
 	u32 new;
 
 	printk(" === %s %u\n", __func__, offset);
 
-	gpioe = tg->virt + (offset < 32 ? GPIOE0_OFFSET : GPIOE1_OFFSET);
-	val = readl(gpioe);
-	new = val | BIT(offset % 32);	/* Set line for input */
+	reg = offset < 32 ? GPIO_EN0_OFFSET : GPIO_EN1_OFFSET;
+	regmap_read(tg->regmap, reg, &val);
+	new = val | BIT(offset % 32);		/* Set line for input */
 	if (new != val)
-		writel(val, gpioe);
+		regmap_write(tg->regmap, reg, val);
 
 	return 0;
 }
@@ -1406,8 +1415,7 @@ static int tc956x_gpio_direction_output(struct gpio_chip *gc,
 {
 	struct tc956x_gpio *tg = gpiochip_get_data(gc);
 	u32 mask = BIT(offset % 32);
-	void __iomem *gpioo;
-	void __iomem *gpioe;
+	u32 reg;
 	u32 val;
 	u32 new;
 
@@ -1416,20 +1424,20 @@ static int tc956x_gpio_direction_output(struct gpio_chip *gc,
 	if (test_bit(offset, tg->input_only))
 		return -EINVAL;
 
-	gpioo = tg->virt + (offset < 32 ? GPIOO0_OFFSET : GPIOO1_OFFSET);
-	val = readl(gpioo);
+	reg = offset < 32 ? GPIO_OUT0_OFFSET : GPIO_OUT1_OFFSET;
+	regmap_read(tg->regmap, reg, &val);
 	if (value)
 		new = val | mask;
 	else
 		new = val & ~mask;
 	if (new != val)
-		writel(val, gpioo);
+		regmap_write(tg->regmap, reg, val);
 
-	gpioe = tg->virt + (offset < 32 ? GPIOE0_OFFSET : GPIOE1_OFFSET);
-	val = readl(gpioe);
-	new = val & ~mask;	/* Set line for output */
+	reg = offset < 32 ? GPIO_EN0_OFFSET : GPIO_EN1_OFFSET;
+	regmap_read(tg->regmap, reg, &val);
+	new = val & ~mask;			/* Set line for output */
 	if (new != val)
-		writel(val, gpioe);
+		regmap_write(tg->regmap, reg, val);
 
 	return 0;
 }
@@ -1437,34 +1445,35 @@ static int tc956x_gpio_direction_output(struct gpio_chip *gc,
 static int tc956x_gpio_get(struct gpio_chip *gc, unsigned int offset)
 {
 	struct tc956x_gpio *tg = gpiochip_get_data(gc);
-	void __iomem *gpioi;
+	u32 reg;
+	u32 val;
 
 	printk(" === %s %u\n", __func__, offset);
 
-	gpioi = tg->virt + (offset < 32 ? GPIOI0_OFFSET : GPIOI1_OFFSET);
+	reg = offset < 32 ? GPIO_IN0_OFFSET : GPIO_IN1_OFFSET;
+	regmap_read(tg->regmap, reg, &val);
 
-	return readl(gpioi) & BIT(offset % 32) ? 1 : 0;
+	return val & BIT(offset % 32) ? 1 : 0;
 }
 
 static int tc956x_gpio_set(struct gpio_chip *gc, unsigned int offset, int value)
 {
 	struct tc956x_gpio *tg = gpiochip_get_data(gc);
 	u32 mask = BIT(offset % 32);
-	void __iomem *gpioo;
+	u32 reg;
 	u32 val;
 	u32 new;
 
 	printk(" === %s %u %s\n", __func__, offset, str_on_off(!!value));
 
-	gpioo = tg->virt + (offset < 32 ? GPIOO0_OFFSET : GPIOO1_OFFSET);
-
-	val = readl(gpioo);
+	reg = offset < 32 ? GPIO_OUT0_OFFSET : GPIO_OUT1_OFFSET;
+	regmap_read(tg->regmap, reg, &val);
 	if (value)
 		new = val | mask;
 	else
 		new = val & ~mask;
 	if (new != val)
-		writel(val, gpioo);
+		regmap_write(tg->regmap, reg, val);
 
 	return 0;
 }
@@ -1486,6 +1495,7 @@ static int tc956x_gpio_init(struct tc956x_chip *tc)
 {
 	struct tc956x_data *td = tc->primary;
 	struct tc956x_gpio *tg;
+	struct regmap *regmap;
 	struct gpio_chip *gc;
 	int ret;
 
@@ -1525,7 +1535,12 @@ static int tc956x_gpio_init(struct tc956x_chip *tc)
 
 	tg = &tc->gpio;
 
-	tg->virt = td->sfr;
+	/* Note: no need to check for errors on read/write for MMIO regmap */
+	regmap = devm_regmap_init_mmio(td->dev, td->sfr,
+				       &tc956x_gpio_regmap_config);
+	if (IS_ERR(regmap))
+		return PTR_ERR(regmap);
+	tg->regmap = regmap;
 
 	/* GPIOs 22, 23, 24, 27, 28, 31, and 34 are input only */
 	bitmap_set(tg->input_only, 22, 3);
