@@ -70,8 +70,6 @@
 #define PCI_BAR_BRIDGE_CONFIG		0
 #define PCI_BAR_SFR			4
 
-#define TC956X_GPIO_COUNT	37	/* Number of GPIOs (20-21 reserved) */
-
 /**
  * struct tc956x_data - Toshiba-specific platform data
  * @dev:		Device pointer
@@ -118,18 +116,6 @@ struct tc956x_data {
 	struct regmap *regmap;
 };
 
-/*
- * struct tc956x_gpio - Information related to the embedded GPIO controller
- * @chip:		GPIO chip structure
- * @regmap:		MMIO register map for SFR GPIO region access
- * @input_only:		Bitmap indicating which GPIOs are input-only
- */
-struct tc956x_gpio {
-	struct gpio_chip chip;
-	struct regmap *regmap;
-	DECLARE_BITMAP(input_only, TC956X_GPIO_COUNT);
-};
-
 /**
  * struct tc956x_chip - Common chip support information
  * @pci_bus_num:	PCI bus this chip is on
@@ -138,7 +124,6 @@ struct tc956x_gpio {
  * @secondary:		Data pointer for the secondary eMAC interface
  * @gpio:		Pointer to GPIO information
  * @gpio:		Pointer to GPIO information
- * @gpio_regmap:	Regmap for GPIO registers
  * @regmap:		Register map for SFR region access
  * @links:		Links in the list of all chips
  *
@@ -156,8 +141,6 @@ struct tc956x_chip {
 	u8 pci_slot;
 	struct tc956x_data *primary;
 	struct tc956x_data *secondary;
-	struct tc956x_gpio gpio;
-	struct regmap *gpio_regmap;
 	struct list_head links;		/* XXX any locking needed? */
 };
 
@@ -374,14 +357,6 @@ struct tx956x_shrd_mem {
 #define SP_ETH_1G				1
 #define SP_ETH_100M				3
 #define SP_ETH_10M				7
-
-/* The GPIO offsets are relative to 0x1200 in SFR space */
-#define GPIO_IN0_OFFSET		0x00		/* Input value (0-31) */
-#define GPIO_IN1_OFFSET		0x04		/* Input value (32-36) */
-#define GPIO_EN0_OFFSET		0x08		/* 0: out; 1: in (0-31) */
-#define GPIO_EN1_OFFSET		0x0c		/* 0: out; 1: in (32-36) */
-#define GPIO_OUT0_OFFSET	0x10		/* Output value (0-31) */
-#define GPIO_OUT1_OFFSET	0x14		/* Output value (32-36) */
 
 /* Pin configuration for PHY resets; eMAC0 uses GPIO00, eMAC1 uses GPIO01 */
 #define NFUNCEN4_OFFSET		0x1528
@@ -1325,229 +1300,11 @@ static int tc956x_mfd_init(struct tc956x_chip *tc)
 	regmap = devm_regmap_init_mmio(dev, regs, &tc956x_gpio_regmap_config);
 	if (IS_ERR(regmap))
 		return PTR_ERR(regmap);
-	tc->gpio_regmap = regmap;
 
 	return devm_mfd_add_devices(dev, PLATFORM_DEVID_AUTO,
 				    tc956x_mfd_cells,
 				    ARRAY_SIZE(tc956x_mfd_cells),
 				    NULL, 0, NULL);
-}
-
-static int tc956x_gpio_request(struct gpio_chip *gc, unsigned int offset)
-{
-	printk(" === %s %u\n", __func__, offset);
-	/* Probably not needed */
-	return 0;
-}
-
-static void tc956x_gpio_free(struct gpio_chip *gc, unsigned int offset)
-{
-	/* Probably not needed */
-	printk(" === %s %u\n", __func__, offset);
-}
-
-
-static int tc956x_gpio_get_direction(struct gpio_chip *gc, unsigned int offset)
-{
-	struct tc956x_gpio *tg = gpiochip_get_data(gc);
-	u32 reg;
-	u32 val;
-
-	printk(" === %s %u\n", __func__, offset);
-
-	if (test_bit(offset, tg->input_only))
-		return GPIO_LINE_DIRECTION_IN;
-
-	reg = offset < 32 ? GPIO_EN0_OFFSET : GPIO_EN1_OFFSET;
-	regmap_read(tg->regmap, reg, &val);
-	if (val & BIT(offset % 32))
-		return GPIO_LINE_DIRECTION_IN;
-
-	return GPIO_LINE_DIRECTION_OUT;
-}
-
-static int tc956x_gpio_direction_input(struct gpio_chip *gc,
-				       unsigned int offset)
-{
-	struct tc956x_gpio *tg = gpiochip_get_data(gc);
-	u32 reg;
-	u32 val;
-	u32 new;
-
-	printk(" === %s %u\n", __func__, offset);
-
-	reg = offset < 32 ? GPIO_EN0_OFFSET : GPIO_EN1_OFFSET;
-	regmap_read(tg->regmap, reg, &val);
-	new = val | BIT(offset % 32);		/* Set line for input */
-	if (new != val)
-		regmap_write(tg->regmap, reg, val);
-
-	return 0;
-}
-
-static int tc956x_gpio_direction_output(struct gpio_chip *gc,
-					unsigned int offset, int value)
-{
-	struct tc956x_gpio *tg = gpiochip_get_data(gc);
-	u32 mask = BIT(offset % 32);
-	u32 reg;
-	u32 val;
-	u32 new;
-
-	printk(" === %s %u %s\n", __func__, offset, str_on_off(!!value));
-
-	if (test_bit(offset, tg->input_only))
-		return -EINVAL;
-
-	reg = offset < 32 ? GPIO_OUT0_OFFSET : GPIO_OUT1_OFFSET;
-	regmap_read(tg->regmap, reg, &val);
-	if (value)
-		new = val | mask;
-	else
-		new = val & ~mask;
-	if (new != val)
-		regmap_write(tg->regmap, reg, val);
-
-	reg = offset < 32 ? GPIO_EN0_OFFSET : GPIO_EN1_OFFSET;
-	regmap_read(tg->regmap, reg, &val);
-	new = val & ~mask;			/* Set line for output */
-	if (new != val)
-		regmap_write(tg->regmap, reg, val);
-
-	return 0;
-}
-
-static int tc956x_gpio_get(struct gpio_chip *gc, unsigned int offset)
-{
-	struct tc956x_gpio *tg = gpiochip_get_data(gc);
-	u32 reg;
-	u32 val;
-
-	printk(" === %s %u\n", __func__, offset);
-
-	reg = offset < 32 ? GPIO_IN0_OFFSET : GPIO_IN1_OFFSET;
-	regmap_read(tg->regmap, reg, &val);
-
-	return val & BIT(offset % 32) ? 1 : 0;
-}
-
-static int tc956x_gpio_set(struct gpio_chip *gc, unsigned int offset, int value)
-{
-	struct tc956x_gpio *tg = gpiochip_get_data(gc);
-	u32 mask = BIT(offset % 32);
-	u32 reg;
-	u32 val;
-	u32 new;
-
-	printk(" === %s %u %s\n", __func__, offset, str_on_off(!!value));
-
-	reg = offset < 32 ? GPIO_OUT0_OFFSET : GPIO_OUT1_OFFSET;
-	regmap_read(tg->regmap, reg, &val);
-	if (value)
-		new = val | mask;
-	else
-		new = val & ~mask;
-	if (new != val)
-		regmap_write(tg->regmap, reg, val);
-
-	return 0;
-}
-
-static int tc956x_gpio_init_valid_mask(struct gpio_chip *gc,
-				       unsigned long *valid_mask,
-				       unsigned int ngpios)
-{
-	printk(" === %s\n", __func__);
-
-	/* GPIOs 20 and 21 are reserved (and not usable) */
-	bitmap_fill(valid_mask, TC956X_GPIO_COUNT);
-	bitmap_clear(valid_mask, 20, 2);
-
-	return 0;
-}
-
-static int tc956x_gpio_init(struct tc956x_chip *tc)
-{
-	struct tc956x_data *td = tc->primary;
-	struct tc956x_gpio *tg;
-	struct gpio_chip *gc;
-	int ret;
-
-	/*
-	 * "Up to 35 GPIOs by share function"
-	 *
-	 * 00-19
-	 * 20-21				reserved
-	 * 22, 23, 24, 27, 28, 31		input only
-	 * 32, 33
-	 * 34					input only
-	 * 35, 36
-	 *
-	 * GPIOI0  	0x1200
-	 * 	GPIO 00-19, 22-31 input value (input mode)
-	 *	20-21 are reserved
-	 * GPIOE0  	0x1208
-	 * 	00-19, 25-26, 29-30	0 output, 1 input
-	 *	20-21 are reserved
-	 * 	22-24, 27-28, 31	0 output low, 1 input or Hi-Z
-	 * 	25-26, 29-30		0 output, 1 input
-	 * GPIOO0  	0x1210
-	 * 	00-19, 25-26, 29-30	output value
-	 *	20-21 are reserved
-	 *	22-24, 27-28, 31  	reserved	 (not output)
-	 *
-	 * GPIOI1	0x1204
-	 * 	GPIO 32-36 input value (input mode)
-	 * GPIOE1	0x120c
-	 * 	32-33, 35-36		0 output, 1 input
-	 * 	34			0 output low, 1 input or Hi-Z
-	 * GPIOO1	0x1214
-	 * 	32-33, 35-36		output value
-	 * 	34			reserved	(not output)
-	 *
-	 */
-
-	tg = &tc->gpio;
-
-	tg->regmap = tc->gpio_regmap;
-
-	/* GPIOs 22, 23, 24, 27, 28, 31, and 34 are input only */
-	bitmap_set(tg->input_only, 22, 3);
-	bitmap_set(tg->input_only, 27, 2);
-	set_bit(31, tg->input_only);
-	set_bit(34, tg->input_only);
-
-	gc = &tg->chip;
-
-	gc->label = "tc956x-gpio";
-	gc->parent = get_device(td->dev);
-
-	gc->request = tc956x_gpio_request;
-	gc->free = tc956x_gpio_free;
-	gc->get_direction = tc956x_gpio_get_direction;
-	gc->direction_input = tc956x_gpio_direction_input;
-	gc->direction_output = tc956x_gpio_direction_output;
-	gc->get = tc956x_gpio_get;
-	gc->set = tc956x_gpio_set;
-	gc->init_valid_mask = tc956x_gpio_init_valid_mask;
-
-	gc->base = -1;
-	gc->ngpio = TC956X_GPIO_COUNT;
-	gc->can_sleep = false;
-
-	ret = gpiochip_add_data(gc, tg);
-	if (ret)
-		put_device(gc->parent);
-
-	return ret;
-}
-
-static void tc956x_gpio_exit(struct tc956x_chip *tc)
-{
-	struct gpio_chip *gc = &tc->gpio.chip;
-
-	gpiochip_remove(gc);
-	put_device(gc->parent);
 }
 
 static struct plat_stmmacenet_data *
@@ -1675,10 +1432,6 @@ static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 	if (ret)
 		goto err_free_tc;
 
-	ret = tc956x_gpio_init(tc);
-	if (ret)
-		goto err_free_tc;
-
 	list_add(&tc->links, &tc956x_chips);
 
 	return tc;
@@ -1708,8 +1461,6 @@ static void tc956x_chip_put(struct tc956x_data *td)
 	 * XXX We'll deal with this later.
 	 */
 	list_del(&tc->links);
-
-	tc956x_gpio_exit(tc);
 
 	tc->primary = NULL;
 	tc->pci_slot = 0;
