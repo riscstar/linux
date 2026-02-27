@@ -1462,6 +1462,7 @@ static struct tc956x_data *tc956x_devm_data_create(struct pci_dev *pdev)
 static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 {
 	u8 pci_bus_num = PCI_BUS_NUM(td->devfn);
+	struct reset_control *reset_control;
 	u8 pci_slot = PCI_SLOT(td->devfn);
 	struct device *dev = td->dev;
 	struct tc956x_chip *tc;
@@ -1495,6 +1496,10 @@ static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 	ret = tc956x_devm_mfd_init(tc);
 	if (ret)
 		return ERR_PTR(ret);
+
+	reset_control = devm_reset_control_get_exclusive(dev, "MCU1");
+	if (IS_ERR(reset_control))
+		return ERR_CAST(reset_control);
 
 	list_add(&tc->links, &tc956x_chips);
 
