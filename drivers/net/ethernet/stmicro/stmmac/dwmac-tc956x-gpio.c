@@ -202,3 +202,4 @@ module_platform_driver(tc956x_gpio_driver);
 
 MODULE_DESCRIPTION("Toshiba TC956x PCIe GPIO Driver");
 MODULE_LICENSE("GPL");
+MODULE_ALIAS("platform:tc956x-gpio");
