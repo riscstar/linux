@@ -90,7 +90,6 @@ enum tc956x_mac_state {
  * @bridge_config:	Mapped bridge config data (BAR 0)
  * @sfr:		Mapped SFR region (BAR 4)
  * @emac0:		Which eMAC port this is (true: port 0; false: port 1)
- * @pm_saved_emac_rst:	Saved eMAC reset control register value
  * @pm_saved_emac_clk:	Saved eMAC clock control register value
  * @pci_bd:		PCIe bus and device ID
  * @pinctrl:		Pin control structure
@@ -111,7 +110,6 @@ struct tc956x_data {
 	void __iomem *bridge_config;
 	void __iomem *sfr;
 	bool emac0;
-	u32 pm_saved_emac_rst;
 	u32 pm_saved_emac_clk;
 	uint16_t pci_bd;
 	struct pinctrl *pinctrl;
@@ -1104,12 +1102,8 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 	}
 
 	if (suspend) {
-		/* Save current reset state, and assert resets */
-		__set_bit(MAC_STATE_RESET, td->mac_state);
-		__set_bit(MAC_STATE_PMA_RESET, td->mac_state);
-		__set_bit(MAC_STATE_XPCS_RESET, td->mac_state);
+		/* Assert resets */
 		val = readl(nrst_reg);
-		td->pm_saved_emac_rst = val & nrst_mask;
 		val |= nrst_mask;
 		writel(val, nrst_reg);
 
@@ -1136,14 +1130,19 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 		}
 
 		/* Restore saved clock state */
+
 		val = readl(nclk_reg);
 		val = val | td->pm_saved_emac_clk;
 		writel(val, nclk_reg);
 
 		/* Restore saved reset state */
 		val = readl(nrst_reg);
-		/* XXX What's the point of clearing the non-mask bits? */
-		val = (val & ~nrst_mask) | td->pm_saved_emac_rst;
+		if (test_bit(MAC_STATE_XPCS_RESET, td->mac_state))
+			val |= RST0_MAC0XPCSRST;
+		if (test_bit(MAC_STATE_PMA_RESET, td->mac_state))
+			val |= RST0_MAC0PMARST;
+		if (test_bit(MAC_STATE_RESET, td->mac_state))
+			val |= RST0_MAC0RST;
 		writel(val, nrst_reg);
 	}
 }
@@ -1717,9 +1716,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		}
 
 		/* Assert resets */
-		__set_bit(MAC_STATE_RESET, td->mac_state);
-		__set_bit(MAC_STATE_PMA_RESET, td->mac_state);
-		__set_bit(MAC_STATE_XPCS_RESET, td->mac_state);
 		val = readl(nrst_reg);
 		val |= nrst_mask;
 		writel(val, nrst_reg);
@@ -1821,9 +1817,6 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 	}
 
 	/* Set reset value for CLK control and RESET Control registers */
-	__set_bit(MAC_STATE_RESET, td->mac_state);
-	__set_bit(MAC_STATE_PMA_RESET, td->mac_state);
-	__set_bit(MAC_STATE_XPCS_RESET, td->mac_state);
 	if (td->emac0) {
 		nrst_reg = td->sfr + NRSTCTRL0_OFFSET;
 		nrst_val = readl(nrst_reg);
