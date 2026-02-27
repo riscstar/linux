@@ -78,7 +78,6 @@
  * @bridge_config:	Mapped bridge config data (BAR 0)
  * @sfr:		Mapped SFR region (BAR 4)
  * @emac0:		Which eMAC port this is (true: port 0; false: port 1)
- * @is_sgmii_2p5g:	True if PHY uses SGMII and operating at 2.5 Gbps
  * @port_interface:	Operating more of the port (XFI or SGMII)
  * @pm_saved_emac_rst:	Saved eMAC reset control register value
  * @pm_saved_emac_clk:	Saved eMAC clock control register value
@@ -100,7 +99,6 @@ struct tc956x_data {
 	void __iomem *bridge_config;
 	void __iomem *sfr;
 	bool emac0;
-	bool is_sgmii_2p5g;
 	u32 port_interface;
 	u32 pm_saved_emac_rst;
 	u32 pm_saved_emac_clk;
@@ -1119,7 +1117,6 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 		td->port_interface = ENABLE_SGMII_INTERFACE;
 		plat->mac_port_sel_speed = 2500;
 		plat->max_speed = 2500;
-		td->is_sgmii_2p5g = true;
 		break;
 	default:
 		dev_err(&pdev->dev, "Unexpected PHY interface mode\n");
@@ -1307,7 +1304,6 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 		/* XXX emac1: td->port_interface = ENABLE_SGMII_INTERFACE; */
 		/* plat->phy_interface = PHY_INTERFACE_MODE_SGMII; */
 		/* plat->max_speed = 2500; */
-		/* td->is_sgmii_2p5g = true; */
 		/* Enable all clocks to eMAC Port1 */
 		ret = readl(td->sfr + NCLKCTRL1_OFFSET);
 		if (td->plat->phy_interface == PHY_INTERFACE_MODE_SGMII &&
@@ -1343,22 +1339,6 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 	ret = tc956x_pma_init(td);
 	if (ret < 0)
 		pr_info("PMA did not re-initialize correctly\n");
-
-	/*
-	 * TODO:
-	 * This is probably wrong (or at least making a decision on a
-	 * potentially outdated value): at 2500 the proper enum value is
-	 *  PHY_INTERFACE_MODE_2500BASEX.
-	 */
-	if ((plat->phy_interface == PHY_INTERFACE_MODE_SGMII) &&
-	    (speed == SPEED_2500)) {
-		/* XPCS doesn't support AN for 2.5G SGMII.
-		 * Disable AN only if SGMII 2.5G is Enabled.
-		 */
-		td->is_sgmii_2p5g = true;
-	} else {
-		td->is_sgmii_2p5g = false;
-	}
 }
 
 static const struct mfd_cell tc956x_mfd_cells[] = {
