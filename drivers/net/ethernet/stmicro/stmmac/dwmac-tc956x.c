@@ -1167,7 +1167,7 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 			plat->tx_queues_cfg[i].tbs_en = true;
 	}
 
-	/* Axi Configuration */
+	/* AXI Configuration */
 	plat->axi = devm_kzalloc(&pdev->dev, sizeof(*plat->axi), GFP_KERNEL);
 	if (!plat->axi)
 		return -ENOMEM;
@@ -1614,13 +1614,10 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	if (ret)
 		goto err_chip_put;
 
-	dev_dbg(dev, "port_interface = %d\n", td->port_interface);
-
 	/* XXX eMAC0, or first one probed? */
 	if (td->emac0)
 		tc956x_config_tamap(td);
-	dev_dbg(dev, "Initialising eMAC Port %d bus number-%x\n",
-		 td->emac0 ? 0 : 1, pdev->bus->number);
+
 	/* Enable MSI  and Allocate Vectors */
 	ret = pci_alloc_irq_vectors(pdev, TC956X_TOT_MSI_VEC,
 				TC956X_TOT_MSI_VEC, PCI_IRQ_MSI);
