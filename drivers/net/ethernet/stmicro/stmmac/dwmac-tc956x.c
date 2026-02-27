@@ -30,9 +30,11 @@
 #include <linux/regulator/consumer.h>
 #include <linux/of_irq.h>
 #include <linux/delay.h>
+
 #include "stmmac.h"
 #include "dwxgmac2.h"
 #include "common.h"
+#include "dwmac-tc956x-reset.h"
 
 #define DRIVER_NAME "dwmac-tc956x"
 
@@ -147,6 +149,15 @@ static const struct regmap_config tc956x_gpio_regmap_config = {
 	.reg_base	= 0x1200,	/* Register GPIOI0 */
 	.val_bits	= 32,
 	.max_register	= 0x1214,	/* Register GPIOO1 */
+};
+
+static const struct regmap_config tc956x_clk_reset_regmap_config = {
+	.name		= "tc956x-clk-reset",
+	.reg_bits	= 32,
+	.reg_stride	= 4,
+	.reg_base	= 0x1000,	/* Register NCTLSTS */
+	.val_bits	= 32,
+	.max_register	= 0x1010,	/* Register NRSTCTRL1 */
 };
 
 static const struct regmap_config tc956x_regmap_config = {
@@ -1333,7 +1344,8 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 }
 
 static const struct mfd_cell tc956x_mfd_cells[] = {
-	{ .name = "tc956x-gpio", }
+	{ .name = "tc956x-gpio", },
+	{ .name = "tc956x-reset-controller", },
 };
 
 static int tc956x_mfd_init(struct tc956x_chip *tc)
@@ -1344,6 +1356,11 @@ static int tc956x_mfd_init(struct tc956x_chip *tc)
 
 	/* Note: no need to check for errors on read/write for MMIO regmap */
 	regmap = devm_regmap_init_mmio(dev, regs, &tc956x_gpio_regmap_config);
+	if (IS_ERR(regmap))
+		return PTR_ERR(regmap);
+
+	regmap = devm_regmap_init_mmio(dev, regs,
+				       &tc956x_clk_reset_regmap_config);
 	if (IS_ERR(regmap))
 		return PTR_ERR(regmap);
 
