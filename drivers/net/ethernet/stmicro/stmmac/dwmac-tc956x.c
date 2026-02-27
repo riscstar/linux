@@ -1348,7 +1348,7 @@ static const struct mfd_cell tc956x_mfd_cells[] = {
 	{ .name = "tc956x-reset-controller", },
 };
 
-static int tc956x_mfd_init(struct tc956x_chip *tc)
+static int tc956x_devm_mfd_init(struct tc956x_chip *tc)
 {
 	struct device *dev = tc->primary->dev;
 	void __iomem *regs = tc->primary->sfr;
@@ -1463,6 +1463,7 @@ static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 {
 	u8 pci_bus_num = PCI_BUS_NUM(td->devfn);
 	u8 pci_slot = PCI_SLOT(td->devfn);
+	struct device *dev = td->dev;
 	struct tc956x_chip *tc;
 	int ret;
 
@@ -1483,7 +1484,7 @@ static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 	}
 
 	/* We need a new chip structure */
-	tc = kzalloc_obj(*tc);
+	tc = devm_kzalloc(dev, sizeof(*tc), GFP_KERNEL);
 	if (!tc)
 		return NULL;
 
@@ -1491,18 +1492,13 @@ static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 	tc->pci_slot = pci_slot;
 	tc->primary = td;
 
-	ret = tc956x_mfd_init(tc);
+	ret = tc956x_devm_mfd_init(tc);
 	if (ret)
-		goto err_free_tc;
+		return ERR_PTR(ret);
 
 	list_add(&tc->links, &tc956x_chips);
 
 	return tc;
-
-err_free_tc:
-	kfree(tc);
-
-	return ERR_PTR(ret);
 }
 
 static void tc956x_chip_put(struct tc956x_data *td)
