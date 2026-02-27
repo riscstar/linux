@@ -1091,10 +1091,9 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 static void tc956x_get_interfaces(struct stmmac_priv *priv, void *bsp_priv,
 				  unsigned long *interfaces)
 {
-	struct tc956x_data *td = bsp_priv;
-
-	if (td->port_interface != ENABLE_SGMII_INTERFACE)
+	if (priv->plat->phy_interface != PHY_INTERFACE_MODE_SGMII)
 		return;
+
 	/*
 	 * To handle 2.5G PHYs via (overclocked) SGMII then we need set both
 	 * SGMII and 2500BASEX are supported interfaces.
