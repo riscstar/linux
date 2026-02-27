@@ -121,6 +121,11 @@ struct tc956x_data {
  * @secondary:		Data pointer for the secondary eMAC interface
  * @gpio:		Pointer to GPIO information
  * @regmap:		Register map for SFR region access
+ * @mcu_reset:		MCU reset control
+ * @mcu1_reset:		MCU1 reset control
+ * @intr_reset:		INTC reset control
+ * @uart0_reset:	UART0 reset control
+ * @msigen_reset:	MSIGEN reset control
  * @links:		Links in the list of all chips
  *
  * A single tc956x_chip structure represents the chip as a whole,
@@ -137,6 +142,11 @@ struct tc956x_chip {
 	u8 pci_slot;
 	struct tc956x_data *primary;
 	struct tc956x_data *secondary;
+	struct reset_control *mcu_reset;
+	struct reset_control *mcu1_reset;
+	struct reset_control *intr_reset;
+	struct reset_control *uart0_reset;
+	struct reset_control *msigen_reset;
 	struct list_head links;		/* XXX any locking needed? */
 };
 
@@ -276,19 +286,9 @@ struct tx956x_shrd_mem {
 		(CLK1_MAC1TXCEN | CLK1_MAC1RXCEN | CLK1_MAC1ALLCLKEN)
 
 #define NRSTCTRL0_OFFSET	0x1008	/* Reset control register 0 */
-#define RST0_MCURST		BIT(0)		/* M3 system reset */
-#define RST0_MCU1RST		BIT(1)		/* M3 cold reset */
-#define RST0_INTRST		BIT(4)
 #define RST0_MAC0RST		BIT(7)
-#define RST0_UART0RST		BIT(16)
-#define RST0_MSIGENRST		BIT(18)
 #define RST0_MAC0PMARST		BIT(30)
 #define RST0_MAC0XPCSRST	BIT(31)
-
-#define RST0_MCU_MASK \
-		(RST0_MCURST | RST0_MCU1RST)
-#define RST0_OTHER_MASK	\
-		(RST0_UART0RST | RST0_MSIGENRST)
 
 #define NRSTCTRL1_OFFSET	0x1010	/* Reset control register 1 */
 #define RST1_MAC1RST		BIT(7)		/* individual */
@@ -297,9 +297,6 @@ struct tx956x_shrd_mem {
 
 /* Field in the NCLKCTRL0 register to enable the MSIGEN clock */
 #define TC956X_MSIGENCEN	BIT(18)
-
-/* Field in the NRSTCTRL0 register to assert the MSIGEN reset */
-#define TC956X_MSIGENSRST	BIT(18)
 
 #define NMISCCTL_OFFSET		(0x1800)
 
@@ -475,11 +472,7 @@ static void tc956x_msigen_init(struct stmmac_priv *priv, struct net_device *dev)
 	val |= TC956X_MSIGENCEN;
 	writel(val, addr);
 
-	addr = td->sfr + NRSTCTRL0_OFFSET;
-
-	val = readl(addr);
-	val &= ~TC956X_MSIGENSRST;	/* XXX Does this DEassert? */
-	writel(val, addr);
+	reset_control_deassert(td->chip->msigen_reset);
 
 	/* Initialize MSIGEN */
 
@@ -1459,6 +1452,38 @@ static struct tc956x_data *tc956x_devm_data_create(struct pci_dev *pdev)
 	return td;
 }
 
+/*
+ * When successful all reset controls will be valid (no error), and
+ * the underlying driver implements the assert and deassert callbacks.
+ * So there is no need to test for errors when asserting or deasserting.
+ */
+static int tc956x_devm_chip_resets_get(struct tc956x_chip *tc)
+{
+	struct device *dev = tc->primary->dev;
+
+	tc->mcu_reset = devm_reset_control_get_exclusive(dev, "MCU");
+	if (IS_ERR(tc->mcu_reset))
+		return PTR_ERR(tc->mcu_reset);
+
+	tc->mcu1_reset = devm_reset_control_get_exclusive(dev, "MCU1");
+	if (IS_ERR(tc->mcu1_reset))
+		return PTR_ERR(tc->mcu1_reset);
+
+	tc->intr_reset = devm_reset_control_get_exclusive(dev, "INTC");
+	if (IS_ERR(tc->intr_reset))
+		return PTR_ERR(tc->intr_reset);
+
+	tc->msigen_reset = devm_reset_control_get_exclusive(dev, "MSIGEN");
+	if (IS_ERR(tc->msigen_reset))
+		return PTR_ERR(tc->msigen_reset);
+
+	tc->uart0_reset = devm_reset_control_get_exclusive(dev, "UART0");
+	if (IS_ERR(tc->uart0_reset))
+		return PTR_ERR(tc->uart0_reset);
+
+	return 0;
+}
+
 static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 {
 	u8 pci_bus_num = PCI_BUS_NUM(td->devfn);
@@ -1497,9 +1522,9 @@ static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 	if (ret)
 		return ERR_PTR(ret);
 
-	reset_control = devm_reset_control_get_exclusive(dev, "MCU1");
-	if (IS_ERR(reset_control))
-		return ERR_CAST(reset_control);
+	ret = tc956x_devm_chip_resets_get(tc);
+	if (ret)
+		return ERR_PTR(ret);
 
 	list_add(&tc->links, &tc956x_chips);
 
@@ -1620,11 +1645,8 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	pci_write_config_dword(pdev, pdev->msi_cap + PCI_MSI_MASK_64, 0);
 
 	if (td->emac0) {
-		void __iomem *addr = td->sfr + NRSTCTRL0_OFFSET;
-
-		val = readl(addr);
-		val |= RST0_MCU_MASK;	/* Keep the M3 in reset */
-		writel(val, addr);
+		reset_control_assert(td->chip->mcu_reset);
+		reset_control_assert(td->chip->mcu1_reset);
 	}
 
 	res.addr = XGMAC_BASE(td);
@@ -1798,12 +1820,13 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 
 	/* If exactly one MAC is in use... */
 	if (tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt == 1) {
-		/* Set reset value for Common CLK control and Common RESET Control registers */
-		nrst_reg = td->sfr + NRSTCTRL0_OFFSET;
-		nrst_val = readl(nrst_reg);
-		nrst_val |= RST0_MCU_MASK | RST0_INTRST | RST0_OTHER_MASK;
-		writel(nrst_val, nrst_reg);
+		reset_control_assert(td->chip->mcu_reset);
+		reset_control_assert(td->chip->mcu1_reset);
+		reset_control_assert(td->chip->intr_reset);
+		reset_control_assert(td->chip->msigen_reset);
+		reset_control_assert(td->chip->uart0_reset);
 
+		/* Set Common CLK control registers */
 		nclk_reg = td->sfr + NCLKCTRL0_OFFSET;
 		nclk_val = readl(nclk_reg);
 		nclk_val |= CLK0_COMMON_MASK;
