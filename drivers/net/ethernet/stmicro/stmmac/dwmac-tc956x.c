@@ -925,6 +925,81 @@ static uint16_t tc956x_get_shared_mem_offset(struct pci_dev *pdev, uint16_t pci_
 	return 0xFFFF;
 }
 
+static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
+{
+	bool enable_core_clocks = false;
+	u32 sp_sel = 0;
+	u32 val;
+
+	switch (td->plat->phy_interface) {
+	case PHY_INTERFACE_MODE_10GBASER:
+		enable_core_clocks = false;
+		sp_sel = SPEED_USXGMII_10G_10G;
+		break;
+	case PHY_INTERFACE_MODE_SGMII:
+	case PHY_INTERFACE_MODE_2500BASEX:
+		enable_core_clocks = true;
+		sp_sel = SPEED_USXGMII_10G_10G;
+		break;
+	default:
+		return -ENOTSUPP;
+	}
+
+	if (td->emac0) {
+		/* Assertion of EMAC Port0 software Reset */
+		val = readl(td->sfr + NRSTCTRL0_OFFSET);
+		val |= RST0_MAC0RST;
+		writel(val, td->sfr + NRSTCTRL0_OFFSET);
+
+		/* Enable all clocks to eMAC Port0 */
+		val = readl(td->sfr + NCLKCTRL0_OFFSET);
+		val |= CLK0_MAC0_IO_MASK;
+		if (enable_core_clocks)
+			val &= ~(CLK0_BUS_MASK | CLK0_MAC0_CORE_MASK);
+		writel(val, td->sfr + NCLKCTRL0_OFFSET);
+
+		/* Interface configuration for port0*/
+		val = readl(td->sfr + NEMAC0CTL_OFFSET);
+		val |= EMAC_LPIHWCLKEN;
+		val &= ~EMAC_INV_SGM_SIG_DET;
+		FIELD_MODIFY(EMAC_PHY_INF_SEL_MASK, &val, PCS_CLK_PHY);
+		FIELD_MODIFY(EMAC_SP_SEL_MASK, &val, sp_sel);
+		writel(val, td->sfr + NEMAC0CTL_OFFSET);
+
+		/* De-assertion of EMAC Port0  software Reset*/
+		val = readl(td->sfr + NRSTCTRL0_OFFSET);
+		val &= ~RST0_MAC0RST;
+		writel(val, td->sfr + NRSTCTRL0_OFFSET);
+	} else {
+		/* Assertion of EMAC Port1 software Reset*/
+		val = readl(td->sfr + NRSTCTRL1_OFFSET);
+		val |= RST1_MAC1RST;
+		writel(val, td->sfr + NRSTCTRL1_OFFSET);
+
+		/* Enable all clocks to eMAC Port1 */
+		val = readl(td->sfr + NCLKCTRL1_OFFSET);
+		val |= CLK1_MAC1_IO_MASK | CLK1_MAC1RMCEN;
+		if (enable_core_clocks)
+			val &= ~CLK1_MAC1_CORE_MASK;
+		writel(val, td->sfr + NCLKCTRL1_OFFSET);
+
+		/* Interface configuration for port1*/
+		val = readl(td->sfr + NEMAC1CTL_OFFSET);
+		val |= EMAC_LPIHWCLKEN;
+		val &= ~EMAC_INV_SGM_SIG_DET;
+		FIELD_MODIFY(EMAC_PHY_INF_SEL_MASK, &val, PCS_CLK_PHY);
+		FIELD_MODIFY(EMAC_SP_SEL_MASK, &val, sp_sel);
+		writel(val, td->sfr + NEMAC1CTL_OFFSET);
+
+		/* De-assertion of EMAC Port1  software Reset */
+		val = readl(td->sfr + NRSTCTRL1_OFFSET);
+		val &= ~RST1_MAC1RST;
+		writel(val, td->sfr + NRSTCTRL1_OFFSET);
+	}
+
+	return 0;
+}
+
 /**
  * tc956x_pm_set_power() - Set clock and reset for suspend or resume
  * @priv:	STMMAC driver private data pointer
@@ -1568,79 +1643,9 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		writel(val, addr);
 	}
 
-	if (td->emac0) {
-		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
-		/* Assertion of EMAC Port0 software Reset */
-		ret |= RST0_MAC0RST;
-		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
-
-		/* Enable all clocks to eMAC Port0 */
-		ret = readl(td->sfr + NCLKCTRL0_OFFSET);
-
-		ret |= CLK0_MAC0_IO_MASK;
-
-		/* Only if "current" port is SGMII 2.5G, configure below clocks. */
-		if (td->port_interface == ENABLE_SGMII_INTERFACE) {
-			ret &= ~CLK0_BUS_MASK;
-			ret &= ~CLK0_MAC0_CORE_MASK;
-		}
-		writel(ret, td->sfr + NCLKCTRL0_OFFSET);
-
-		/* Interface configuration for port0*/
-		ret = readl(td->sfr + NEMAC0CTL_OFFSET);
-		ret &= ~EMAC_SP_SEL_MASK;
-		ret &= ~EMAC_PHY_INF_SEL_MASK;
-		if (td->port_interface == ENABLE_SGMII_INTERFACE)
-			ret |= FIELD_PREP(EMAC_SP_SEL_MASK, SPEED_SGMII_2500M);
-		else if (td->port_interface == ENABLE_XFI_INTERFACE)
-			ret |= FIELD_PREP(EMAC_SP_SEL_MASK,
-					  SPEED_USXGMII_10G_10G);
-
-		ret &= ~EMAC_INV_SGM_SIG_DET;
-
-		ret |= FIELD_PREP(EMAC_PHY_INF_SEL_MASK, PCS_CLK_PHY);
-		ret |= EMAC_LPIHWCLKEN;
-		writel(ret, td->sfr + NEMAC0CTL_OFFSET);
-
-		/* De-assertion of EMAC Port0  software Reset*/
-		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
-		ret &= ~RST0_MAC0RST;
-		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
-	} else {
-		ret = readl(td->sfr + NRSTCTRL1_OFFSET);
-		/* Assertion of EMAC Port1 software Reset*/
-		ret |= RST1_MAC1RST;
-		writel(ret, td->sfr + NRSTCTRL1_OFFSET);
-
-		/* Enable all clocks to eMAC Port1 */
-		ret = readl(td->sfr + NCLKCTRL1_OFFSET);
-
-		ret |= CLK1_MAC1_IO_MASK | CLK1_MAC1RMCEN;
-		if (td->port_interface == ENABLE_SGMII_INTERFACE)
-			ret &= ~CLK1_MAC1_CORE_MASK;
-		writel(ret, td->sfr + NCLKCTRL1_OFFSET);
-
-		/* Interface configuration for port1*/
-		ret = readl(td->sfr + NEMAC1CTL_OFFSET);
-		ret &= ~EMAC_SP_SEL_MASK;
-		ret &= ~EMAC_PHY_INF_SEL_MASK;
-		if (td->port_interface == ENABLE_SGMII_INTERFACE)
-			ret |= FIELD_PREP(EMAC_SP_SEL_MASK, SPEED_SGMII_2500M);
-		else if (td->port_interface == ENABLE_XFI_INTERFACE)
-			ret |= FIELD_PREP(EMAC_SP_SEL_MASK,
-					  SPEED_USXGMII_10G_10G);
-
-		ret &= ~EMAC_INV_SGM_SIG_DET;
-
-		ret |= FIELD_PREP(EMAC_PHY_INF_SEL_MASK, PCS_CLK_PHY);
-		ret |= EMAC_LPIHWCLKEN;
-		writel(ret, td->sfr + NEMAC1CTL_OFFSET);
-
-		/* De-assertion of EMAC Port1  software Reset */
-		ret = readl(td->sfr + NRSTCTRL1_OFFSET);
-		ret &= ~RST1_MAC1RST;
-		writel(ret, td->sfr + NRSTCTRL1_OFFSET);
-	}
+	ret = tc956x_chipcfg_mac_init(td);
+	if (ret < 0)
+		goto err_out_msi_failed;
 
 	res.addr = XGMAC_BASE(td);
 	res.wol_irq = pdev->irq;
@@ -1992,83 +1997,11 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 		}
 	}
 
-	if (td->emac0) {
-		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
-		/* Assertion of EMAC Port0 software Reset */
-		ret |= RST0_MAC0RST;
-		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
-
-		/* Enable all clocks to eMAC Port0 */
-		ret = readl(td->sfr + NCLKCTRL0_OFFSET);
-
-		ret |= CLK0_MAC0_IO_MASK;
-
-		if (td->port_interface == ENABLE_SGMII_INTERFACE) {
-			/* Disable Clocks for 2.5Gbps SGMII */
-			ret &= ~CLK0_BUS_MASK;
-			ret &= ~CLK0_MAC0_CORE_MASK;
-		}
-		writel(ret, td->sfr + NCLKCTRL0_OFFSET);
-
-		/* Interface configuration for port0*/
-		ret = readl(td->sfr + NEMAC0CTL_OFFSET);
-		ret &= ~EMAC_SP_SEL_MASK;
-		ret &= ~EMAC_PHY_INF_SEL_MASK;
-		if (td->port_interface == ENABLE_SGMII_INTERFACE)
-			ret |= FIELD_PREP(EMAC_SP_SEL_MASK, SPEED_SGMII_2500M);
-		else if (td->port_interface == ENABLE_XFI_INTERFACE)
-			ret |= FIELD_PREP(EMAC_SP_SEL_MASK,
-					  SPEED_USXGMII_10G_10G);
-
-		ret &= ~EMAC_INV_SGM_SIG_DET;
-
-		ret |= FIELD_PREP(EMAC_PHY_INF_SEL_MASK, PCS_CLK_PHY);
-		ret |= EMAC_LPIHWCLKEN;
-		writel(ret, td->sfr + NEMAC0CTL_OFFSET);
-
-		/* De-assertion of EMAC Port0  software Reset*/
-		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
-		ret &= ~RST0_MAC0RST;
-		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
-	} else {
-		ret = readl(td->sfr + NRSTCTRL1_OFFSET);
-		/* Assertion of EMAC Port1 software Reset*/
-		ret |= RST1_MAC1RST;
-		writel(ret, td->sfr + NRSTCTRL1_OFFSET);
-
-		/* Enable all clocks to eMAC Port1 */
-		ret = readl(td->sfr + NCLKCTRL1_OFFSET);
-
-		ret |= CLK1_MAC1_IO_MASK | CLK1_MAC1RMCEN;
-		if (td->port_interface == ENABLE_SGMII_INTERFACE)
-			ret &= ~CLK1_MAC1_CORE_MASK;
-		writel(ret, td->sfr + NCLKCTRL1_OFFSET);
-
-		/* Interface configuration for port1*/
-		ret = readl(td->sfr + NEMAC1CTL_OFFSET);
-		ret &= ~EMAC_SP_SEL_MASK;
-		ret &= ~EMAC_PHY_INF_SEL_MASK;
-		if (td->port_interface == ENABLE_SGMII_INTERFACE)
-			ret |= FIELD_PREP(EMAC_SP_SEL_MASK, SPEED_SGMII_2500M);
-		else if (td->port_interface == ENABLE_XFI_INTERFACE)
-			ret |= FIELD_PREP(EMAC_SP_SEL_MASK,
-					  SPEED_USXGMII_10G_10G);
-
-		ret &= ~EMAC_INV_SGM_SIG_DET;
-
-		ret |= FIELD_PREP(EMAC_PHY_INF_SEL_MASK, PCS_CLK_PHY);
-		ret |= EMAC_LPIHWCLKEN;
-		writel(ret, td->sfr + NEMAC1CTL_OFFSET);
-
-		/* De-assertion of EMAC Port1  software Reset */
-		ret = readl(td->sfr + NRSTCTRL1_OFFSET);
-		ret &= ~RST1_MAC1RST;
-		writel(ret, td->sfr + NRSTCTRL1_OFFSET);
-	}
+	ret = tc956x_chipcfg_mac_init(td);
+	WARN_ON(ret);
 
 	ret = tc956x_pma_init(td);
-	if (ret < 0)
-		pr_info("PMA did not initialize correctly\n");
+	WARN_ON(ret);
 
 	/* Take XPCS out of reset */
 	if (td->emac0) {
