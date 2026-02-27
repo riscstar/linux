@@ -2035,9 +2035,7 @@ static int tc956x_pcie_resume(struct device *dev)
 		return ret;
 	}
 
-	/* Configure TA map registers */
-
-	/* Zero active means are suspended */
+	/* Configure TA map registers: zero active means are suspended */
 	if (!tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt)
 		tc956x_config_tamap(td);
 
