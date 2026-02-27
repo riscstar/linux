@@ -21,7 +21,6 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
-#include <linux/string_choices.h>
 
 #define TC956X_GPIO_COUNT	37	/* Number of GPIOs (20-21 reserved) */
 

@@ -28,7 +28,6 @@
 #include <linux/phy.h>
 #include <linux/regmap.h>
 #include <linux/regulator/consumer.h>
-#include <linux/string_choices.h>
 #include <linux/of_irq.h>
 #include <linux/delay.h>
 #include "stmmac.h"
@@ -118,7 +117,6 @@ struct tc956x_data {
  * @pci_slot:		PCI slot on its bus this chip fills
  * @primary:		Data pointer for the primary eMAC interface
  * @secondary:		Data pointer for the secondary eMAC interface
- * @gpio:		Pointer to GPIO information
  * @gpio:		Pointer to GPIO information
  * @regmap:		Register map for SFR region access
  * @links:		Links in the list of all chips
@@ -403,7 +401,7 @@ static void tc956x_reg_update(void __iomem *addr, u32 mask, u32 new)
 	}
 }
 
-/* We only use GPIOs 00 and 01, which are managed by the NFUNCEN4 register */
+/* XXX This shouldn't be required every time, and should go in the GPIO code */
 static void tc956x_phy_reset_pin_config(struct tc956x_data *td)
 {
 	void __iomem *addr = td->sfr + NFUNCEN4_OFFSET;
@@ -1343,8 +1341,6 @@ static int tc956x_mfd_init(struct tc956x_chip *tc)
 	struct device *dev = tc->primary->dev;
 	void __iomem *regs = tc->primary->sfr;
 	struct regmap *regmap;
-
-	printk(" === %s\n", __func__);
 
 	/* Note: no need to check for errors on read/write for MMIO regmap */
 	regmap = devm_regmap_init_mmio(dev, regs, &tc956x_gpio_regmap_config);
