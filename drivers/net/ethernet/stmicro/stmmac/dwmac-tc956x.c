@@ -998,6 +998,22 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 	return 0;
 }
 
+static void tc956x_chipcfg_xpcs_init(struct tc956x_data *td)
+{
+	u32 val;
+
+	/* Take XPCS out of reset */
+	if (td->emac0) {
+		val = readl(td->sfr + NRSTCTRL0_OFFSET);
+		val &= ~RST0_MAC0XPCSRST;
+		writel(val, td->sfr + NRSTCTRL0_OFFSET);
+	} else {
+		val = readl(td->sfr + NRSTCTRL1_OFFSET);
+		val &= ~RST1_MAC1XPCSRST;
+		writel(val, td->sfr + NRSTCTRL1_OFFSET);
+	}
+}
+
 /**
  * tc956x_pm_set_power() - Set clock and reset for suspend or resume
  * @priv:	STMMAC driver private data pointer
@@ -1646,16 +1662,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	if (ret < 0)
 		pr_info("PMA did not initialize correctly\n");
 
-	/* Take XPCS out of reset */
-	if (td->emac0) {
-		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
-		ret &= ~RST0_MAC0XPCSRST;
-		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
-	} else {
-		ret = readl(td->sfr + NRSTCTRL1_OFFSET);
-		ret &= ~RST1_MAC1XPCSRST;
-		writel(ret, td->sfr + NRSTCTRL1_OFFSET);
-	}
+	tc956x_chipcfg_xpcs_init(td);
 
 	ret = stmmac_dvr_probe(dev, td->plat, &res);
 	if (ret) {
@@ -1980,16 +1987,7 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 	ret = tc956x_pma_init(td);
 	WARN_ON(ret);
 
-	/* Take XPCS out of reset */
-	if (td->emac0) {
-		ret = readl(td->sfr + NRSTCTRL0_OFFSET);
-		ret &= ~RST0_MAC0XPCSRST;
-		writel(ret, td->sfr + NRSTCTRL0_OFFSET);
-	} else {
-		ret = readl(td->sfr + NRSTCTRL1_OFFSET);
-		ret &= ~RST1_MAC1XPCSRST;
-		writel(ret, td->sfr + NRSTCTRL1_OFFSET);
-	}
+	tc956x_chipcfg_xpcs_init(td);
 
 	return 0;
 
