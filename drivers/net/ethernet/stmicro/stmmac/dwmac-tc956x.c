@@ -1024,29 +1024,31 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 	plat->force_sf_dma_mode = 1;
 	plat->flags |= STMMAC_FLAG_TSO_EN;
 
+	plat->pdev = pdev;
+	plat->clk_ptp_rate = 50000000;
+
 	/* For TC956X, clk_csr_i = 125MHz XXX any standard XGMAC values? */
 	if (td->emac0)			/* emac0: XFI */
 		plat->clk_csr = 0x4;	/* clk_csr_i / 12 XXX set CRS bit? */
 	else				/* emac1: SGMII */
 		plat->clk_csr = 0x0;	/* clk_csr_i / 62 */
 
-	if (td->port_interface == ENABLE_XFI_INTERFACE)
+	switch (plat->phy_interface) {
+	case PHY_INTERFACE_MODE_10GBASER:
+		td->port_interface = ENABLE_XFI_INTERFACE;
 		plat->mac_port_sel_speed = 10000;
-
-	if (td->port_interface == ENABLE_SGMII_INTERFACE)
-		plat->mac_port_sel_speed = 2500;
-
-	plat->pdev = pdev;
-	plat->clk_ptp_rate = 50000000;
-
-	if (td->port_interface == ENABLE_XFI_INTERFACE) {
-		plat->phy_interface = PHY_INTERFACE_MODE_10GBASER;
 		plat->max_speed = 10000;
-	}
-	if (td->port_interface == ENABLE_SGMII_INTERFACE) {
-		plat->phy_interface = PHY_INTERFACE_MODE_SGMII;
+		break;
+	case PHY_INTERFACE_MODE_SGMII:
+	case PHY_INTERFACE_MODE_2500BASEX:
+		td->port_interface = ENABLE_SGMII_INTERFACE;
+		plat->mac_port_sel_speed = 2500;
 		plat->max_speed = 2500;
 		td->is_sgmii_2p5g = true;
+		break;
+	default:
+		dev_err(&pdev->dev, "Unexpected PHY interface mode\n");
+		return -ENOTSUPP;
 	}
 
 	plat->get_interfaces = tc956x_get_interfaces;
@@ -1529,8 +1531,9 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	// to 2.5G)
 	pr_debug("NCID Register value: %x\n", readl(td->sfr + NCID_OFFSET));
 
-	td->port_interface = td->emac0 ? ENABLE_XFI_INTERFACE
-				       : ENABLE_SGMII_INTERFACE;
+	// TODO: this needs to come from devicetree
+	td->plat->phy_interface = td->emac0 ? PHY_INTERFACE_MODE_10GBASER :
+					      PHY_INTERFACE_MODE_SGMII;
 
 	ret = tc956x_xgmac3_default_data(pdev, td->plat);
 	if (ret)
