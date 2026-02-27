@@ -72,9 +72,6 @@
 
 #define TC956X_GPIO_COUNT	37	/* Number of GPIOs (20-21 reserved) */
 
-#define	EMAC_RESET_NAME	"emacX_phy_reset"	/* X is 0 or 1 */
-#define	EMAC_DIGIT_POSN	4			/* Position of 'X' in NAME */
-
 /**
  * struct tc956x_data - Toshiba-specific platform data
  * @dev:		Device pointer
@@ -140,6 +137,9 @@ struct tc956x_gpio {
  * @primary:		Data pointer for the primary eMAC interface
  * @secondary:		Data pointer for the secondary eMAC interface
  * @gpio:		Pointer to GPIO information
+ * @gpio:		Pointer to GPIO information
+ * @gpio_regmap:	Regmap for GPIO registers
+ * @regmap:		Register map for SFR region access
  * @links:		Links in the list of all chips
  *
  * A single tc956x_chip structure represents the chip as a whole,
@@ -668,70 +668,29 @@ static int tc956x_phy_power_off(struct tc956x_data *td)
 	return ret;
 }
 
-/*
- * XXX This will come from a normal GPIO specification in DTS eventually
- *
- * phy-reset-gpios = <&tc956x_gpio 0 GPIO_ACTIVE_LOW>;
- *
- * desc = gpiod_get(dev, "phy-reset", GPIOD_OUT_LOW);
- */
 static int tc956x_reset_gpio_get(struct tc956x_data *td)
 {
-	struct gpio_chip *chip = &td->chip->gpio.chip;
-	char name[] = EMAC_RESET_NAME;
 	struct device *dev = td->dev;
-	struct gpio_desc *phy_reset;
 	struct device_node *np;
-	u32 index;
-	u32 delay;
 	int ret;
 
 	np = dev_of_node(dev);
 	if (!np)
 		return -EINVAL;
 
-	ret = of_property_read_u32(np, "qcom,phy-reset-gpio", &index);
-	if (ret) {
-		dev_err(dev, "failed to get qcom,phy-reset-gpio property\n");
-		return ret;
-	}
-
-	/* The only values used currently are 0 and 1; we'll generalize later */
-	if (index && index != 1) {
-		dev_err(dev, "bad qcom,phy-reset-gpio property (%u)\n", index);
-		return -EINVAL;
-	}
+	td->phy_reset = devm_gpiod_get(dev, "phy-reset", GPIOD_OUT_LOW);
+	if (IS_ERR(td->phy_reset))
+		return PTR_ERR(td->phy_reset);
 
 	/* XXX Can we use a good constant and avoid having to specify this? * */
-	ret = of_property_read_u32(np, "qcom,phy-reset-delay", &delay);
+	ret = of_property_read_u32(np, "qcom,phy-reset-delay",
+				   &td->phy_reset_delay);
 	if (ret) {
 		dev_err(dev, "failed to get qcom,phy-reset-delay property\n");
 		return ret;
 	}
 
-	/* Fix the name to indicate interface 0 or 1 */
-	name[EMAC_DIGIT_POSN] = '0' + (td->emac0 ? 0 : 1);
-
-	/* We say ACTIVE_HIGH because we'll handle polarity inversion */
-	phy_reset = gpiochip_request_own_desc(chip, index, name,
-					      GPIO_ACTIVE_HIGH, GPIOD_OUT_LOW);
-	if (IS_ERR(phy_reset))
-		return PTR_ERR(phy_reset);
-
-	td->phy_reset = phy_reset;
-	td->phy_reset_delay = delay;
-
 	return 0;
-}
-
-static void tc956x_reset_gpio_put(struct tc956x_data *td)
-{
-	struct gpio_desc *phy_reset = td->phy_reset;
-
-	td->phy_reset_delay = 0;
-	td->phy_reset = NULL;
-
-	gpiochip_free_own_desc(phy_reset);
 }
 
 static int tc956x_platform_of_parse(struct tc956x_data *td)
@@ -751,41 +710,31 @@ static int tc956x_platform_of_parse(struct tc956x_data *td)
 	ret = of_irq_get_byname(np, "wake-on-lan");
 	if (ret <= 0) {
 		dev_err(dev, "failed to get wake-on-lan property\n");
-		if (!ret)
-			ret = -EINVAL;
-		goto err_put_gpio;
+		return ret ? : -EINVAL;
 	}
 	td->wol_irq = ret;
 
 	td->phy_supply = devm_regulator_get(dev, "phy");
 	if (IS_ERR(td->phy_supply)) {
 		dev_err(dev, "failed to get phy-supply\n");
-		ret = PTR_ERR(td->phy_supply);
-		goto err_put_gpio;
+		return PTR_ERR(td->phy_supply);
 	}
 
 	/* XXX Have to chase down why the following is necessary... */
 	td->pinctrl = devm_pinctrl_get(dev);
 	if (IS_ERR(td->pinctrl)) {
 		dev_err(dev, "failed to get pinctrl handle\n");
-		ret = PTR_ERR(td->pinctrl);
-		goto err_put_gpio;
+		return PTR_ERR(td->pinctrl);
 	}
 
 	td->pinctrl_default = pinctrl_lookup_state(td->pinctrl,
 						   PINCTRL_STATE_DEFAULT);
 	if (IS_ERR(td->pinctrl_default)) {
 		dev_err(dev, "failed to look up default pinctrl state\n");
-		ret = PTR_ERR(td->pinctrl_default);
-		goto err_put_gpio;
+		return PTR_ERR(td->pinctrl_default);
 	}
 
 	return 0;
-
-err_put_gpio:
-	tc956x_reset_gpio_put(td);
-
-	return ret;
 }
 
 static int tc956x_platform_probe(struct tc956x_data *td,
