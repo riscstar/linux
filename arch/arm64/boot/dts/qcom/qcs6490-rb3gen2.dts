@@ -932,9 +932,13 @@
 					 <&primary 1>,
 					 <&primary 2>,
 					 <&primary 3>,
-					 <&primary 4>;
+					 <&primary 4>,
+					 <&primary 5>,
+					 <&primary 6>,
+					 <&primary 7>;
 				reset-names = "MCU", "MCU1", "INTC",
-						"MSIGEN", "UART0";
+						"MSIGEN", "UART0",
+						"MAC", "MAC_PMA", "MAC_XPCS";
 
 				phy-reset-gpios = <&primary 0 GPIO_ACTIVE_HIGH>;
 
@@ -968,6 +972,11 @@
 				#size-cells = <2>;
 				device_type = "pci";
 				ranges;
+
+				resets = <&primary 8>,
+					 <&primary 9>,
+					 <&primary 10>;
+				reset-names = "MAC", "MAC_PMA", "MAC_XPCS";
 
 				phy-reset-gpios = <&primary 1 GPIO_ACTIVE_HIGH>;
 

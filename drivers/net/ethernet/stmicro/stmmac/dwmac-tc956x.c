@@ -101,6 +101,9 @@ enum tc956x_mac_state {
  * @wol_irq:		Wake-on-LAN IRQ number
  * @chip:		Pointer to the containing chip information
  * @regmap:		Register map for SFR region access
+ * @mac_reset:		MAC reset control
+ * @mac_pma_reset:	MAC PMA reset control
+ * @mac_xpcs_reset:	MAC XPCS reset control
  * @mac_state:		Bitmap tracking state of resets
  */
 struct tc956x_data {
@@ -121,6 +124,9 @@ struct tc956x_data {
 	int wol_irq;
 	struct tc956x_chip *chip;
 	struct regmap *regmap;
+	struct reset_control *mac_reset;
+	struct reset_control *mac_pma_reset;
+	struct reset_control *mac_xpcs_reset;
 	DECLARE_BITMAP(mac_state, MAC_STATE_COUNT);
 };
 
@@ -295,16 +301,6 @@ struct tx956x_shrd_mem {
 		(CLK1_MAC1125CLKEN | CLK1_MAC1312CLKEN)
 #define CLK1_MAC1_IO_MASK \
 		(CLK1_MAC1TXCEN | CLK1_MAC1RXCEN | CLK1_MAC1ALLCLKEN)
-
-#define NRSTCTRL0_OFFSET	0x1008	/* Reset control register 0 */
-#define RST0_MAC0RST		BIT(7)
-#define RST0_MAC0PMARST		BIT(30)
-#define RST0_MAC0XPCSRST	BIT(31)
-
-#define NRSTCTRL1_OFFSET	0x1010	/* Reset control register 1 */
-#define RST1_MAC1RST		BIT(7)		/* individual */
-#define RST1_MAC1PMARST		BIT(30)
-#define RST1_MAC1XPCSRST	BIT(31)
 
 /* Field in the NCLKCTRL0 register to enable the MSIGEN clock */
 #define TC956X_MSIGENCEN	BIT(18)
@@ -855,17 +851,8 @@ static void tc956x_pma_init(struct tc956x_data *td)
 	void __iomem *pmaaddr = XGMAC_BASE(td) + PMA_XGMAC_OFFSET;
 	u32 val;
 
-	/* Assertion of PMA reset  software Reset*/
 	__set_bit(MAC_STATE_PMA_RESET, td->mac_state);
-	if (td->emac0) {
-		val = readl(td->sfr + NRSTCTRL0_OFFSET);
-		val |= RST0_MAC0PMARST;
-		writel(val, td->sfr + NRSTCTRL0_OFFSET);
-	} else {
-		val = readl(td->sfr + NRSTCTRL1_OFFSET);
-		val |= RST1_MAC1PMARST;
-		writel(val, td->sfr + NRSTCTRL1_OFFSET);
-	}
+	reset_control_assert(td->mac_pma_reset);
 
 	/*Power on CML buffer*/
 	val = readl(pmaaddr + XGMAC_PMA_GL_PM_CFG0);
@@ -891,17 +878,8 @@ static void tc956x_pma_init(struct tc956x_data *td)
 	writel(XGMAC_PMA_OFFSET0, pmaaddr + XGMAC_PMA_HWT_REFCK_R_EN_R4);
 	writel(XGMAC_PMA_OFFSET0, pmaaddr + XGMAC_PMA_HWT_REFCK_TERM_EN_R4);
 
-	/* De-assertion of PMA reset  software Reset*/
-	if (td->emac0) {
-		val = readl(td->sfr + NRSTCTRL0_OFFSET);
-		val &= ~RST0_MAC0PMARST;
-		writel(val, td->sfr + NRSTCTRL0_OFFSET);
-	} else {
-		val = readl(td->sfr + NRSTCTRL1_OFFSET);
-		val &= ~RST1_MAC1PMARST;
-		writel(val, td->sfr + NRSTCTRL1_OFFSET);
-	}
 	__clear_bit(MAC_STATE_PMA_RESET, td->mac_state);
+	reset_control_deassert(td->mac_pma_reset);
 
 	/* TODO: Is this the right bit to poll for a PMA only reset? */
 	WARN_ON(readl_poll_timeout(td->sfr + (td->emac0 ? NEMAC0CTL_OFFSET :
@@ -1005,13 +983,9 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 	u32 val;
 
 	__set_bit(MAC_STATE_RESET, td->mac_state);
+	reset_control_assert(td->mac_reset);
 
 	if (td->emac0) {
-		/* Assertion of EMAC Port0 software Reset */
-		val = readl(td->sfr + NRSTCTRL0_OFFSET);
-		val |= RST0_MAC0RST;
-		writel(val, td->sfr + NRSTCTRL0_OFFSET);
-
 		/* Enable all clocks to eMAC Port0 */
 		val = readl(td->sfr + NCLKCTRL0_OFFSET);
 		val |= CLK0_MAC0_IO_MASK;
@@ -1022,17 +996,7 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 
 		/* Set the speed related registers */
 		tc956x_chipcfg_mac_configure(td, td->plat->max_speed);
-
-		/* De-assertion of EMAC Port0  software Reset*/
-		val = readl(td->sfr + NRSTCTRL0_OFFSET);
-		val &= ~RST0_MAC0RST;
-		writel(val, td->sfr + NRSTCTRL0_OFFSET);
 	} else {
-		/* Assertion of EMAC Port1 software Reset*/
-		val = readl(td->sfr + NRSTCTRL1_OFFSET);
-		val |= RST1_MAC1RST;
-		writel(val, td->sfr + NRSTCTRL1_OFFSET);
-
 		/* Enable all clocks to eMAC Port1 */
 		val = readl(td->sfr + NCLKCTRL1_OFFSET);
 		val |= CLK1_MAC1_IO_MASK | CLK1_MAC1RMCEN;
@@ -1040,33 +1004,12 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 
 		/* Set the speed related registers */
 		tc956x_chipcfg_mac_configure(td, td->plat->max_speed);
-
-		/* De-assertion of EMAC Port1  software Reset */
-		val = readl(td->sfr + NRSTCTRL1_OFFSET);
-		val &= ~RST1_MAC1RST;
-		writel(val, td->sfr + NRSTCTRL1_OFFSET);
 	}
 
 	__clear_bit(MAC_STATE_RESET, td->mac_state);
+	reset_control_deassert(td->mac_reset);
 
 	return 0;
-}
-
-static void tc956x_chipcfg_xpcs_init(struct tc956x_data *td)
-{
-	u32 val;
-
-	/* Take XPCS out of reset */
-	if (td->emac0) {
-		val = readl(td->sfr + NRSTCTRL0_OFFSET);
-		val &= ~RST0_MAC0XPCSRST;
-		writel(val, td->sfr + NRSTCTRL0_OFFSET);
-	} else {
-		val = readl(td->sfr + NRSTCTRL1_OFFSET);
-		val &= ~RST1_MAC1XPCSRST;
-		writel(val, td->sfr + NRSTCTRL1_OFFSET);
-	}
-	__clear_bit(MAC_STATE_XPCS_RESET, td->mac_state);
 }
 
 /**
@@ -1081,31 +1024,24 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 {
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	void __iomem *commonclk_reg;
-	void __iomem *nrst_reg;
 	void __iomem *nclk_reg;
-	u32 nrst_mask;
 	u32 nclk_mask;
 	u32 val;
 
 	/* Select register address by port */
 	if (td->emac0) {
-		nrst_reg = td->sfr + NRSTCTRL0_OFFSET;
-		nrst_mask = RST0_MAC0RST | RST0_MAC0PMARST | RST0_MAC0XPCSRST;
 		nclk_reg = td->sfr + NCLKCTRL0_OFFSET;
 		nclk_mask = CLK0_MAC0_CORE_MASK | CLK0_MAC0_IO_MASK;
 	} else {
-		nrst_reg = td->sfr + NRSTCTRL1_OFFSET;
-		nrst_mask = RST1_MAC1RST | RST1_MAC1PMARST | RST1_MAC1XPCSRST;
 		nclk_reg = td->sfr + NCLKCTRL1_OFFSET;
 		nclk_mask = CLK1_MAC1_CORE_MASK | CLK1_MAC1_IO_MASK;
 		nclk_mask |= CLK1_MAC1RMCEN;
 	}
 
 	if (suspend) {
-		/* Assert resets */
-		val = readl(nrst_reg);
-		val |= nrst_mask;
-		writel(val, nrst_reg);
+		reset_control_assert(td->mac_reset);
+		reset_control_assert(td->mac_pma_reset);
+		reset_control_assert(td->mac_xpcs_reset);
 
 		/* Save current clock state, and disable clocks */
 		val = readl(nclk_reg);
@@ -1136,14 +1072,12 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 		writel(val, nclk_reg);
 
 		/* Restore saved reset state */
-		val = readl(nrst_reg);
 		if (test_bit(MAC_STATE_XPCS_RESET, td->mac_state))
-			val |= RST0_MAC0XPCSRST;
+			reset_control_deassert(td->mac_xpcs_reset);
 		if (test_bit(MAC_STATE_PMA_RESET, td->mac_state))
-			val |= RST0_MAC0PMARST;
+			reset_control_deassert(td->mac_pma_reset);
 		if (test_bit(MAC_STATE_RESET, td->mac_state))
-			val |= RST0_MAC0RST;
-		writel(val, nrst_reg);
+			reset_control_deassert(td->mac_reset);
 	}
 }
 
@@ -1578,6 +1512,30 @@ static void tc956x_chip_put(struct tc956x_data *td)
 	kfree(tc);
 }
 
+/*
+ * When successful all reset controls will be valid (no error), and
+ * the underlying driver implements the assert and deassert callbacks.
+ * So there is no need to test for errors when asserting or deasserting.
+ */
+static int tc956x_devm_mac_resets_get(struct tc956x_data *td)
+{
+	struct device *dev = td->dev;
+
+	td->mac_reset = devm_reset_control_get_exclusive(dev, "MAC");
+	if (IS_ERR(td->mac_reset))
+		return PTR_ERR(td->mac_reset);
+
+	td->mac_pma_reset = devm_reset_control_get_exclusive(dev, "MAC_PMA");
+	if (IS_ERR(td->mac_pma_reset))
+		return PTR_ERR(td->mac_pma_reset);
+
+	td->mac_xpcs_reset = devm_reset_control_get_exclusive(dev, "MAC_XPCS");
+	if (IS_ERR(td->mac_xpcs_reset))
+		return PTR_ERR(td->mac_xpcs_reset);
+
+	return 0;
+}
+
 /**
  * tc956x_pci_probe() - PCI driver probe callback
  * @pdev:	PCI device pointer
@@ -1613,6 +1571,10 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		ret = td->chip ? PTR_ERR(td->chip) : -ENOMEM;
 		goto err_clear_master;
 	}
+
+	ret = tc956x_devm_mac_resets_get(td);
+	if (ret)
+		goto err_chip_put;
 
 #if IS_ENABLED(CONFIG_TRACE_MMIO_ACCESS)
 	/*
@@ -1692,33 +1654,28 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		goto err_platform_probe;
 
 	tc956x_pma_init(td);
-	tc956x_chipcfg_xpcs_init(td);
+
+	__clear_bit(MAC_STATE_XPCS_RESET, td->mac_state);
+	reset_control_deassert(td->mac_xpcs_reset);
 
 	ret = stmmac_dvr_probe(dev, td->plat, &res);
 	if (ret) {
-		void __iomem *nrst_reg;
 		void __iomem *nclk_reg;
-		u32 nrst_mask;
 		u32 nclk_mask;
 		u32 val;
 
 		if (td->emac0) {
-			nrst_reg = td->sfr + NRSTCTRL0_OFFSET;
-			nrst_mask = RST0_MAC0RST | RST0_MAC0PMARST | RST0_MAC0XPCSRST;
 			nclk_reg = td->sfr + NCLKCTRL0_OFFSET;
 			nclk_mask = CLK0_MAC0_CORE_MASK | CLK0_MAC0_IO_MASK;
 		} else {
-			nrst_reg = td->sfr + NRSTCTRL1_OFFSET;
-			nrst_mask = RST1_MAC1RST | RST1_MAC1PMARST | RST1_MAC1XPCSRST;
 			nclk_reg = td->sfr + NCLKCTRL1_OFFSET;
 			nclk_mask = CLK1_MAC1_CORE_MASK | CLK1_MAC1_IO_MASK;
 			nclk_mask |= CLK1_MAC1RMCEN;
 		}
 
-		/* Assert resets */
-		val = readl(nrst_reg);
-		val |= nrst_mask;
-		writel(val, nrst_reg);
+		reset_control_assert(td->mac_reset);
+		reset_control_assert(td->mac_pma_reset);
+		reset_control_assert(td->mac_xpcs_reset);
 
 		/* Disable clocks */
 		val = readl(nclk_reg);
@@ -1797,9 +1754,7 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 	struct net_device *ndev = dev_get_drvdata(dev);
 	struct stmmac_priv *priv = netdev_priv(ndev);
 	struct tc956x_data *td = priv->plat->bsp_priv;
-	void __iomem *nrst_reg;
 	void __iomem *nclk_reg;
-	u32 nrst_val;
 	u32 nclk_val;
 
 	/* phy_addr == -1 indicates that PHY was not found and
@@ -1816,22 +1771,17 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 		tc956x_platform_remove(td);
 	}
 
-	/* Set reset value for CLK control and RESET Control registers */
-	if (td->emac0) {
-		nrst_reg = td->sfr + NRSTCTRL0_OFFSET;
-		nrst_val = readl(nrst_reg);
-		nrst_val |= RST0_MAC0XPCSRST | RST0_MAC0PMARST | RST0_MAC0RST;
-		writel(nrst_val, nrst_reg);
+	reset_control_assert(td->mac_reset);
+	reset_control_assert(td->mac_pma_reset);
+	reset_control_assert(td->mac_xpcs_reset);
 
+	if (td->emac0) {
 		nclk_reg = td->sfr + NCLKCTRL0_OFFSET;
 		nclk_val = readl(nclk_reg);
 		nclk_val &= ~CLK0_MAC0_CORE_MASK;
 		nclk_val &= ~CLK0_MAC0_IO_MASK;
 		writel(nclk_val, nclk_reg);
 	} else {
-		nrst_reg = td->sfr + NRSTCTRL1_OFFSET;
-		nrst_val = RST1_MAC1RST | RST1_MAC1PMARST | RST1_MAC1XPCSRST;
-		writel(nrst_val, nrst_reg);
 
 		nclk_reg = td->sfr + NCLKCTRL1_OFFSET;
 		nclk_val = 0;
@@ -1854,9 +1804,6 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 		nclk_val &= ~(CLK0_MAC0_CORE_MASK | CLK0_MAC0_IO_MASK);
 		writel(nclk_val, nclk_reg);
 	}
-	pr_debug("%s : Port %d %s Wr RST Reg:%x, CLK Reg:%x", __func__,
-		 td->emac0 ? 0 : 1, priv->dev->name,
-		 readl(nrst_reg), readl(nclk_reg));
 
 	pdev->irq = 0;
 
@@ -2016,7 +1963,8 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 	WARN_ON(ret);
 
 	tc956x_pma_init(td);
-	tc956x_chipcfg_xpcs_init(td);
+	__clear_bit(MAC_STATE_XPCS_RESET, td->mac_state);
+	reset_control_deassert(td->mac_xpcs_reset);
 
 	return 0;
 
