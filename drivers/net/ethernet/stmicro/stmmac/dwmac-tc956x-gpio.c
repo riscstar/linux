@@ -4,10 +4,22 @@
  * Copyright (C) 2026 by RISCstar Solutions Corporation.  All rights reserved.
  */
 
+/*
+ * The Toshiba TC956x implements a PCIe Gen 3 switch that connects an
+ * upstream x4 port to two downstream PCIe x2 ports.  It incorporates
+ * an internal endpoint as well, which implements two Synopsys XGMAC
+ * Ethernet interfaces.
+ *
+ * In addition, a set of 35 GPIOs are implemented.  One set of registers
+ * controls the first 32 (other than 20 and 21, which are reserved).
+ * A second set of registers controls GPIOs 32 through 36.
+ *
+ * GPIOs 22-24, 27-28, 31, and 34 are treated as "input only".
+ */
+
 #include <linux/gpio/driver.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
-#include <linux/printk.h>
 #include <linux/regmap.h>
 #include <linux/string_choices.h>
 
@@ -33,27 +45,11 @@ struct tc956x_gpio {
 	DECLARE_BITMAP(input_only, TC956X_GPIO_COUNT);
 };
 
-static int tc956x_gpio_request(struct gpio_chip *gc, unsigned int offset)
-{
-	printk(" === %s %u\n", __func__, offset);
-	/* Probably not needed */
-	return 0;
-}
-
-static void tc956x_gpio_free(struct gpio_chip *gc, unsigned int offset)
-{
-	/* Probably not needed */
-	printk(" === %s %u\n", __func__, offset);
-}
-
-
 static int tc956x_gpio_get_direction(struct gpio_chip *gc, unsigned int offset)
 {
 	struct tc956x_gpio *gpio = gpiochip_get_data(gc);
 	u32 reg;
 	u32 val;
-
-	printk(" === %s %u\n", __func__, offset);
 
 	if (test_bit(offset, gpio->input_only))
 		return GPIO_LINE_DIRECTION_IN;
@@ -74,8 +70,6 @@ static int tc956x_gpio_direction_input(struct gpio_chip *gc,
 	u32 val;
 	u32 new;
 
-	printk(" === %s %u\n", __func__, offset);
-
 	reg = offset < 32 ? GPIO_EN0_OFFSET : GPIO_EN1_OFFSET;
 	regmap_read(gpio->regmap, reg, &val);
 	new = val | BIT(offset % 32);		/* Set line for input */
@@ -93,8 +87,6 @@ static int tc956x_gpio_direction_output(struct gpio_chip *gc,
 	u32 reg;
 	u32 val;
 	u32 new;
-
-	printk(" === %s %u %s\n", __func__, offset, str_on_off(!!value));
 
 	if (test_bit(offset, gpio->input_only))
 		return -EINVAL;
@@ -123,8 +115,6 @@ static int tc956x_gpio_get(struct gpio_chip *gc, unsigned int offset)
 	u32 reg;
 	u32 val;
 
-	printk(" === %s %u\n", __func__, offset);
-
 	reg = offset < 32 ? GPIO_IN0_OFFSET : GPIO_IN1_OFFSET;
 	regmap_read(gpio->regmap, reg, &val);
 
@@ -138,8 +128,6 @@ static int tc956x_gpio_set(struct gpio_chip *gc, unsigned int offset, int value)
 	u32 reg;
 	u32 val;
 	u32 new;
-
-	printk(" === %s %u %s\n", __func__, offset, str_on_off(!!value));
 
 	reg = offset < 32 ? GPIO_OUT0_OFFSET : GPIO_OUT1_OFFSET;
 	regmap_read(gpio->regmap, reg, &val);
@@ -157,10 +145,8 @@ static int tc956x_gpio_init_valid_mask(struct gpio_chip *gc,
 				       unsigned long *valid_mask,
 				       unsigned int ngpios)
 {
-	printk(" === %s\n", __func__);
-
 	/* GPIOs 20 and 21 are reserved (and not usable) */
-	bitmap_fill(valid_mask, TC956X_GPIO_COUNT);
+	bitmap_fill(valid_mask, ngpios);
 	bitmap_clear(valid_mask, 20, 2);
 
 	return 0;
@@ -172,8 +158,6 @@ static int tc956x_gpio_probe(struct platform_device *pdev)
 	struct tc956x_gpio *gpio;
 	struct gpio_chip *gc;
 
-	printk(" === %s\n", __func__);
-
 	gpio = devm_kzalloc(dev, sizeof(*gpio), GFP_KERNEL);
 	if (!gpio)
 		return -ENOMEM;
@@ -182,41 +166,7 @@ static int tc956x_gpio_probe(struct platform_device *pdev)
 	if (!gpio->regmap)
 		return -EINVAL;
 
-	/*
-	 * "Up to 35 GPIOs by share function"
-	 *
-	 * 00-19
-	 * 20-21				reserved
-	 * 22, 23, 24, 27, 28, 31		input only
-	 * 32, 33
-	 * 34					input only
-	 * 35, 36
-	 *
-	 * GPIOI0  	0x1200
-	 * 	GPIO 00-19, 22-31 input value (input mode)
-	 *	20-21 are reserved
-	 * GPIOE0  	0x1208
-	 * 	00-19, 25-26, 29-30	0 output, 1 input
-	 *	20-21 are reserved
-	 * 	22-24, 27-28, 31	0 output low, 1 input or Hi-Z
-	 * 	25-26, 29-30		0 output, 1 input
-	 * GPIOO0  	0x1210
-	 * 	00-19, 25-26, 29-30	output value
-	 *	20-21 are reserved
-	 *	22-24, 27-28, 31  	reserved	 (not output)
-	 *
-	 * GPIOI1	0x1204
-	 * 	GPIO 32-36 input value (input mode)
-	 * GPIOE1	0x120c
-	 * 	32-33, 35-36		0 output, 1 input
-	 * 	34			0 output low, 1 input or Hi-Z
-	 * GPIOO1	0x1214
-	 * 	32-33, 35-36		output value
-	 * 	34			reserved	(not output)
-	 *
-	 */
-
-	/* GPIOs 22, 23, 24, 27, 28, 31, and 34 are input only */
+	/* Mark GPIOs 22, 23, 24, 27, 28, 31, and 34 are input only */
 	bitmap_set(gpio->input_only, 22, 3);
 	bitmap_set(gpio->input_only, 27, 2);
 	set_bit(31, gpio->input_only);
@@ -227,8 +177,6 @@ static int tc956x_gpio_probe(struct platform_device *pdev)
 	gc->label = "tc956x-gpio";
 	gc->parent = dev->parent;
 
-	gc->request = tc956x_gpio_request;
-	gc->free = tc956x_gpio_free;
 	gc->get_direction = tc956x_gpio_get_direction;
 	gc->direction_input = tc956x_gpio_direction_input;
 	gc->direction_output = tc956x_gpio_direction_output;
