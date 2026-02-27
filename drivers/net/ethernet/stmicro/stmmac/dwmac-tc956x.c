@@ -11,6 +11,7 @@
 #define pr_fmt(fmt) "dwmac-tc956x: " fmt
 
 #include <linux/stmmac.h>
+#include <linux/bitops.h>
 #include <linux/clk-provider.h>
 #include <linux/pci.h>
 #include <linux/dmi.h>
@@ -28,6 +29,7 @@
 #include <linux/phy.h>
 #include <linux/regmap.h>
 #include <linux/regulator/consumer.h>
+#include <linux/types.h>
 #include <linux/of_irq.h>
 #include <linux/delay.h>
 
@@ -71,6 +73,15 @@
 #define PCI_BAR_BRIDGE_CONFIG		0
 #define PCI_BAR_SFR			4
 
+/* These values are bit positions in struct tc956x_data->mac_state */
+enum tc956x_mac_state {
+	MAC_STATE_RESET,			/* set: asserted; clear: not */
+	MAC_STATE_PMA_RESET,
+	MAC_STATE_XPCS_RESET,
+
+	MAC_STATE_COUNT,			/* Not a state */
+};
+
 /**
  * struct tc956x_data - Toshiba-specific platform data
  * @dev:		Device pointer
@@ -91,6 +102,7 @@
  * @wol_irq:		Wake-on-LAN IRQ number
  * @chip:		Pointer to the containing chip information
  * @regmap:		Register map for SFR region access
+ * @mac_state:		Bitmap tracking state of resets
  */
 struct tc956x_data {
 	struct device *dev;
@@ -111,6 +123,7 @@ struct tc956x_data {
 	int wol_irq;
 	struct tc956x_chip *chip;
 	struct regmap *regmap;
+	DECLARE_BITMAP(mac_state, MAC_STATE_COUNT);
 };
 
 /**
@@ -845,6 +858,7 @@ static void tc956x_pma_init(struct tc956x_data *td)
 	u32 val;
 
 	/* Assertion of PMA reset  software Reset*/
+	__set_bit(MAC_STATE_PMA_RESET, td->mac_state);
 	if (td->emac0) {
 		val = readl(td->sfr + NRSTCTRL0_OFFSET);
 		val |= RST0_MAC0PMARST;
@@ -889,6 +903,7 @@ static void tc956x_pma_init(struct tc956x_data *td)
 		val &= ~RST1_MAC1PMARST;
 		writel(val, td->sfr + NRSTCTRL1_OFFSET);
 	}
+	__clear_bit(MAC_STATE_PMA_RESET, td->mac_state);
 
 	/* TODO: Is this the right bit to poll for a PMA only reset? */
 	WARN_ON(readl_poll_timeout(td->sfr + (td->emac0 ? NEMAC0CTL_OFFSET :
@@ -991,6 +1006,7 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 	struct plat_stmmacenet_data *plat = td->plat;
 	u32 val;
 
+	__set_bit(MAC_STATE_RESET, td->mac_state);
 
 	if (td->emac0) {
 		/* Assertion of EMAC Port0 software Reset */
@@ -1033,6 +1049,8 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 		writel(val, td->sfr + NRSTCTRL1_OFFSET);
 	}
 
+	__clear_bit(MAC_STATE_RESET, td->mac_state);
+
 	return 0;
 }
 
@@ -1050,6 +1068,7 @@ static void tc956x_chipcfg_xpcs_init(struct tc956x_data *td)
 		val &= ~RST1_MAC1XPCSRST;
 		writel(val, td->sfr + NRSTCTRL1_OFFSET);
 	}
+	__clear_bit(MAC_STATE_XPCS_RESET, td->mac_state);
 }
 
 /**
@@ -1086,6 +1105,9 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 
 	if (suspend) {
 		/* Save current reset state, and assert resets */
+		__set_bit(MAC_STATE_RESET, td->mac_state);
+		__set_bit(MAC_STATE_PMA_RESET, td->mac_state);
+		__set_bit(MAC_STATE_XPCS_RESET, td->mac_state);
 		val = readl(nrst_reg);
 		td->pm_saved_emac_rst = val & nrst_mask;
 		val |= nrst_mask;
@@ -1487,7 +1509,6 @@ static int tc956x_devm_chip_resets_get(struct tc956x_chip *tc)
 static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 {
 	u8 pci_bus_num = PCI_BUS_NUM(td->devfn);
-	struct reset_control *reset_control;
 	u8 pci_slot = PCI_SLOT(td->devfn);
 	struct device *dev = td->dev;
 	struct tc956x_chip *tc;
@@ -1696,6 +1717,9 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		}
 
 		/* Assert resets */
+		__set_bit(MAC_STATE_RESET, td->mac_state);
+		__set_bit(MAC_STATE_PMA_RESET, td->mac_state);
+		__set_bit(MAC_STATE_XPCS_RESET, td->mac_state);
 		val = readl(nrst_reg);
 		val |= nrst_mask;
 		writel(val, nrst_reg);
@@ -1797,6 +1821,9 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 	}
 
 	/* Set reset value for CLK control and RESET Control registers */
+	__set_bit(MAC_STATE_RESET, td->mac_state);
+	__set_bit(MAC_STATE_PMA_RESET, td->mac_state);
+	__set_bit(MAC_STATE_XPCS_RESET, td->mac_state);
 	if (td->emac0) {
 		nrst_reg = td->sfr + NRSTCTRL0_OFFSET;
 		nrst_val = readl(nrst_reg);
