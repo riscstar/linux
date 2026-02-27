@@ -439,114 +439,7 @@ static int tc956x_assert_phy_reset(struct tc956x_data *td, bool assert)
 
 	return 0;
 }
-//
-// Code from tc956x_xpcs.h in vendor driver
-//
 
-#define XPCS_XGMAC_OFFSET	0x3A00
-
-/*XPCS registers*/
-#define XGMAC_SR_MII_CTRL				0x7C0000
-#define XGMAC_VR_MII_AN_CTRL			0x7e0004
-#define XGMAC_VR_MII_DIG_CTRL1			0x7e0000
-#define XGMAC_SR_XS_PCS_CTRL1			0xC0000
-#define XGMAC_SR_XS_PCS_CTRL2			0xC001C
-#define XGMAC_SR_XS_PCS_EEE_ABL			0xC0050
-#define XGMAC_VR_XS_PCS_DIG_CTRL1		0xe0000
-#define XGMAC_VR_XS_PCS_EEE_MCTRL0		0xe0018
-#define XGMAC_VR_XS_PCS_EEE_MCTRL1		0xe002c
-#define XGMAC_VR_XS_PCS_KR_CTRL			0xe001c
-#define XGMAC_VR_XS_PCS_EEE_TXTIMER		0xe0020
-#define XGMAC_VR_XS_PCS_EEE_RXTIMER		0xe0024
-#define XGMAC_VR_XS_PCS_DIG_STS			0xe0040
-
-#define XGMAC_LPI_ENABLE			0x0800
-#define XGMAC_PSEQ_STATE			0x001C
-#define XGMAC_KXEEE				0x0010
-#define XGMAC_MULT_FACT_100NS			0x0F00
-#define XGMAC_SIGN_BIT				0x40
-#define XGMAC_TX_RX_EN				0x90
-#define XGMAC_EEE_RX_TIMER			0x3FFF
-#define XGMAC_EEE_TX_TIMER			0x1FFF
-#define XGMAC_TX_RX_QUIET_EN			0x000F
-#define XGMAC_MULT_FACT_100NS_MAC		0xB00
-#define XGMAC_EEE_TX_TIMER_MAC_CONT		0x0543
-#define XGMAC_EEE_RX_TIMER_MAC_CONT		0x062A
-#define XGMAC_TRN_LPI				0x1
-
-/*XPCS Register value*/
-#define XGMAC_PCS_MODE_MASK				0xFFFFFFF9
-#define XGMAC_SGMII_MODE				0x00000004
-#define XGMAC_TX_CFIG_INTR_EN_MASK		0xFFFFFFF6/*Mask TX_CONFIG & MII_AN_INTR_EN*/
-#define XGMAC_MII_AN_INTR_EN			0x00000001/*MII_AN_INTR_EN*/
-#define XGMAC_MAC_AUTO_SW_EN			0x00000200/*MAC_AUTO_SW*/
-#define XGMAC_AN_37_ENABLE				0x00001000/*AN_EN*/
-#define XGMAC_PCS_TYPE_SEL				0xFFFFFFF0/*PCS_TYPE_SEL: 0x0000*/
-#define XGMAC_USXG_EN					0x00000200/*USXG_EN enable*/
-#define XGMAC_USXG_MODE					0x00001c00/*USXG_MODE: 0x000*/
-#define XGMAC_VR_RST					0x00008000/*set VR_RST*/
-#define XGMAC_SOFT_RST					0x00008000/*SOFT RST*/
-
-#define XPCS_REG_BASE_ADDR_MASK				GENMASK(31, 10)
-#define XPCS_REG_OFFSET_MASK				GENMASK(9, 0)
-#define	XPCS_IND_ACCESS					0x3fc
-
-#if 0
-#define XPCS_USX_5G_MODE				(0x1 << 10)
-#define XPCS_USX_2_5G_MODE				(0x2 << 10)
-#endif
-
-//
-// Code from tc956x_xpcs.c in vendor driver
-//
-
-static u32 tc956x_xpcs_read(void __iomem *xpcsaddr, u32 pcs_reg_num)
-{
-	u16 base_address = FIELD_GET(XPCS_REG_BASE_ADDR_MASK, pcs_reg_num);
-	u16 offset = FIELD_GET(XPCS_REG_OFFSET_MASK, pcs_reg_num);
-
-	/* Write the base address into indirect access register */
-	writel(base_address, (xpcsaddr + XPCS_IND_ACCESS));
-
-	/* Then read the value from the offset register */
-
-	return readl(xpcsaddr + offset);
-}
-
-static void
-tc956x_xpcs_write(void __iomem *xpcsaddr, u32 pcs_reg_num, u32 value)
-{
-	u16 base_address = FIELD_GET(XPCS_REG_BASE_ADDR_MASK, pcs_reg_num);
-	u16 offset = FIELD_GET(XPCS_REG_OFFSET_MASK, pcs_reg_num);
-
-	/* Write the base address into indirect access register */
-	writel(base_address, xpcsaddr + XPCS_IND_ACCESS);
-
-	/* Then write the value to the offset register */
-	writel(value, xpcsaddr + offset);
-}
-
-static void tc956x_xpcs_modify(void __iomem *xpcsaddr, u32 pcs_reg_num,
-			       u32 mask, u32 set)
-{
-	u32 val = tc956x_xpcs_read(xpcsaddr, pcs_reg_num);
-	u32 new = (val & ~mask) | set;
-
-	if (val == new)
-		return;
-
-	tc956x_xpcs_write(xpcsaddr, pcs_reg_num, new);
-}
-
-static void tc956x_xpcs_ctrl_ane(struct tc956x_data *td, bool ane)
-{
-	void __iomem *xpcs = XGMAC_BASE(td) + XPCS_XGMAC_OFFSET;
-
-	/* a.k.a. xpcs_modify(xpcs, MDIO_MMD_VEND2, MDIO_CTRL1, MDIO_AN_CTRL1_ENABLE, ane ? MDIO_AN_CTRL1_ENABLE : 0) */
-	/* 1f_0000: Set C37 auto-negotiation */
-	tc956x_xpcs_modify(xpcs, XGMAC_SR_MII_CTRL, XGMAC_AN_37_ENABLE,
-			   ane ? XGMAC_AN_37_ENABLE : 0);
-}
 //
 // Code from tc956x_msigen.c in vendor driver
 //
@@ -1461,8 +1354,6 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 	ret = tc956x_pma_init(td);
 	if (ret < 0)
 		pr_info("PMA did not re-initialize correctly\n");
-
-	tc956x_xpcs_ctrl_ane(td, !(plat->phy_interface == PHY_INTERFACE_MODE_SGMII && speed == SPEED_2500));
 }
 
 static const struct mfd_cell tc956x_mfd_cells[] = {
