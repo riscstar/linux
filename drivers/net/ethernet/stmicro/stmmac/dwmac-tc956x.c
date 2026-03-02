@@ -837,7 +837,7 @@ static int tc956x_platform_resume(struct stmmac_priv *priv)
 // Code from tc956x_pma.c in vendor driver
 //
 
-static int tc956x_pma_init(struct tc956x_data *td)
+static void tc956x_pma_init(struct tc956x_data *td)
 {
 	void __iomem *pmaaddr = XGMAC_BASE(td) + PMA_XGMAC_OFFSET;
 	u32 val;
@@ -889,9 +889,9 @@ static int tc956x_pma_init(struct tc956x_data *td)
 	}
 
 	/* TODO: Is this the right bit to poll for a PMA only reset? */
-	return readl_poll_timeout(td->sfr + (td->emac0 ? NEMAC0CTL_OFFSET :
-							 NEMAC1CTL_OFFSET),
-				  val, val & EMAC_INIT_DONE, 50, 1000000);
+	WARN_ON(readl_poll_timeout(td->sfr + (td->emac0 ? NEMAC0CTL_OFFSET :
+							  NEMAC1CTL_OFFSET),
+				   val, val & EMAC_INIT_DONE, 50, 1000000));
 }
 
 //
@@ -1344,9 +1344,7 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 
 	}
 
-	ret = tc956x_pma_init(td);
-	if (ret < 0)
-		pr_info("PMA did not re-initialize correctly\n");
+	tc956x_pma_init(td);
 }
 
 static const struct mfd_cell tc956x_mfd_cells[] = {
@@ -1631,7 +1629,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	ret = tc956x_chipcfg_mac_init(td);
 	if (ret < 0)
 		goto err_out_msi_failed;
-
 	res.addr = XGMAC_BASE(td);
 	res.wol_irq = pdev->irq;
 	res.irq = pdev->irq;
@@ -1650,10 +1647,8 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		goto err_platform_probe;
 	}
 
-	ret = tc956x_pma_init(td);
-	if (ret < 0)
-		pr_info("PMA did not initialize correctly\n");
 
+	tc956x_pma_init(td);
 	tc956x_chipcfg_xpcs_init(td);
 
 	ret = stmmac_dvr_probe(dev, td->plat, &res);
@@ -1976,9 +1971,7 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 	ret = tc956x_chipcfg_mac_init(td);
 	WARN_ON(ret);
 
-	ret = tc956x_pma_init(td);
-	WARN_ON(ret);
-
+	tc956x_pma_init(td);
 	tc956x_chipcfg_xpcs_init(td);
 
 	return 0;
