@@ -171,3 +171,4 @@ module_platform_driver(tc956x_reset_controller_driver);
 
 MODULE_DESCRIPTION("Toshiba TC956x PCIe Reset Controller Driver");
 MODULE_LICENSE("GPL");
+MODULE_ALIAS("platform:tc956x-reset-controller");
