@@ -1474,11 +1474,11 @@ static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 
 	ret = tc956x_devm_mfd_init(tc);
 	if (ret)
-		return ERR_PTR(ret);
+		return dev_err_ptr_probe(td->dev, ret, "mfd init failed\n");
 
 	ret = tc956x_devm_chip_resets_get(tc);
 	if (ret)
-		return ERR_PTR(ret);
+		return dev_err_ptr_probe(td->dev, ret, "no chip resets\n");
 
 	list_add(&tc->links, &tc956x_chips);
 
@@ -1562,19 +1562,23 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 	td = tc956x_devm_data_create(pdev);
 	if (IS_ERR_OR_NULL(td))
-		return td ? PTR_ERR(td) : -ENOMEM;
+		return dev_err_probe(dev, td ? PTR_ERR(td) : -ENOMEM,
+				     "cannot create data");
 
 	pci_set_master(pdev);
 
 	td->chip = tc956x_chip_get(td);
 	if (IS_ERR_OR_NULL(td->chip)) {
-		ret = td->chip ? PTR_ERR(td->chip) : -ENOMEM;
+		ret = dev_err_probe(dev, td->chip ? PTR_ERR(td->chip) : -ENOMEM,
+				    "cannot get chip\n");
 		goto err_clear_master;
 	}
 
 	ret = tc956x_devm_mac_resets_get(td);
-	if (ret)
+	if (ret) {
+		ret = dev_err_probe(dev, -EPROBE_DEFER, "no mac resets\n");
 		goto err_chip_put;
+	}
 
 #if IS_ENABLED(CONFIG_TRACE_MMIO_ACCESS)
 	/*
