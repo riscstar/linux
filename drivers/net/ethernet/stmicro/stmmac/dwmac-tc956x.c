@@ -75,7 +75,7 @@
 
 /* These values are bit positions in struct tc956x_data->mac_state */
 enum tc956x_mac_state {
-	MAC_STATE_RESET,			/* set: asserted; clear: not */
+	MAC_STATE_MAC_RESET,			/* set: asserted; clear: not */
 	MAC_STATE_PMA_RESET,
 	MAC_STATE_XPCS_RESET,
 
@@ -982,7 +982,7 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 	struct plat_stmmacenet_data *plat = td->plat;
 	u32 val;
 
-	__set_bit(MAC_STATE_RESET, td->mac_state);
+	__set_bit(MAC_STATE_MAC_RESET, td->mac_state);
 	reset_control_assert(td->mac_reset);
 
 	if (td->emac0) {
@@ -1006,7 +1006,7 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 		tc956x_chipcfg_mac_configure(td, td->plat->max_speed);
 	}
 
-	__clear_bit(MAC_STATE_RESET, td->mac_state);
+	__clear_bit(MAC_STATE_MAC_RESET, td->mac_state);
 	reset_control_deassert(td->mac_reset);
 
 	return 0;
@@ -1076,7 +1076,7 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 			reset_control_deassert(td->mac_xpcs_reset);
 		if (test_bit(MAC_STATE_PMA_RESET, td->mac_state))
 			reset_control_deassert(td->mac_pma_reset);
-		if (test_bit(MAC_STATE_RESET, td->mac_state))
+		if (test_bit(MAC_STATE_MAC_RESET, td->mac_state))
 			reset_control_deassert(td->mac_reset);
 	}
 }
