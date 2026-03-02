@@ -901,8 +901,8 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 	int ret;
 	u32 val;
 
-	__set_bit(MAC_STATE_MAC_RESET, td->mac_state);
 	reset_control_assert(td->mac_reset);
+	__set_bit(MAC_STATE_MAC_RESET, td->mac_state);
 
 	if (td->emac0) {
 		/* Enable all clocks to eMAC Port0 */
@@ -1340,10 +1340,10 @@ static const struct mfd_cell tc956x_mfd_cells[] = {
 	{ .name = "tc956x-reset-controller", },
 };
 
-static int tc956x_devm_mfd_init(struct tc956x_chip *tc)
+static int tc956x_devm_mfd_init(struct tc956x_chip *chip)
 {
-	struct device *dev = tc->primary->dev;
-	void __iomem *regs = tc->primary->sfr;
+	struct device *dev = chip->primary->dev;
+	void __iomem *regs = chip->primary->sfr;
 	struct regmap *regmap;
 
 	/* Note: no need to check for errors on read/write for MMIO regmap */
@@ -1457,9 +1457,9 @@ static struct tc956x_data *tc956x_devm_data_create(struct pci_dev *pdev)
  * the underlying driver implements the assert and deassert callbacks.
  * So there is no need to test for errors when asserting or deasserting.
  */
-static int tc956x_devm_chip_resets_get(struct tc956x_chip *tc)
+static int tc956x_devm_chip_resets_get(struct tc956x_chip *chip)
 {
-	struct device *dev = tc->primary->dev;
+	struct device *dev = chip->primary->dev;
 	int retries = 10;
 
 	/* XXX We don't need any reset except for MSIGEN */
@@ -1469,29 +1469,29 @@ static int tc956x_devm_chip_resets_get(struct tc956x_chip *tc)
 	 * we have already created child devices (including the reset
 	 * controller) so we just have to wait for it to appear.
 	 */
-	tc->mcu_reset = devm_reset_control_get_exclusive(dev, "MCU");
-	while (IS_ERR(tc->mcu_reset) && retries-- > 0) {
+	chip->mcu_reset = devm_reset_control_get_exclusive(dev, "MCU");
+	while (IS_ERR(chip->mcu_reset) && retries-- > 0) {
 		msleep(10);
-		tc->mcu_reset = devm_reset_control_get_exclusive(dev, "MCU");
+		chip->mcu_reset = devm_reset_control_get_exclusive(dev, "MCU");
 	}
-	if (IS_ERR(tc->mcu_reset))
-		return PTR_ERR(tc->mcu_reset);
+	if (IS_ERR(chip->mcu_reset))
+		return PTR_ERR(chip->mcu_reset);
 
-	tc->mcu1_reset = devm_reset_control_get_exclusive(dev, "MCU1");
-	if (IS_ERR(tc->mcu1_reset))
-		return PTR_ERR(tc->mcu1_reset);
+	chip->mcu1_reset = devm_reset_control_get_exclusive(dev, "MCU1");
+	if (IS_ERR(chip->mcu1_reset))
+		return PTR_ERR(chip->mcu1_reset);
 
-	tc->intr_reset = devm_reset_control_get_exclusive(dev, "INTC");
-	if (IS_ERR(tc->intr_reset))
-		return PTR_ERR(tc->intr_reset);
+	chip->intr_reset = devm_reset_control_get_exclusive(dev, "INTC");
+	if (IS_ERR(chip->intr_reset))
+		return PTR_ERR(chip->intr_reset);
 
-	tc->msigen_reset = devm_reset_control_get_exclusive(dev, "MSIGEN");
-	if (IS_ERR(tc->msigen_reset))
-		return PTR_ERR(tc->msigen_reset);
+	chip->msigen_reset = devm_reset_control_get_exclusive(dev, "MSIGEN");
+	if (IS_ERR(chip->msigen_reset))
+		return PTR_ERR(chip->msigen_reset);
 
-	tc->uart0_reset = devm_reset_control_get_exclusive(dev, "UART0");
-	if (IS_ERR(tc->uart0_reset))
-		return PTR_ERR(tc->uart0_reset);
+	chip->uart0_reset = devm_reset_control_get_exclusive(dev, "UART0");
+	if (IS_ERR(chip->uart0_reset))
+		return PTR_ERR(chip->uart0_reset);
 
 	return 0;
 }
@@ -1501,60 +1501,61 @@ static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 	u8 pci_bus_num = PCI_BUS_NUM(td->devfn);
 	u8 pci_slot = PCI_SLOT(td->devfn);
 	struct device *dev = td->dev;
-	struct tc956x_chip *tc;
+	struct tc956x_chip *chip;
 	int ret;
 
 	/* Use the existing chip structure if it's already been created */
-	list_for_each_entry(tc, &tc956x_chips, links) {
-		if (tc->pci_bus_num != pci_bus_num)
+	list_for_each_entry(chip, &tc956x_chips, links) {
+		if (chip->pci_bus_num != pci_bus_num)
 			continue;
-		if (tc->pci_slot != pci_slot)
+		if (chip->pci_slot != pci_slot)
 			continue;
 
 		/* Make sure the secondary hasn't already been recorded */
-		if (WARN_ON(tc->secondary))
+		if (WARN_ON(chip->secondary))
 			return ERR_PTR(-EINVAL);
 
-		tc->secondary = device_link_add(td->dev, tc->primary->dev, DL_FLAG_STATELESS);
-		if (!tc->secondary)
+		chip->secondary = device_link_add(td->dev, chip->primary->dev, DL_FLAG_STATELESS);
+		if (!chip->secondary)
 			return ERR_PTR(-ENODEV);
 
-		return tc;
+		return chip;
 	}
 
 	/* We need a new chip structure */
-	tc = devm_kzalloc(dev, sizeof(*tc), GFP_KERNEL);
-	if (!tc)
+	chip = devm_kzalloc(dev, sizeof(*chip), GFP_KERNEL);
+	if (!chip)
 		return NULL;
 
-	tc->pci_bus_num = pci_bus_num;
-	tc->pci_slot = pci_slot;
-	tc->primary = td;
+	chip->pci_bus_num = pci_bus_num;
+	chip->pci_slot = pci_slot;
+	chip->primary = td;
 
-	ret = tc956x_devm_mfd_init(tc);
+	ret = tc956x_devm_mfd_init(chip);
 	if (ret)
 		return dev_err_ptr_probe(td->dev, ret, "mfd init failed\n");
 
-	ret = tc956x_devm_chip_resets_get(tc);
+	ret = tc956x_devm_chip_resets_get(chip);
 	if (ret)
 		return dev_err_ptr_probe(td->dev, ret, "no chip resets\n");
 
-	list_add(&tc->links, &tc956x_chips);
+	list_add(&chip->links, &tc956x_chips);
 
-	return tc;
+	return chip;
 }
 
 static void tc956x_chip_put(struct tc956x_data *td)
 {
-	struct tc956x_chip *tc = td->chip;
+	struct tc956x_chip *chip = td->chip;
 
 	td->chip = NULL;
 
 	/* The primary interface needs to be the last to go */
-	if (tc->secondary) {
-		if (td->dev == tc->secondary->consumer) {
-			device_link_del(tc->secondary);
-			tc->secondary = NULL;
+	if (chip->secondary) {
+		/* XXX Why not just td == chip->secondary as done elsewhere? */
+		if (td->dev == chip->secondary->consumer) {
+			device_link_del(chip->secondary);
+			chip->secondary = NULL;
 		}
 		return;
 	}
@@ -1564,13 +1565,13 @@ static void tc956x_chip_put(struct tc956x_data *td)
 	 * XXX memory that the chip structure will point to gets unmapped.
 	 * XXX We'll deal with this later.
 	 */
-	list_del(&tc->links);
+	list_del(&chip->links);
 
-	tc->primary = NULL;
-	tc->pci_slot = 0;
-	tc->pci_bus_num = 0;
+	chip->primary = NULL;
+	chip->pci_slot = 0;
+	chip->pci_bus_num = 0;
 
-	kfree(tc);
+	kfree(chip);
 }
 
 /*
@@ -1838,7 +1839,7 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 	/* Free allocated interrupt vectors for device */
 	pci_free_irq_vectors(pdev);
 
-	/* Close shared thinks down if the primary is removed */
+	/* Close shared things down if the primary is removed */
 	if (td == td->chip->primary) {
 		reset_control_assert(td->chip->mcu_reset);
 		reset_control_assert(td->chip->mcu1_reset);

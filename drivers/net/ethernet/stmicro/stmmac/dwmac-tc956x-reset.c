@@ -50,27 +50,27 @@ struct tc956x_reset_controller {
 #define TC9564_NRSTCTRL1_OFFSET	0x10
 
 static const struct tc956x_reset_data tc9564_resets[] = {
-	[TC9564_RESET_MCU]	= {
+	[TC9564_RESET_MCU] = {
 		.offset = TC9564_NRSTCTRL0_OFFSET,
 		.bit = 0,
 	},
-	[TC9564_RESET_MCU1]	= {
+	[TC9564_RESET_MCU1] = {
 		.offset = TC9564_NRSTCTRL0_OFFSET,
 		.bit = 1,
 	},
-	[TC9564_RESET_INTC]	= {
+	[TC9564_RESET_INTC] = {
 		.offset = TC9564_NRSTCTRL0_OFFSET,
 		.bit = 4,
 	},
-	[TC9564_RESET_MSIGEN]	= {
+	[TC9564_RESET_MSIGEN] = {
 		.offset = TC9564_NRSTCTRL0_OFFSET,
 		.bit = 18,
 	},
-	[TC9564_RESET_UART0]	= {
+	[TC9564_RESET_UART0] = {
 		.offset = TC9564_NRSTCTRL0_OFFSET,
 		.bit = 16,
 	},
-	[TC9564_RESET_MAC0]	= {
+	[TC9564_RESET_MAC0] = {
 		.offset = TC9564_NRSTCTRL0_OFFSET,
 		.bit = 7,
 	},
@@ -82,7 +82,7 @@ static const struct tc956x_reset_data tc9564_resets[] = {
 		.offset = TC9564_NRSTCTRL0_OFFSET,
 		.bit = 31,
 	},
-	[TC9564_RESET_MAC1]	= {
+	[TC9564_RESET_MAC1] = {
 		.offset = TC9564_NRSTCTRL1_OFFSET,
 		.bit = 7,
 	},
