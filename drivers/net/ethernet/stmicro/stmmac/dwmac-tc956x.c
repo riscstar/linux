@@ -373,23 +373,6 @@ struct tx956x_shrd_mem {
 #define NFUNCEN4_GPIO_01_MASK	GENMASK(7, 4)
 #define GPIO_01_FUNC		0
 
-#define TC956X_SSREG_BRREG_REG_BASE		(0x00024000U)
-
-#define TC956X_GLUE_LOGIC_BASE_OFST		(0x0002C000U)
-
-#define TC956X_SSREG_K_PCICONF_021_021		(TC956X_SSREG_BRREG_REG_BASE \
-						+ 0x000009E4U)
-#define TC956X_SSREG_K_PCICONF_022_022		(TC956X_SSREG_BRREG_REG_BASE \
-						+ 0x000009E8U)
-
-#define TC956X_GLUE_SW_REG_ACCESS_CTRL		(TC956X_GLUE_LOGIC_BASE_OFST \
-						+ 0x0000002CU)
-#define SW_DSP1_ENABLE				BIT(1)
-#define SW_DSP2_ENABLE				BIT(2)
-
-#define ENABLE_CUT_THROUGH_ON_RX_PATH_MASK	0x1U
-#define ENABLE_CUT_THROUGH_ON_TX_PATH_MASK	0x1U
-
 /* MSIGEN Registers */
 
 #define MSI_INT_TX_CH0		 3
@@ -1579,9 +1562,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	struct tc956x_data *td;
 	/* use signal from EMSPHY */
 	uint16_t sh_mem_offset;
-	bool mode2;
 	u32 pfn;
-	u32 val;
 	int ret;
 
 	td = tc956x_devm_data_create(pdev);
@@ -1721,35 +1702,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	netdev = dev_get_drvdata(dev);
 	priv = netdev_priv(netdev);
 	priv->hw->msi = &tc956x_msigen_ops;
-
-	dev_dbg(dev, "<--%s : Adding DSP Cut Through Settings", __func__);
-
-	/*
-	 * Determine the switch configuration from the MODE2 bit in the
-	 * mode status register (number of lanes per port):
-	 *   0: setting A: upstream x4, downstream 1 x1, downstream 2 x1
-	 *   1: setting B: upstream x2, downstream 1 x2, downstream 2 x1
-	 */
-	val = readl(td->sfr + NMODESTS_OFFSET);
-	mode2 = !!(val & NMODESTS_MODE2);
-	dev_dbg(dev, "%s : Setting %c : Adding DSP Cut Through Settings for %sDSP2",
-		__func__, mode2 ? 'B' : 'A', mode2 ? "" : "DSP1 & ");
-
-	val = readl(td->sfr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
-	val |= SW_DSP2_ENABLE;
-	if (!mode2)
-		val |= SW_DSP1_ENABLE;
-	writel(val, td->sfr + TC956X_GLUE_SW_REG_ACCESS_CTRL);
-
-	/*Set 0x0 to Rx Bit enable_cut_through_on_receive_path*/
-	val = readl(td->sfr + TC956X_SSREG_K_PCICONF_021_021);
-	val &= ~ENABLE_CUT_THROUGH_ON_RX_PATH_MASK;
-	writel(val, td->sfr + TC956X_SSREG_K_PCICONF_021_021);
-
-	/*Set 0x00000000 to Tx Bit enable_cut_through_on_transmit_path*/
-	val = readl(td->sfr + TC956X_SSREG_K_PCICONF_022_022);
-	val &= ~ENABLE_CUT_THROUGH_ON_TX_PATH_MASK;
-	writel(val, td->sfr + TC956X_SSREG_K_PCICONF_022_022);
 
 	/* Increment device usage counter */
 	tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt++;
