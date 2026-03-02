@@ -1613,9 +1613,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		writel(val, addr);
 	}
 
-	ret = tc956x_chipcfg_mac_init(td);
-	if (ret < 0)
-		goto err_out_msi_failed;
 	res.addr = XGMAC_BASE(td);
 	res.wol_irq = pdev->irq;
 	res.irq = pdev->irq;
@@ -1634,6 +1631,9 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		goto err_platform_probe;
 	}
 
+	ret = tc956x_chipcfg_mac_init(td);
+	if (ret < 0)
+		goto err_platform_probe;
 
 	tc956x_pma_init(td);
 	tc956x_chipcfg_xpcs_init(td);
