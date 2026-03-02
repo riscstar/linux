@@ -918,25 +918,77 @@ static uint16_t tc956x_get_shared_mem_offset(struct pci_dev *pdev, uint16_t pci_
 	return 0xFFFF;
 }
 
-static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
+static int tc956x_chipcfg_mac_configure(struct tc956x_data *td, int speed)
 {
-	bool enable_core_clocks = false;
-	u32 sp_sel = 0;
-	u32 val;
+	bool mac_312_clock = false, mac_125_clock = false;
+	u32 nclkctrlx_offset, nemacxctl_offset;
+	u32 macx312clken, macx125clken;
+	u32 sp_sel, val;
 
+	/*
+	 * All paths much set sp_sel, any path that requires the 312/125
+	 * clocks to be enabled must also set that appropriate booleans.
+	 */
 	switch (td->plat->phy_interface) {
 	case PHY_INTERFACE_MODE_10GBASER:
-		enable_core_clocks = false;
-		sp_sel = SPEED_USXGMII_10G_10G;
+		switch (speed) {
+		case SPEED_10000:
+			sp_sel = SPEED_USXGMII_10G_10G;
+			break;
+		default:
+			return -ENOTSUPP;
+		}
 		break;
 	case PHY_INTERFACE_MODE_SGMII:
+		switch (speed) {
+		case SPEED_2500:
+			sp_sel = SPEED_SGMII_2500M;
+			break;
+		default:
+			sp_sel = SPEED_SGMII_1000M;
+			mac_125_clock = true;
+			break;
+		}
+		break;
 	case PHY_INTERFACE_MODE_2500BASEX:
-		enable_core_clocks = true;
-		sp_sel = SPEED_USXGMII_10G_10G;
+		sp_sel = SPEED_SGMII_2500M;
 		break;
 	default:
 		return -ENOTSUPP;
 	}
+
+	if (td->emac0) {
+		nclkctrlx_offset = NCLKCTRL0_OFFSET;
+		macx312clken = CLK0_MAC0312CLKEN;
+		macx125clken = CLK0_MAC0125CLKEN;
+		nemacxctl_offset = NEMAC0CTL_OFFSET;
+	} else {
+		nclkctrlx_offset = NCLKCTRL1_OFFSET;
+		macx312clken = CLK1_MAC1312CLKEN;
+		macx125clken = CLK1_MAC1125CLKEN;
+		nemacxctl_offset = NEMAC1CTL_OFFSET;
+	}
+
+	val = readl(td->sfr + nclkctrlx_offset);
+	FIELD_MODIFY(macx312clken, &val, mac_312_clock);
+	FIELD_MODIFY(macx125clken, &val, mac_125_clock);
+	writel(val, td->sfr + nclkctrlx_offset);
+
+	val = readl(td->sfr + nemacxctl_offset);
+	val |= EMAC_LPIHWCLKEN;
+	val &= ~EMAC_INV_SGM_SIG_DET;
+	FIELD_MODIFY(EMAC_PHY_INF_SEL_MASK, &val, PCS_CLK_PHY);
+	FIELD_MODIFY(EMAC_SP_SEL_MASK, &val, sp_sel);
+	writel(val, td->sfr + nemacxctl_offset);
+
+	return 0;
+}
+
+static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
+{
+	struct plat_stmmacenet_data *plat = td->plat;
+	u32 val;
+
 
 	if (td->emac0) {
 		/* Assertion of EMAC Port0 software Reset */
@@ -947,17 +999,13 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 		/* Enable all clocks to eMAC Port0 */
 		val = readl(td->sfr + NCLKCTRL0_OFFSET);
 		val |= CLK0_MAC0_IO_MASK;
-		if (enable_core_clocks)
-			val &= ~(CLK0_BUS_MASK | CLK0_MAC0_CORE_MASK);
+		if (plat->phy_interface == PHY_INTERFACE_MODE_SGMII ||
+		    plat->phy_interface == PHY_INTERFACE_MODE_2500BASEX)
+			val &= ~CLK0_BUS_MASK;
 		writel(val, td->sfr + NCLKCTRL0_OFFSET);
 
-		/* Interface configuration for port0*/
-		val = readl(td->sfr + NEMAC0CTL_OFFSET);
-		val |= EMAC_LPIHWCLKEN;
-		val &= ~EMAC_INV_SGM_SIG_DET;
-		FIELD_MODIFY(EMAC_PHY_INF_SEL_MASK, &val, PCS_CLK_PHY);
-		FIELD_MODIFY(EMAC_SP_SEL_MASK, &val, sp_sel);
-		writel(val, td->sfr + NEMAC0CTL_OFFSET);
+		/* Set the speed related registers */
+		tc956x_chipcfg_mac_configure(td, td->plat->max_speed);
 
 		/* De-assertion of EMAC Port0  software Reset*/
 		val = readl(td->sfr + NRSTCTRL0_OFFSET);
@@ -972,17 +1020,10 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 		/* Enable all clocks to eMAC Port1 */
 		val = readl(td->sfr + NCLKCTRL1_OFFSET);
 		val |= CLK1_MAC1_IO_MASK | CLK1_MAC1RMCEN;
-		if (enable_core_clocks)
-			val &= ~CLK1_MAC1_CORE_MASK;
 		writel(val, td->sfr + NCLKCTRL1_OFFSET);
 
-		/* Interface configuration for port1*/
-		val = readl(td->sfr + NEMAC1CTL_OFFSET);
-		val |= EMAC_LPIHWCLKEN;
-		val &= ~EMAC_INV_SGM_SIG_DET;
-		FIELD_MODIFY(EMAC_PHY_INF_SEL_MASK, &val, PCS_CLK_PHY);
-		FIELD_MODIFY(EMAC_SP_SEL_MASK, &val, sp_sel);
-		writel(val, td->sfr + NEMAC1CTL_OFFSET);
+		/* Set the speed related registers */
+		tc956x_chipcfg_mac_configure(td, td->plat->max_speed);
 
 		/* De-assertion of EMAC Port1  software Reset */
 		val = readl(td->sfr + NRSTCTRL1_OFFSET);
@@ -1288,62 +1329,8 @@ static struct phylink_pcs *tc956x_select_pcs(struct stmmac_priv *priv,
 static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 {
 	struct tc956x_data *td = bsp_priv;
-	struct plat_stmmacenet_data *plat = td->plat;
-	int ret, reg = 0;
 
-	// TODO: copied from vendor drivers customizations in
-	//       tc956x_speed_change_init_mac()
-
-	if (td->emac0) {
-		/* XXX emac0: td->port_interface = ENABLE_XFI_INTERFACE */
-		/* XXX plat->phy_interface = PHY_INTERFACE_MODE_10GBASER; */
-		/* XXX plat->max_speed = 10000; */
-		/* Enable all clocks to eMAC Port0 */
-		/* Interface configuration for port0*/
-		ret = readl(td->sfr + NEMAC0CTL_OFFSET);
-		ret &= ~EMAC_SP_SEL_MASK;
-		ret &= ~EMAC_PHY_INF_SEL_MASK;
-		ret &= ~EMAC_INV_SGM_SIG_DET;
-		ret |= FIELD_PREP(EMAC_PHY_INF_SEL_MASK, PCS_CLK_PHY);
-		ret |= EMAC_LPIHWCLKEN;
-		writel(ret, td->sfr + NEMAC0CTL_OFFSET);
-		writel(reg, td->sfr + NMISCCTL_OFFSET);
-	} else {
-		/* XXX emac1: td->port_interface = ENABLE_SGMII_INTERFACE; */
-		/* plat->phy_interface = PHY_INTERFACE_MODE_SGMII; */
-		/* plat->max_speed = 2500; */
-		/* Enable all clocks to eMAC Port1 */
-		ret = readl(td->sfr + NCLKCTRL1_OFFSET);
-		if (td->plat->phy_interface == PHY_INTERFACE_MODE_SGMII &&
-		    speed == SPEED_2500) {
-			ret &= ~CLK1_MAC1_CORE_MASK;
-		} else {
-			ret &= ~CLK1_MAC1312CLKEN;
-			ret |= CLK1_MAC1125CLKEN;
-		}
-		writel(ret, td->sfr + NCLKCTRL1_OFFSET);
-
-		/* Interface configuration for port1*/
-		ret = readl(td->sfr + NEMAC1CTL_OFFSET);
-		ret &= ~EMAC_SP_SEL_MASK;
-		ret &= ~EMAC_PHY_INF_SEL_MASK;
-		if (plat->phy_interface == PHY_INTERFACE_MODE_SGMII) {
-			if (speed == SPEED_2500)
-				ret |= FIELD_PREP(EMAC_SP_SEL_MASK,
-						  SPEED_SGMII_2500M);
-			else
-				ret |= FIELD_PREP(EMAC_SP_SEL_MASK,
-						  SPEED_SGMII_1000M);
-		}
-
-		ret &= ~EMAC_INV_SGM_SIG_DET;
-		ret |= FIELD_PREP(EMAC_PHY_INF_SEL_MASK, PCS_CLK_PHY);
-		ret |= EMAC_LPIHWCLKEN;
-		writel(ret, td->sfr + NEMAC1CTL_OFFSET);
-		writel(reg, td->sfr + NMISCCTL_OFFSET);
-
-	}
-
+	WARN_ON(tc956x_chipcfg_mac_configure(td, speed));
 	tc956x_pma_init(td);
 }
 
