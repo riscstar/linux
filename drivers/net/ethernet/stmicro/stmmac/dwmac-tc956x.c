@@ -1415,8 +1415,20 @@ static struct tc956x_data *tc956x_devm_data_create(struct pci_dev *pdev)
 static int tc956x_devm_chip_resets_get(struct tc956x_chip *tc)
 {
 	struct device *dev = tc->primary->dev;
+	int retries = 10;
 
+	/* XXX We don't need any reset except for MSIGEN */
+
+	/*
+	 * We cannot return -EPROBE_DEFER (at least not from function 0) because
+	 * we have already created child devices (including the reset
+	 * controller) so we just have to wait for it to appear.
+	 */
 	tc->mcu_reset = devm_reset_control_get_exclusive(dev, "MCU");
+	while (IS_ERR(tc->mcu_reset) && retries-- > 0) {
+		msleep(10);
+		tc->mcu_reset = devm_reset_control_get_exclusive(dev, "MCU");
+	}
 	if (IS_ERR(tc->mcu_reset))
 		return PTR_ERR(tc->mcu_reset);
 
