@@ -102,8 +102,8 @@ enum tc956x_mac_state {
  * @chip:		Pointer to the containing chip information
  * @regmap:		Register map for SFR region access
  * @mac_reset:		MAC reset control
- * @mac_pma_reset:	MAC PMA reset control
- * @mac_xpcs_reset:	MAC XPCS reset control
+ * @pma_reset:		PMA reset control
+ * @xpcs_reset:		XPCS reset control
  * @mac_state:		Bitmap tracking state of resets
  */
 struct tc956x_data {
@@ -125,8 +125,8 @@ struct tc956x_data {
 	struct tc956x_chip *chip;
 	struct regmap *regmap;
 	struct reset_control *mac_reset;
-	struct reset_control *mac_pma_reset;
-	struct reset_control *mac_xpcs_reset;
+	struct reset_control *pma_reset;
+	struct reset_control *xpcs_reset;
 	DECLARE_BITMAP(mac_state, MAC_STATE_COUNT);
 };
 
@@ -837,7 +837,7 @@ static void tc956x_pma_init(struct tc956x_data *td)
 	u32 val;
 
 	__set_bit(MAC_STATE_PMA_RESET, td->mac_state);
-	reset_control_assert(td->mac_pma_reset);
+	reset_control_assert(td->pma_reset);
 
 	/*Power on CML buffer*/
 	val = readl(pmaaddr + XGMAC_PMA_GL_PM_CFG0);
@@ -864,7 +864,7 @@ static void tc956x_pma_init(struct tc956x_data *td)
 	writel(XGMAC_PMA_OFFSET0, pmaaddr + XGMAC_PMA_HWT_REFCK_TERM_EN_R4);
 
 	__clear_bit(MAC_STATE_PMA_RESET, td->mac_state);
-	reset_control_deassert(td->mac_pma_reset);
+	reset_control_deassert(td->pma_reset);
 
 	/* TODO: Is this the right bit to poll for a PMA only reset? */
 	WARN_ON(readl_poll_timeout(td->sfr + (td->emac0 ? NEMAC0CTL_OFFSET :
@@ -1035,8 +1035,8 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 
 	if (suspend) {
 		reset_control_assert(td->mac_reset);
-		reset_control_assert(td->mac_pma_reset);
-		reset_control_assert(td->mac_xpcs_reset);
+		reset_control_assert(td->pma_reset);
+		reset_control_assert(td->xpcs_reset);
 
 		/* Save current clock state, and disable clocks */
 		val = readl(nclk_reg);
@@ -1068,9 +1068,9 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 
 		/* Restore saved reset state */
 		if (test_bit(MAC_STATE_XPCS_RESET, td->mac_state))
-			reset_control_deassert(td->mac_xpcs_reset);
+			reset_control_deassert(td->xpcs_reset);
 		if (test_bit(MAC_STATE_PMA_RESET, td->mac_state))
-			reset_control_deassert(td->mac_pma_reset);
+			reset_control_deassert(td->pma_reset);
 		if (test_bit(MAC_STATE_MAC_RESET, td->mac_state))
 			reset_control_deassert(td->mac_reset);
 	}
@@ -1532,13 +1532,13 @@ static int tc956x_devm_mac_resets_get(struct tc956x_data *td)
 	if (IS_ERR(td->mac_reset))
 		return PTR_ERR(td->mac_reset);
 
-	td->mac_pma_reset = devm_reset_control_get_exclusive(dev, "MAC_PMA");
-	if (IS_ERR(td->mac_pma_reset))
-		return PTR_ERR(td->mac_pma_reset);
+	td->pma_reset = devm_reset_control_get_exclusive(dev, "PMA");
+	if (IS_ERR(td->pma_reset))
+		return PTR_ERR(td->pma_reset);
 
-	td->mac_xpcs_reset = devm_reset_control_get_exclusive(dev, "MAC_XPCS");
-	if (IS_ERR(td->mac_xpcs_reset))
-		return PTR_ERR(td->mac_xpcs_reset);
+	td->xpcs_reset = devm_reset_control_get_exclusive(dev, "XPCS");
+	if (IS_ERR(td->xpcs_reset))
+		return PTR_ERR(td->xpcs_reset);
 
 	return 0;
 }
@@ -1665,7 +1665,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	tc956x_pma_init(td);
 
 	__clear_bit(MAC_STATE_XPCS_RESET, td->mac_state);
-	reset_control_deassert(td->mac_xpcs_reset);
+	reset_control_deassert(td->xpcs_reset);
 
 	ret = stmmac_dvr_probe(dev, td->plat, &res);
 	if (ret) {
@@ -1683,8 +1683,8 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		}
 
 		reset_control_assert(td->mac_reset);
-		reset_control_assert(td->mac_pma_reset);
-		reset_control_assert(td->mac_xpcs_reset);
+		reset_control_assert(td->pma_reset);
+		reset_control_assert(td->xpcs_reset);
 
 		/* Disable clocks */
 		val = readl(nclk_reg);
@@ -1752,8 +1752,8 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 	}
 
 	reset_control_assert(td->mac_reset);
-	reset_control_assert(td->mac_pma_reset);
-	reset_control_assert(td->mac_xpcs_reset);
+	reset_control_assert(td->pma_reset);
+	reset_control_assert(td->xpcs_reset);
 
 	if (td->emac0) {
 		nclk_reg = td->sfr + NCLKCTRL0_OFFSET;
@@ -1944,7 +1944,7 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 
 	tc956x_pma_init(td);
 	__clear_bit(MAC_STATE_XPCS_RESET, td->mac_state);
-	reset_control_deassert(td->mac_xpcs_reset);
+	reset_control_deassert(td->xpcs_reset);
 
 	return 0;
 

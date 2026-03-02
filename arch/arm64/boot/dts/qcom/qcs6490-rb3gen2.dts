@@ -937,8 +937,8 @@
 					 <&primary 6>,
 					 <&primary 7>;
 				reset-names = "MCU", "MCU1", "INTC",
-						"MSIGEN", "UART0",
-						"MAC", "MAC_PMA", "MAC_XPCS";
+					      "MSIGEN", "UART0",
+					      "MAC", "PMA", "XPCS";
 
 				phy-reset-gpios = <&primary 0 GPIO_ACTIVE_HIGH>;
 
@@ -976,7 +976,7 @@
 				resets = <&primary 8>,
 					 <&primary 9>,
 					 <&primary 10>;
-				reset-names = "MAC", "MAC_PMA", "MAC_XPCS";
+				reset-names = "MAC", "PMA", "XPCS";
 
 				phy-reset-gpios = <&primary 1 GPIO_ACTIVE_HIGH>;
 
