@@ -78,7 +78,6 @@
  * @bridge_config:	Mapped bridge config data (BAR 0)
  * @sfr:		Mapped SFR region (BAR 4)
  * @emac0:		Which eMAC port this is (true: port 0; false: port 1)
- * @port_interface:	Operating more of the port (XFI or SGMII)
  * @pm_saved_emac_rst:	Saved eMAC reset control register value
  * @pm_saved_emac_clk:	Saved eMAC clock control register value
  * @pci_bd:		PCIe bus and device ID
@@ -99,7 +98,6 @@ struct tc956x_data {
 	void __iomem *bridge_config;
 	void __iomem *sfr;
 	bool emac0;
-	u32 port_interface;
 	u32 pm_saved_emac_rst;
 	u32 pm_saved_emac_clk;
 	uint16_t pci_bd;
@@ -195,9 +193,6 @@ static const struct regmap_config tc956x_regmap_config = {
 
 /* XXX This is an invalid value; 0x00000017 is the minimum allowed */
 #define TC956X_AXI4_SLV00_SRC_ADDR_LO_VAL_DEFAULT  (0x0000007FU)
-
-#define ENABLE_XFI_INTERFACE			1 /* XFI/SFI, this is same as USXGMII, except XPCS autoneg disabled */
-#define ENABLE_SGMII_INTERFACE			4
 
 #define CM3_TAMAP_COUNT			4
 
@@ -1123,13 +1118,11 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 
 	switch (plat->phy_interface) {
 	case PHY_INTERFACE_MODE_10GBASER:
-		td->port_interface = ENABLE_XFI_INTERFACE;
 		plat->mac_port_sel_speed = 10000;
 		plat->max_speed = 10000;
 		break;
 	case PHY_INTERFACE_MODE_SGMII:
 	case PHY_INTERFACE_MODE_2500BASEX:
-		td->port_interface = ENABLE_SGMII_INTERFACE;
 		plat->mac_port_sel_speed = 2500;
 		plat->max_speed = 2500;
 		break;
