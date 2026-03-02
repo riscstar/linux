@@ -349,9 +349,11 @@ struct tx956x_shrd_mem {
 
 /* Fields and values for the NEMACxCTL registers */
 #define EMAC_SP_SEL_MASK		GENMASK(3, 0)
-#define SPEED_SGMII_2500M		4
-#define SPEED_SGMII_1000M		5
-#define SPEED_USXGMII_10G_10G		8
+#define SP_SEL_SGMII_2500M		4
+#define SP_SEL_SGMII_1000M		5
+#define SP_SEL_SGMII_100M		6
+#define SP_SEL_SGMII_10M		7
+#define SP_SEL_USXGMII_10G_10G		8
 #define EMAC_PHY_INF_SEL_MASK		GENMASK(5, 4)
 #define PCS_CLK_PLL			0	/* Clock from internal PLL */
 #define PCS_CLK_PHY			1	/* Clock from PHY */
@@ -926,7 +928,7 @@ static int tc956x_chipcfg_mac_configure(struct tc956x_data *td, int speed)
 	case PHY_INTERFACE_MODE_10GBASER:
 		switch (speed) {
 		case SPEED_10000:
-			sp_sel = SPEED_USXGMII_10G_10G;
+			sp_sel = SP_SEL_USXGMII_10G_10G;
 			break;
 		default:
 			return -ENOTSUPP;
@@ -935,16 +937,26 @@ static int tc956x_chipcfg_mac_configure(struct tc956x_data *td, int speed)
 	case PHY_INTERFACE_MODE_SGMII:
 		switch (speed) {
 		case SPEED_2500:
-			sp_sel = SPEED_SGMII_2500M;
+			sp_sel = SP_SEL_SGMII_2500M;
 			break;
-		default:
-			sp_sel = SPEED_SGMII_1000M;
+		case SPEED_1000:
+			sp_sel = SP_SEL_SGMII_1000M;
 			mac_125_clock = true;
 			break;
+		case SPEED_100:
+			sp_sel = SP_SEL_SGMII_100M;
+			mac_125_clock = true;
+			break;
+		case SPEED_10:
+			sp_sel = SP_SEL_SGMII_10M;
+			mac_125_clock = true;
+			break;
+		default:
+			return -ENOTSUPP;
 		}
 		break;
 	case PHY_INTERFACE_MODE_2500BASEX:
-		sp_sel = SPEED_SGMII_2500M;
+		sp_sel = SP_SEL_SGMII_2500M;
 		break;
 	default:
 		return -ENOTSUPP;
