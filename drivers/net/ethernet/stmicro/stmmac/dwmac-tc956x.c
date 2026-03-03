@@ -962,6 +962,7 @@ static int tc956x_chipcfg_mac_configure(struct tc956x_data *td, int speed)
 static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 {
 	struct plat_stmmacenet_data *plat = td->plat;
+	int ret;
 	u32 val;
 
 	__set_bit(MAC_STATE_MAC_RESET, td->mac_state);
@@ -983,7 +984,12 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 	}
 
 	/* Set the speed related registers */
-	tc956x_chipcfg_mac_configure(td, td->plat->max_speed);
+	ret = tc956x_chipcfg_mac_configure(td, plat->max_speed);
+	if (ret)
+		return dev_err_probe(td->dev, ret,
+				     "Cannot configure %s@%dMb/s\n",
+				     phy_modes(plat->phy_interface),
+				     plat->max_speed);
 
 	__clear_bit(MAC_STATE_MAC_RESET, td->mac_state);
 	reset_control_deassert(td->mac_reset);
@@ -1266,7 +1272,9 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 {
 	struct tc956x_data *td = bsp_priv;
 
-	WARN_ON(tc956x_chipcfg_mac_configure(td, speed));
+	WARN(tc956x_chipcfg_mac_configure(td, speed),
+	     "%s@%dMb/s is not supported",
+	     phy_modes(td->plat->phy_interface), speed);
 	tc956x_pma_init(td);
 }
 
