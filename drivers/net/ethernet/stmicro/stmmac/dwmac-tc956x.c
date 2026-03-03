@@ -896,54 +896,41 @@ static uint16_t tc956x_get_shared_mem_offset(struct pci_dev *pdev, uint16_t pci_
 	return 0xFFFF;
 }
 
+struct {
+	phy_interface_t phy_interface;
+	int speed;
+	u32 sp_sel;
+	bool mac_125_clock;
+} tc956x_chipcfg_mac_speed[] = {
+	{ PHY_INTERFACE_MODE_10GBASER, SPEED_10000, SP_SEL_USXGMII_10G_10G },
+	{ PHY_INTERFACE_MODE_SGMII, SPEED_2500, SP_SEL_SGMII_2500M },
+	{ PHY_INTERFACE_MODE_2500BASEX, SPEED_2500, SP_SEL_SGMII_2500M },
+	{ PHY_INTERFACE_MODE_SGMII, SPEED_1000, SP_SEL_SGMII_1000M, true },
+	{ PHY_INTERFACE_MODE_SGMII, SPEED_100, SP_SEL_SGMII_100M, true },
+	{ PHY_INTERFACE_MODE_SGMII, SPEED_10, SP_SEL_SGMII_10M, true },
+
+};
+
 static int tc956x_chipcfg_mac_configure(struct tc956x_data *td, int speed)
 {
 	u32 nclkctrlx_offset, nemacxctl_offset;
 	u32 macx312clken, macx125clken;
 	bool mac_125_clock;
-	u32 sp_sel, val;
+	u32 sp_sel = EMAC_SP_SEL_MASK + 1;
+	u32 val;
 
-	/*
-	 * All paths much set sp_sel, any path that requires the 312/125
-	 * clocks to be enabled must also set that appropriate booleans.
-	 */
-	switch (td->plat->phy_interface) {
-	case PHY_INTERFACE_MODE_10GBASER:
-		switch (speed) {
-		case SPEED_10000:
-			sp_sel = SP_SEL_USXGMII_10G_10G;
+	for (int i=0; i < ARRAY_SIZE(tc956x_chipcfg_mac_speed); i++) {
+		if (tc956x_chipcfg_mac_speed[i].phy_interface ==
+			    td->plat->phy_interface &&
+		    tc956x_chipcfg_mac_speed[i].speed == speed) {
+			sp_sel = tc956x_chipcfg_mac_speed[i].sp_sel;
+			mac_125_clock =
+				tc956x_chipcfg_mac_speed[i].mac_125_clock;
 			break;
-		default:
-			return -ENOTSUPP;
 		}
-		break;
-	case PHY_INTERFACE_MODE_SGMII:
-		switch (speed) {
-		case SPEED_2500:
-			sp_sel = SP_SEL_SGMII_2500M;
-			break;
-		case SPEED_1000:
-			sp_sel = SP_SEL_SGMII_1000M;
-			mac_125_clock = true;
-			break;
-		case SPEED_100:
-			sp_sel = SP_SEL_SGMII_100M;
-			mac_125_clock = true;
-			break;
-		case SPEED_10:
-			sp_sel = SP_SEL_SGMII_10M;
-			mac_125_clock = true;
-			break;
-		default:
-			return -ENOTSUPP;
-		}
-		break;
-	case PHY_INTERFACE_MODE_2500BASEX:
-		sp_sel = SP_SEL_SGMII_2500M;
-		break;
-	default:
-		return -ENOTSUPP;
 	}
+	if (sp_sel & ~EMAC_SP_SEL_MASK)
+		return -ENOTSUPP;
 
 	if (td->emac0) {
 		nclkctrlx_offset = NCLKCTRL0_OFFSET;
