@@ -898,9 +898,9 @@ static uint16_t tc956x_get_shared_mem_offset(struct pci_dev *pdev, uint16_t pci_
 
 static int tc956x_chipcfg_mac_configure(struct tc956x_data *td, int speed)
 {
-	bool mac_312_clock = false, mac_125_clock = false;
 	u32 nclkctrlx_offset, nemacxctl_offset;
 	u32 macx312clken, macx125clken;
+	bool mac_125_clock;
 	u32 sp_sel, val;
 
 	/*
@@ -958,7 +958,7 @@ static int tc956x_chipcfg_mac_configure(struct tc956x_data *td, int speed)
 	}
 
 	val = readl(td->sfr + nclkctrlx_offset);
-	FIELD_MODIFY(macx312clken, &val, mac_312_clock);
+	FIELD_MODIFY(macx312clken, &val, 0);
 	FIELD_MODIFY(macx125clken, &val, mac_125_clock);
 	writel(val, td->sfr + nclkctrlx_offset);
 
