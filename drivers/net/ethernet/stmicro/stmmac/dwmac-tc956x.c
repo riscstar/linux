@@ -988,18 +988,15 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 		    plat->phy_interface == PHY_INTERFACE_MODE_2500BASEX)
 			val &= ~CLK0_BUS_MASK;
 		writel(val, td->sfr + NCLKCTRL0_OFFSET);
-
-		/* Set the speed related registers */
-		tc956x_chipcfg_mac_configure(td, td->plat->max_speed);
 	} else {
 		/* Enable all clocks to eMAC Port1 */
 		val = readl(td->sfr + NCLKCTRL1_OFFSET);
 		val |= CLK1_MAC1_IO_MASK | CLK1_MAC1RMCEN;
 		writel(val, td->sfr + NCLKCTRL1_OFFSET);
-
-		/* Set the speed related registers */
-		tc956x_chipcfg_mac_configure(td, td->plat->max_speed);
 	}
+
+	/* Set the speed related registers */
+	tc956x_chipcfg_mac_configure(td, td->plat->max_speed);
 
 	__clear_bit(MAC_STATE_MAC_RESET, td->mac_state);
 	reset_control_deassert(td->mac_reset);
