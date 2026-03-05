@@ -327,21 +327,18 @@ struct tx956x_shrd_mem {
 #define TC956X_MSI_VECT_SET5_OFFSET	0x0034
 #define TC956X_MSI_VECT_SET6_OFFSET	0x0038
 #define TC956X_MSI_VECT_SET7_OFFSET	0x003C
-
-#define TC956X_MSI_OUT_EN_CLR	(0x00000000)
+#define TC956X_SW_MSI_CLR		0x0054
 
 #define TC956X_MSI_OUT_EN (0x0017FFF8)
-
-#define TC956X_MSI_MASK_SET	(0xFFFFFFFE)
-#define TC956X_MSI_MASK_CLR	(0x00000001)
-#define TC956X_MSI_SET0		(0x00000000)
-#define TC956X_MSI_SET1		(0x00000000)
-#define TC956X_MSI_SET2		(0x00000000)
-#define TC956X_MSI_SET3		(0x00000000)
-#define TC956X_MSI_SET4		(0x00000000)
-#define TC956X_MSI_SET5		(0x00000000)
-#define TC956X_MSI_SET6		(0x00000000)
-#define TC956X_MSI_SET7		(0x00000000)
+#define TC956X_MSI_OUT_EN_LPI_INT	BIT(0)
+#define TC956X_MSI_OUT_EN_PMT_INT	BIT(1)
+#define TC956X_MSI_OUT_EN_EVENT_INT	BIT(2)
+#define TC956X_MSI_OUT_EN_TX_INT_MASK	GENMASK(10, 3)
+#define TC956X_MSI_OUT_EN_RX_INT_MASK	GENMASK(18, 11)
+#define TC956X_MSI_OUT_EN_XPCS_INT	BIT(19)
+#define TC956X_MSI_OUT_EN_ETH_INT	BIT(20) /* PHY interrupt */
+#define TC956X_MSI_OUT_EN_PFMAILBOX_INT	BIT(21)
+#define TC956X_MSI_OUT_EN_MSIREQ_PLS	BIT(24)
 
 /* EMAC control registers for ports 0 and 1 (both have same format) */
 #define NEMAC0CTL_OFFSET		0x1070
@@ -372,16 +369,6 @@ struct tx956x_shrd_mem {
 #define GPIO_00_FUNC		0
 #define NFUNCEN4_GPIO_01_MASK	GENMASK(7, 4)
 #define GPIO_01_FUNC		0
-
-/* MSIGEN Registers */
-
-#define MSI_INT_TX_CH0		 3
-#define MSI_INT_RX_CH0		11
-#define MSI_INT_EXT_PHY		20
-
-#ifdef TC956X_SW_MSI
-#define MSI_INT_SW_MSI		24
-#endif
 
 //
 // Code from tc956x_main.c in vendor driver
@@ -445,54 +432,44 @@ static int tc956x_assert_phy_reset(struct tc956x_data *td, bool assert)
  * Configure clocks and resets, and sets the mask and interrupt source
  * to MSI vector mapping.
  */
-static void tc956x_msigen_init(struct stmmac_priv *priv, struct net_device *dev)
+static void tc956x_msigen_init(struct tc956x_data *td)
 {
-	struct tc956x_data *td = priv->plat->bsp_priv;
-	void __iomem *addr;
-	void __iomem *base;
+	void __iomem *msigen = td->sfr + MSIGEN_BASE(td->emac0 ? 0 : 1);
 	u32 val;
 
-	addr = td->sfr + NCLKCTRL0_OFFSET;
 
-	/* XXX Is this conditional on eMAC0, or on the first to initialize? */
-	if (td->emac0)
-		val |= CLK0_MAC0_CORE_MASK;
-	val |= CLK0_BUS_MASK;
-
-	/* Enable MSIGEN Module */
-	val = readl(addr);
+	/* Enable MSIGEN Module*/
+	val = readl(td->sfr + NCLKCTRL0_OFFSET);
 	val |= TC956X_MSIGENCEN;
-	writel(val, addr);
+	writel(val, td->sfr + NCLKCTRL0_OFFSET);
 
+	/*
+	 * TODO: Ideally msigen_reset should be shared by each MAC (rather than
+	 *       exclusively owned by the chip). That would make it possible to
+	 *       have a matching reset_control_assert() somewhere.
+	 */
 	reset_control_deassert(td->chip->msigen_reset);
 
-	/* Initialize MSIGEN */
+	/* Ensure no interrupts are raised */
+	writel(0, msigen + TC956X_MSI_OUT_EN_OFFSET);
+	writel(1, msigen + TC956X_SW_MSI_CLR);
 
-	base = td->sfr + MSIGEN_BASE(td->emac0 ? 0 : 1);
-	writel(TC956X_MSI_OUT_EN_CLR, base + TC956X_MSI_OUT_EN_OFFSET);
-	writel(TC956X_MSI_MASK_SET, base + TC956X_MSI_MASK_SET_OFFSET);
-	writel(TC956X_MSI_MASK_CLR, base + TC956X_MSI_MASK_CLR_OFFSET);
-	/* DMA Ch Tx-Rx Interrupt sources are assigned to Vector 0,
-	 * All other Interrupt sources are assigned to Vector 1
+	/*
+	 * Enable only those MSI vectors that are routed by the VECT_SETx
+	 * settings below (currently only vector #0 is used).
 	 */
-	writel(TC956X_MSI_SET0, base + TC956X_MSI_VECT_SET0_OFFSET);
-	writel(TC956X_MSI_SET1, base + TC956X_MSI_VECT_SET1_OFFSET);
-	writel(TC956X_MSI_SET2, base + TC956X_MSI_VECT_SET2_OFFSET);
-	writel(TC956X_MSI_SET3, base + TC956X_MSI_VECT_SET3_OFFSET);
-	writel(TC956X_MSI_SET4, base + TC956X_MSI_VECT_SET4_OFFSET);
-	writel(TC956X_MSI_SET5, base + TC956X_MSI_VECT_SET5_OFFSET);
-	writel(TC956X_MSI_SET6, base + TC956X_MSI_VECT_SET6_OFFSET);
-	writel(TC956X_MSI_SET7, base + TC956X_MSI_VECT_SET7_OFFSET);
-}
+	writel(0xffffffff, msigen + TC956X_MSI_MASK_SET_OFFSET);
+	writel(BIT(0), msigen + TC956X_MSI_MASK_CLR_OFFSET);
 
-static u32 tc956x_interrupt_sts(struct stmmac_priv *priv, struct net_device *dev)
-{
-	struct tc956x_data *td = priv->plat->bsp_priv;
-	void __iomem *base;
-
-	base = td->sfr + MSIGEN_BASE(td->emac0 ? 0 : 1);
-
-	return readl(base + TC956X_MSI_INT_STS_OFFSET);
+	/* Assign everything to vector #0 */
+	writel(0, msigen + TC956X_MSI_VECT_SET0_OFFSET);
+	writel(0, msigen + TC956X_MSI_VECT_SET1_OFFSET);
+	writel(0, msigen + TC956X_MSI_VECT_SET2_OFFSET);
+	writel(0, msigen + TC956X_MSI_VECT_SET3_OFFSET);
+	writel(0, msigen + TC956X_MSI_VECT_SET4_OFFSET);
+	writel(0, msigen + TC956X_MSI_VECT_SET5_OFFSET);
+	writel(0, msigen + TC956X_MSI_VECT_SET6_OFFSET);
+	writel(0, msigen + TC956X_MSI_VECT_SET7_OFFSET);
 }
 
 /**
@@ -503,57 +480,29 @@ static u32 tc956x_interrupt_sts(struct stmmac_priv *priv, struct net_device *dev
  */
 static void tc956x_interrupt_en(struct stmmac_priv *priv, struct net_device *dev, u32 en)
 {
-	struct tc956x_data *td = priv->plat->bsp_priv;
-	void __iomem *base;
-	u32 mask_val = 0;
+	struct plat_stmmacenet_data *plat = priv->plat;
+	struct tc956x_data *td = plat->bsp_priv;
+	void __iomem *msigen = td->sfr + MSIGEN_BASE(td->emac0 ? 0 : 1);
+	u32 val = 0;
 
-#if 0
-	// This table is copied from tc956xmac_main.c and is almost certainly
-	// wrong in some way (subtle or otherwise)
-	bool tx_ch_in_use[8];		bool rx_ch_in_use[8];
-	tx_ch_in_use[0] = true;		rx_ch_in_use[0] = true;
-	tx_ch_in_use[1] = false;	rx_ch_in_use[1] = false;
-	tx_ch_in_use[2] = false;	rx_ch_in_use[2] = false;
-	tx_ch_in_use[3] = false;	rx_ch_in_use[3] = true;
-	tx_ch_in_use[4] = true;		rx_ch_in_use[4] = true;
-	rx_ch_in_use[5] = true;		tx_ch_in_use[5] = true;
-	rx_ch_in_use[6] = true;		tx_ch_in_use[6] = true;
-	rx_ch_in_use[7] = true;		tx_ch_in_use[7] = true;
-#endif
-
-	base = td->sfr + MSIGEN_BASE(td->emac0 ? 0 : 1);
 	if (en) {
-		/*
-		 * TODO: This logic was intended to avoid enabling interrupts
-		 *       that shouldn't fire (and therefore won't be serviced
-		 *       properly). When/if writing an irqchip driver it should
-		 *       probably be ported... which is why isn't not been
-		 *       deleted yet. The effect is that all interrupts are
-		 *       jammed on.
-		 */
+		val = FIELD_PREP(TC956X_MSI_OUT_EN_RX_INT_MASK,
+				 GENMASK(plat->rx_queues_to_use - 1, 0));
+		val |= FIELD_PREP(TC956X_MSI_OUT_EN_TX_INT_MASK,
+				  GENMASK(plat->tx_queues_to_use - 1, 0));
 #if 0
-		u32 chan;
-		/* Disable MSI for Tx/Rx channels that is not enabled in the Function */
-		for (chan = 0; chan < priv->plat->tx_queues_to_use; chan++)
-			if (!tx_ch_in_use[chan])
-				mask_val |= (1 << (MSI_INT_TX_CH0 + chan));
-
-		for (chan = 0; chan < priv->plat->rx_queues_to_use; chan++) {
-			if (!rx_ch_in_use[chan])
-				mask_val |= (1 << (MSI_INT_RX_CH0 + chan));
-		}
-		if (priv->dev->phydev != NULL) {
-			/* PHY MSI interrupt enabled */
-			mask_val &= ~(1 << MSI_INT_EXT_PHY);
-		} else
-			mask_val |= (1 << MSI_INT_EXT_PHY); /* Disable PHY interrupt on PHY absence */
+		/*
+		 * TODO: Currently we are polling the PHY because we don't want
+		 *       to hack MSI acknowledge logic to the phy driver (we
+		 *       can wait for proper irqchip support.
+		 */
+		if (priv->dev->phydev != NULL)
+			val |= TC956X_MSI_OUT_EN_ETH_INT;
 #endif
 
-		mask_val = TC956X_MSI_OUT_EN & (~mask_val);
-
-		writel(mask_val, base + TC956X_MSI_OUT_EN_OFFSET);
+		writel(val, msigen + TC956X_MSI_OUT_EN_OFFSET);
 	} else
-		writel(TC956X_MSI_OUT_EN_CLR, base + TC956X_MSI_OUT_EN_OFFSET);
+		writel(0, msigen + TC956X_MSI_OUT_EN_OFFSET);
 }
 
 /**
@@ -567,15 +516,11 @@ static void tc956x_interrupt_en(struct stmmac_priv *priv, struct net_device *dev
 static void tc956x_interrupt_clr(struct stmmac_priv *priv, struct net_device *dev, u32 vector)
 {
 	struct tc956x_data *td = priv->plat->bsp_priv;
-	void __iomem *base;
-
-	base = td->sfr + MSIGEN_BASE(td->emac0 ? 0 : 1);
-	writel((1<<vector), base + TC956X_MSI_MASK_CLR_OFFSET);
+	void __iomem *msigen = td->sfr + MSIGEN_BASE(td->emac0 ? 0 : 1);
+	writel((1 << vector), msigen + TC956X_MSI_MASK_CLR_OFFSET);
 }
 
 const struct tc956x_msi_ops tc956x_msigen_ops = {
-	.init		= tc956x_msigen_init,
-	.interrupt_sts	= tc956x_interrupt_sts,
 	.interrupt_en	= tc956x_interrupt_en,
 	.interrupt_clr	= tc956x_interrupt_clr,
 };
@@ -1651,6 +1596,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		goto err_platform_probe;
 	}
 
+	tc956x_msigen_init(td);
 	ret = tc956x_chipcfg_mac_init(td);
 	if (ret < 0)
 		goto err_platform_probe;

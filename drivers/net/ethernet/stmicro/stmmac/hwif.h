@@ -672,8 +672,6 @@ struct stmmac_vlan_ops {
 
 #ifdef TC956X
 struct tc956x_msi_ops {
-	void (*init)(struct stmmac_priv *priv, struct net_device *dev);
-	u32 (*interrupt_sts)(struct stmmac_priv *priv, struct net_device *dev);
 	void (*interrupt_en)(struct stmmac_priv *priv, struct net_device *dev, u32 en);
 	void (*interrupt_clr)(struct stmmac_priv *priv, struct net_device *dev, u32 vector);
 };
