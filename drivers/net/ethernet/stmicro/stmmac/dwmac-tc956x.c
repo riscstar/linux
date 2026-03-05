@@ -1118,42 +1118,43 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 
 	plat->unicast_filter_entries = 32;
 
-	/*
-	 * TODO:
-	 * These values come from the QPS615 TRM. Sadly setting them results
-	 * in a significant performance regression on iperf3 -R tests.
-	 */
-	//plat->tx_fifo_size = 46 * SZ_1K;
-	//plat->rx_fifo_size = 46 * SZ_1K;
-
 	plat->dma_cfg->pbl = 32;
 	plat->dma_cfg->pblx8 = true;
 
-	plat->rx_queues_to_use = 8;
+	/*
+	 * TC956x has 8 RX queues but we observe significantly reduced RX
+	 * bandwidth if we don't have at least 8k FIFO space per queue, so
+	 * by default we avoid using all the queues.
+	 */
+	plat->rx_queues_to_use = 4;
 	plat->rx_sched_algorithm = MTL_RX_ALGORITHM_SP;
 
 	for (int i = 0; i < plat->rx_queues_to_use; i++) {
-		/* Copied from socfpga_agilex5.dtsi */
 		plat->rx_queues_cfg[i].mode_to_use = MTL_QUEUE_DCB;
 	}
 
 	/*
-	 * TODO: tx_queues_to_use would normally be set to 8. However functional
-	 *       reliability becomes poor (DHCP fails to get IP address or, if
-	 *       it gets an address, ping does not work) if tx_queues_to_use >3
+	 * TX956x has 8 TX queues. However failures are observed (DHCP does not
+	 * get an IP address or ping does fails) if tx_queues_to_use >3
 	 */
 	plat->tx_queues_to_use = 3;
 	plat->tx_sched_algorithm = MTL_TX_ALGORITHM_WRR;
 
 	for (int i = 0; i < plat->tx_queues_to_use; i++) {
-		/* Copied from socfpga_agilex5.dtsi */
-		plat->tx_queues_cfg[i].weight = 9 + i;
+		plat->tx_queues_cfg[i].weight = 12;
 		plat->tx_queues_cfg[i].mode_to_use = MTL_QUEUE_DCB;
 
 		/* Tx Queues 0 - 4 doesn't support TBS on TC956x */
 		if (i >= 5)
 			plat->tx_queues_cfg[i].tbs_en = true;
 	}
+
+	/*
+	 * Oversized FIFOs result in reduced performance in bandwidth tests.
+	 * Let's limit them either to 8KiB unless they must be smaller.
+	 */
+	plat->tx_fifo_size = min(plat->tx_queues_to_use * 8, 46) * SZ_1K;
+	plat->rx_fifo_size = min(plat->rx_queues_to_use * 8, 46) * SZ_1K;
 
 	/* AXI Configuration */
 	plat->axi = devm_kzalloc(&pdev->dev, sizeof(*plat->axi), GFP_KERNEL);
