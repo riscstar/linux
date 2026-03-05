@@ -1116,6 +1116,80 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 	return 0;
 }
 
+static void tc956x_dma_init_rx_chan(struct stmmac_priv *priv,
+				      void __iomem *ioaddr,
+				      struct stmmac_dma_cfg *dma_cfg,
+				      dma_addr_t phy, u32 chan)
+{
+	u32 rxpbl = dma_cfg->rxpbl ?: dma_cfg->pbl;
+	u32 value;
+
+	value = readl(ioaddr + XGMAC_DMA_CH_RX_CONTROL(chan));
+	value = u32_replace_bits(value, rxpbl, XGMAC_RxPBL);
+	writel(value, ioaddr + XGMAC_DMA_CH_RX_CONTROL(chan));
+
+	writel(upper_32_bits(phy) + upper_32_bits(TC956X_AXI4_SLV00_SRC_ADDR),
+	       ioaddr + XGMAC_DMA_CH_RxDESC_HADDR(chan));
+	writel(lower_32_bits(phy), ioaddr + XGMAC_DMA_CH_RxDESC_LADDR(chan));
+}
+
+static void tc956x_dma_init_tx_chan(struct stmmac_priv *priv,
+				      void __iomem *ioaddr,
+				      struct stmmac_dma_cfg *dma_cfg,
+				      dma_addr_t phy, u32 chan)
+{
+	u32 txpbl = dma_cfg->txpbl ?: dma_cfg->pbl;
+	u32 value;
+
+	value = readl(ioaddr + XGMAC_DMA_CH_TX_CONTROL(chan));
+	value = u32_replace_bits(value, txpbl, XGMAC_TxPBL);
+	writel(value, ioaddr + XGMAC_DMA_CH_TX_CONTROL(chan));
+
+	writel(upper_32_bits(phy) + upper_32_bits(TC956X_AXI4_SLV00_SRC_ADDR),
+	       ioaddr + XGMAC_DMA_CH_TxDESC_HADDR(chan));
+	writel(lower_32_bits(phy), ioaddr + XGMAC_DMA_CH_TxDESC_LADDR(chan));
+}
+
+static void tc956x_desc_set_addr(struct dma_desc *p, dma_addr_t addr)
+{
+	p->des0 = cpu_to_le32(lower_32_bits(addr));
+	p->des1 = cpu_to_le32(upper_32_bits(addr) +
+			      upper_32_bits(TC956X_AXI4_SLV00_SRC_ADDR));
+}
+
+static void tc956x_desc_set_sec_addr(struct dma_desc *p, dma_addr_t addr, bool is_valid)
+{
+	p->des2 = cpu_to_le32(lower_32_bits(addr));
+	p->des3 = cpu_to_le32(upper_32_bits(addr) +
+			      upper_32_bits(TC956X_AXI4_SLV00_SRC_ADDR));
+}
+
+
+
+static int tc956x_mac_setup(void *apriv, struct mac_device_info *mac) {
+	struct stmmac_priv *priv = apriv;
+	struct {
+		struct stmmac_dma_ops dma;
+		struct stmmac_desc_ops desc;
+	} *ops;
+
+	ops = devm_kzalloc(priv->device, sizeof(*ops), GFP_KERNEL);
+	if (!ops)
+		return -ENOMEM;
+
+	ops->dma = dwxgmac210_dma_ops;
+	ops->dma.init_rx_chan = tc956x_dma_init_rx_chan;
+	ops->dma.init_tx_chan = tc956x_dma_init_tx_chan;
+	mac->dma = &ops->dma;
+
+	ops->desc = dwxgmac210_desc_ops;
+	ops->desc.set_addr = tc956x_desc_set_addr;
+	ops->desc.set_sec_addr = tc956x_desc_set_sec_addr;
+	mac->desc = &ops->desc;
+
+	return 0;
+}
+
 /**
  * tc956x_config_tamap() - Populate the table address map registers
  * @td:		TC956x driver private data pointer
@@ -1264,6 +1338,7 @@ tc956x_plat_dat_alloc(struct tc956x_data *td, struct pci_dev *pdev)
 
 	plat->bsp_priv = td;
 	plat->bus_id = pci_dev_id(pdev);
+	plat->mac_setup = tc956x_mac_setup;
 	plat->fix_mac_speed = tc956x_fix_mac_speed;
 	plat->pcs_init = tc956x_pcs_init;
 	plat->select_pcs = tc956x_select_pcs;

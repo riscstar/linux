@@ -66,11 +66,7 @@ static void dwxgmac2_dma_init_rx_chan(struct stmmac_priv *priv,
 	value = u32_replace_bits(value, rxpbl, XGMAC_RxPBL);
 	writel(value, ioaddr + XGMAC_DMA_CH_RX_CONTROL(chan));
 
-#ifdef TC956X
-	writel(TC956X_HOST_PHYSICAL_ADRS_MASK | upper_32_bits(phy), ioaddr + XGMAC_DMA_CH_RxDESC_HADDR(chan));
-#else
 	writel(upper_32_bits(phy), ioaddr + XGMAC_DMA_CH_RxDESC_HADDR(chan));
-#endif
 	writel(lower_32_bits(phy), ioaddr + XGMAC_DMA_CH_RxDESC_LADDR(chan));
 }
 
@@ -86,11 +82,7 @@ static void dwxgmac2_dma_init_tx_chan(struct stmmac_priv *priv,
 	value = u32_replace_bits(value, txpbl, XGMAC_TxPBL);
 	writel(value, ioaddr + XGMAC_DMA_CH_TX_CONTROL(chan));
 
-#ifdef TC956X
-	writel(TC956X_HOST_PHYSICAL_ADRS_MASK | upper_32_bits(phy), ioaddr + XGMAC_DMA_CH_TxDESC_HADDR(chan));
-#else
 	writel(upper_32_bits(phy), ioaddr + XGMAC_DMA_CH_TxDESC_HADDR(chan));
-#endif
 	writel(lower_32_bits(phy), ioaddr + XGMAC_DMA_CH_TxDESC_LADDR(chan));
 }
 

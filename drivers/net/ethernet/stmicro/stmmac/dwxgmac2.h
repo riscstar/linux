@@ -462,10 +462,6 @@
 #define XGMAC_ET_LT_DVLAN_CTAG_STAG	12
 #define XGMAC_ET_LT_DVLAN_STAG_CTAG	13
 
-#ifdef TC956X
-#define TC956X_HOST_PHYSICAL_ADRS_MASK (0x10) /* bit no 37: (1<<36) */
-#endif
-
 extern const struct stmmac_ops dwxgmac210_ops;
 extern const struct stmmac_ops dwxlgmac2_ops;
 extern const struct stmmac_dma_ops dwxgmac210_dma_ops;
