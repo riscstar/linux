@@ -832,7 +832,6 @@ static void tc956x_pma_init(struct tc956x_data *td)
 	__clear_bit(MAC_STATE_PMA_RESET, td->mac_state);
 	reset_control_deassert(td->pma_reset);
 
-	/* TODO: Is this the right bit to poll for a PMA only reset? */
 	WARN_ON(readl_poll_timeout(td->sfr + (td->emac0 ? NEMAC0CTL_OFFSET :
 							  NEMAC1CTL_OFFSET),
 				   val, val & EMAC_INIT_DONE, 50, 1000000));
