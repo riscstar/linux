@@ -92,7 +92,6 @@ enum tc956x_mac_state {
  * @sfr:		Mapped SFR region (BAR 4)
  * @emac0:		Which eMAC port this is (true: port 0; false: port 1)
  * @pm_saved_emac_clk:	Saved eMAC clock control register value
- * @pci_bd:		PCIe bus and device ID
  * @pinctrl:		Pin control structure
  * @pinctrl_default:	Pin control default value
  * @phy_supply:		PHY supply egulator
@@ -116,7 +115,6 @@ struct tc956x_data {
 	void __iomem *sfr;
 	bool emac0;
 	u32 pm_saved_emac_clk;
-	uint16_t pci_bd;
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *pinctrl_default;
 	struct regulator *phy_supply;
@@ -235,15 +233,6 @@ static const struct regmap_config tc956x_regmap_config = {
 #define TC956X_AXI4_SLV00_SRC_ADDR_LO_VAL_DEFAULT  (0x0000007FU)
 
 #define CM3_TAMAP_COUNT			4
-
-//
-// Definitions taken from tc956xmac_inc.h in vendor driver
-//
-
-struct tx956x_shrd_mem {
-	uint16_t pci_bd;
-	uint16_t pci_dev_active_cnt;
-};
 
 //
 // Definitions taken from common.h in vendor driver
@@ -844,26 +833,6 @@ static void tc956x_pma_init(struct tc956x_data *td)
 //
 // Code from tc956x_pci.c in vendor driver
 //
-
-struct tx956x_shrd_mem tx956x_pci_shrd_mem[TC956X_TOT_CASCADE_DEV];
-
-static uint16_t tc956x_get_shared_mem_offset(struct pci_dev *pdev, uint16_t pci_bd)
-{
-	struct device *dev = &pdev->dev;
-	uint16_t offset;
-
-	for (offset = 0; offset < TC956X_TOT_CASCADE_DEV; offset++) {
-		if (tx956x_pci_shrd_mem[offset].pci_bd == 0) {
-			tx956x_pci_shrd_mem[offset].pci_bd = pci_bd;
-			dev_dbg(dev, "New shared memory offset %d allocated\n", offset);
-			return offset;	/* Free memory is available */
-		} else if (tx956x_pci_shrd_mem[offset].pci_bd == pci_bd) {
-			dev_dbg(dev, "Existing shared memory offset %d found\n", offset);
-			return offset;	/* Allocated memory found */
-		}
-	}
-	return 0xFFFF;
-}
 
 struct {
 	phy_interface_t phy_interface;
@@ -1764,14 +1733,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	td->plat->mdio_bus_data->probed_phy_irq =
 		irq_create_mapping(irq_domain, TC956X_HWIRQ_ETH);
 
-	sh_mem_offset = tc956x_get_shared_mem_offset(pdev, pci_dev_id(pdev) & TC956X_PCI_BD_MASK);
-	if (sh_mem_offset < TC956X_TOT_CASCADE_DEV) {
-		td->pci_bd  = sh_mem_offset;
-	} else {
-		dev_err(dev, "Error finding shared memory\n");
-		goto err_out_msi_failed;
-	}
-
 	ret = tc956x_platform_probe(td, &res);
 	if (ret) {
 		dev_err(dev, "Platform (DT) code failed\n");
@@ -1814,9 +1775,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		if (ret != -ENODEV)
 			goto err_dvr_probe;
 	}
-
-	/* Increment device usage counter */
-	tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt++;
 
 	return 0;
 
@@ -1904,9 +1862,6 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 
 	td->sfr = NULL;
 	td->bridge_config = NULL;
-
-	/* Decrement device usage counter */
-	tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt--;
 }
 
 /**
@@ -2015,8 +1970,6 @@ static int tc956x_pcie_suspend(struct device *dev)
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	int ret;
 
-	tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt--;
-
 	stmmac_suspend(dev);
 	ret = tc956x_platform_suspend(priv);
 	if (ret) {
@@ -2117,9 +2070,6 @@ static int tc956x_pcie_resume(struct device *dev)
 
 	/* Call stmmac_resume() */
 	stmmac_resume(dev);
-
-	/* Increment device usage counter */
-	tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt++;
 
 	return 0;
 }
