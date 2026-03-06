@@ -1254,7 +1254,8 @@ static int tc956x_mac_setup(void *apriv, struct mac_device_info *mac) {
 	ops->desc.set_sec_addr = tc956x_desc_set_sec_addr;
 	mac->desc = &ops->desc;
 
-	return 0;
+	priv->hw = mac;
+	return dwxgmac2_setup(priv);
 }
 
 /**
