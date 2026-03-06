@@ -1857,9 +1857,6 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 
 	/* Free allocated interrupt vectors for device */
 	pci_free_irq_vectors(pdev);
-
-	td->sfr = NULL;
-	td->bridge_config = NULL;
 }
 
 /**
