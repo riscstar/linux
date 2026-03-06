@@ -670,22 +670,6 @@ struct stmmac_vlan_ops {
 #define stmmac_restore_hw_vlan_rx_fltr(__priv, __args...) \
 	stmmac_do_void_callback(__priv, vlan, restore_hw_vlan_rx_fltr, __args)
 
-#ifdef TC956X
-struct tc956x_msi_ops {
-	void (*interrupt_en)(struct stmmac_priv *priv, struct net_device *dev, u32 en);
-	void (*interrupt_clr)(struct stmmac_priv *priv, struct net_device *dev, u32 vector);
-};
-
-#define tc956x_msi_init(__priv, __args...) \
-	stmmac_do_void_callback(__priv, msi, init, __args)
-#define tc956x_msi_intr_sts(__priv, __args...)  \
-	stmmac_do_void_callback(__priv, msi, interrupt_sts, __args)
-#define tc956x_msi_intr_en(__priv, __args...) \
-	stmmac_do_void_callback(__priv, msi, interrupt_en, __args)
-#define tc956x_msi_intr_clr(__priv, __args...) \
-	stmmac_do_void_callback(__priv, msi, interrupt_clr, __args)
-#endif // TC956X
-
 struct stmmac_regs_off {
 	const struct stmmac_fpe_reg *fpe_reg;
 	u32 ptp_off;

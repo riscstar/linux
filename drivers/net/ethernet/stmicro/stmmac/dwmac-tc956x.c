@@ -309,11 +309,7 @@ struct tx956x_shrd_mem {
 
 /* MSIGEN Registers */
 
-#define TC956X_MSI_BASE		0xf000
-
-/* Each PCIe function has a block of registers this far apart */
-#define MSIGEN_STRIDE		0x0100
-#define MSIGEN_BASE(pf_id)	(TC956X_MSI_BASE + (pf_id) * MSIGEN_STRIDE)
+#define TC956X_MSIGEN_BASE(pf_id)	(0x00f000 + (pf_id) * 0x0100)
 
 #define TC956X_MSI_OUT_EN_OFFSET	0x0000
 #define TC956X_MSI_MASK_SET_OFFSET	0x0008
@@ -329,16 +325,17 @@ struct tx956x_shrd_mem {
 #define TC956X_MSI_VECT_SET7_OFFSET	0x003C
 #define TC956X_SW_MSI_CLR		0x0054
 
-#define TC956X_MSI_OUT_EN (0x0017FFF8)
-#define TC956X_MSI_OUT_EN_LPI_INT	BIT(0)
-#define TC956X_MSI_OUT_EN_PMT_INT	BIT(1)
-#define TC956X_MSI_OUT_EN_EVENT_INT	BIT(2)
-#define TC956X_MSI_OUT_EN_TX_INT_MASK	GENMASK(10, 3)
-#define TC956X_MSI_OUT_EN_RX_INT_MASK	GENMASK(18, 11)
-#define TC956X_MSI_OUT_EN_XPCS_INT	BIT(19)
-#define TC956X_MSI_OUT_EN_ETH_INT	BIT(20) /* PHY interrupt */
-#define TC956X_MSI_OUT_EN_PFMAILBOX_INT	BIT(21)
-#define TC956X_MSI_OUT_EN_MSIREQ_PLS	BIT(24)
+#define TC956X_HWIRQ_LPI		0
+#define TC956X_HWIRQ_PMT		1
+#define TC956X_HWIRQ_EVENT		2
+#define TC956X_HWIRQ_TX0		3
+#define TC956X_HWIRQ_RX0		11
+#define TC956X_HWIRQ_XPCS		19
+#define TC956X_HWIRQ_ETH		20 /* PHY interrupt */
+#define TC956X_HWIRQ_PFMAILBOX		21
+#define TC956X_HWIRQ_MSIREQ_PLS		24
+
+#define TC956X_NR_HWIRQ			25
 
 /* EMAC control registers for ports 0 and 1 (both have same format) */
 #define NEMAC0CTL_OFFSET		0x1070
@@ -424,106 +421,130 @@ static int tc956x_assert_phy_reset(struct tc956x_data *td, bool assert)
 // Code from tc956x_msigen.c in vendor driver
 //
 
-/**
- * tc956x_msigen_init() - Initialize and configure the MSIGEN module
- * @priv:	STMMAC driver private data pointer
- * @dev:	Net device pointer
- *
- * Configure clocks and resets, and sets the mask and interrupt source
- * to MSI vector mapping.
- */
-static void tc956x_msigen_init(struct tc956x_data *td)
+struct tc956x_msigen_data {
+	void __iomem *regs;
+	int irq;
+};
+
+static void tc956x_msigen_irq_handler(struct irq_desc *desc)
 {
-	void __iomem *msigen = td->sfr + MSIGEN_BASE(td->emac0 ? 0 : 1);
-	u32 val;
+	struct irq_domain *d = irq_desc_get_handler_data(desc);
+	struct irq_chip_generic *gc = irq_get_domain_generic_chip(d, 0);
+	struct irq_chip *chip = irq_desc_get_chip(desc);
+	unsigned long sts;
+	unsigned int hwirq;
 
+	chained_irq_enter(chip, desc);
 
-	/* Enable MSIGEN Module*/
-	val = readl(td->sfr + NCLKCTRL0_OFFSET);
-	val |= TC956X_MSIGENCEN;
-	writel(val, td->sfr + NCLKCTRL0_OFFSET);
+	sts = irq_reg_readl(gc, TC956X_MSI_INT_STS_OFFSET);
+	if (sts)
+		for_each_set_bit(hwirq, &sts, 32)
+			generic_handle_domain_irq(d, hwirq);
 
 	/*
-	 * TODO: Ideally msigen_reset should be shared by each MAC (rather than
-	 *       exclusively owned by the chip). That would make it possible to
-	 *       have a matching reset_control_assert() somewhere.
+	 * Clear the MSI flag. All interrupts within TC956x are level-high type.
+	 * If any interrupts are still asserted then clearing this flag will
+	 * cause the (edge-triggered) MSI to be regenerated.
 	 */
-	reset_control_deassert(td->chip->msigen_reset);
+	irq_reg_writel(gc, 1, TC956X_MSI_MASK_CLR_OFFSET);
+
+	chained_irq_exit(chip, desc);
+}
+
+static int tc956x_msigen_chip_init(struct irq_chip_generic *gc)
+{
+	struct tc956x_msigen_data *tc956x_msigen = gc->domain->host_data;
+
+	gc->reg_base = tc956x_msigen->regs;
+	gc->chip_types[0].regs.mask = TC956X_MSI_OUT_EN_OFFSET;
+	gc->chip_types[0].chip.irq_mask = irq_gc_mask_clr_bit;
+	gc->chip_types[0].chip.irq_unmask = irq_gc_mask_set_bit;
 
 	/* Ensure no interrupts are raised */
-	writel(0, msigen + TC956X_MSI_OUT_EN_OFFSET);
-	writel(1, msigen + TC956X_SW_MSI_CLR);
+	irq_reg_writel(gc, 0, TC956X_MSI_OUT_EN_OFFSET);
+	irq_reg_writel(gc, 1, TC956X_SW_MSI_CLR);
 
 	/*
 	 * Enable only those MSI vectors that are routed by the VECT_SETx
 	 * settings below (currently only vector #0 is used).
 	 */
-	writel(0xffffffff, msigen + TC956X_MSI_MASK_SET_OFFSET);
-	writel(BIT(0), msigen + TC956X_MSI_MASK_CLR_OFFSET);
+	irq_reg_writel(gc, ~0, TC956X_MSI_MASK_SET_OFFSET);
+	irq_reg_writel(gc, BIT(0), TC956X_MSI_MASK_CLR_OFFSET);
 
 	/* Assign everything to vector #0 */
-	writel(0, msigen + TC956X_MSI_VECT_SET0_OFFSET);
-	writel(0, msigen + TC956X_MSI_VECT_SET1_OFFSET);
-	writel(0, msigen + TC956X_MSI_VECT_SET2_OFFSET);
-	writel(0, msigen + TC956X_MSI_VECT_SET3_OFFSET);
-	writel(0, msigen + TC956X_MSI_VECT_SET4_OFFSET);
-	writel(0, msigen + TC956X_MSI_VECT_SET5_OFFSET);
-	writel(0, msigen + TC956X_MSI_VECT_SET6_OFFSET);
-	writel(0, msigen + TC956X_MSI_VECT_SET7_OFFSET);
+	irq_reg_writel(gc, 0, TC956X_MSI_VECT_SET0_OFFSET);
+	irq_reg_writel(gc, 0, TC956X_MSI_VECT_SET1_OFFSET);
+	irq_reg_writel(gc, 0, TC956X_MSI_VECT_SET2_OFFSET);
+	irq_reg_writel(gc, 0, TC956X_MSI_VECT_SET3_OFFSET);
+	irq_reg_writel(gc, 0, TC956X_MSI_VECT_SET4_OFFSET);
+	irq_reg_writel(gc, 0, TC956X_MSI_VECT_SET5_OFFSET);
+	irq_reg_writel(gc, 0, TC956X_MSI_VECT_SET6_OFFSET);
+	irq_reg_writel(gc, 0, TC956X_MSI_VECT_SET7_OFFSET);
+
+	return 0;
 }
 
-/**
- * tc956x_interrupt_en() - Enable or disable MSI interrupts
- * @priv:	STMMAC driver private data pointer
- * @dev:	Net device pointer
- * @en:		Whether to enable or disable MSI interrupts
- */
-static void tc956x_interrupt_en(struct stmmac_priv *priv, struct net_device *dev, u32 en)
+static void tc956x_msigen_chip_exit(struct irq_chip_generic *gc)
 {
-	struct plat_stmmacenet_data *plat = priv->plat;
-	struct tc956x_data *td = plat->bsp_priv;
-	void __iomem *msigen = td->sfr + MSIGEN_BASE(td->emac0 ? 0 : 1);
-	u32 val = 0;
-
-	if (en) {
-		val = FIELD_PREP(TC956X_MSI_OUT_EN_RX_INT_MASK,
-				 GENMASK(plat->rx_queues_to_use - 1, 0));
-		val |= FIELD_PREP(TC956X_MSI_OUT_EN_TX_INT_MASK,
-				  GENMASK(plat->tx_queues_to_use - 1, 0));
-#if 0
-		/*
-		 * TODO: Currently we are polling the PHY because we don't want
-		 *       to hack MSI acknowledge logic to the phy driver (we
-		 *       can wait for proper irqchip support.
-		 */
-		if (priv->dev->phydev != NULL)
-			val |= TC956X_MSI_OUT_EN_ETH_INT;
-#endif
-
-		writel(val, msigen + TC956X_MSI_OUT_EN_OFFSET);
-	} else
-		writel(0, msigen + TC956X_MSI_OUT_EN_OFFSET);
+	irq_reg_writel(gc, 0, TC956X_MSI_OUT_EN_OFFSET);
+	irq_reg_writel(gc, 1, TC956X_MSI_MASK_CLR_OFFSET);
 }
 
-/**
- * tc956x_interrupt_clr() - Clear/acknowledge an MSI condition
- * @priv:	STMMAC driver private data pointer
- * @dev:	Net device pointer
- * @vector:	MSI number to clear
- *
- * Clear an interrupt condition for an MSI after handling it.
- */
-static void tc956x_interrupt_clr(struct stmmac_priv *priv, struct net_device *dev, u32 vector)
+static int tc956x_msigen_domain_init(struct irq_domain *d)
 {
-	struct tc956x_data *td = priv->plat->bsp_priv;
-	void __iomem *msigen = td->sfr + MSIGEN_BASE(td->emac0 ? 0 : 1);
-	writel((1 << vector), msigen + TC956X_MSI_MASK_CLR_OFFSET);
+	struct tc956x_msigen_data *tc956x_msigen = d->host_data;
+
+	irq_set_chained_handler_and_data(tc956x_msigen->irq,
+					 tc956x_msigen_irq_handler, d);
+
+	return 0;
 }
 
-const struct tc956x_msi_ops tc956x_msigen_ops = {
-	.interrupt_en	= tc956x_interrupt_en,
-	.interrupt_clr	= tc956x_interrupt_clr,
-};
+static void tc956x_msigen_domain_exit(struct irq_domain *d)
+{
+	struct tc956x_msigen_data *tc956x_msigen = d->host_data;
+
+	irq_set_chained_handler_and_data(tc956x_msigen->irq, NULL, NULL);
+}
+
+static struct irq_domain *devm_tc956x_msigen_register(struct pci_dev *pdev,
+						      struct tc956x_data *td)
+{
+	struct irq_domain_chip_generic_info dgc_info = {
+		.name		= "tc956x-msigen",
+		.handler	= handle_simple_irq,
+		.irqs_per_chip	= TC956X_NR_HWIRQ,
+		.num_ct		= 1,
+		.init		= tc956x_msigen_chip_init,
+		.exit		= tc956x_msigen_chip_exit,
+	};
+	struct irq_domain_info d_info = {
+		.domain_flags	= IRQ_DOMAIN_FLAG_DESTROY_GC,
+		.size		= TC956X_NR_HWIRQ,
+		.hwirq_max	= TC956X_NR_HWIRQ,
+		.ops		= &irq_generic_chip_ops,
+		.dgc_info	= &dgc_info,
+		.init		= tc956x_msigen_domain_init,
+		.exit		= tc956x_msigen_domain_exit,
+	};
+	struct tc956x_msigen_data *tc956x_msigen;
+	struct device *dev = &pdev->dev;
+	struct irq_domain *domain;
+
+	tc956x_msigen = devm_kmalloc(dev, sizeof(*tc956x_msigen), GFP_KERNEL);
+	if (!tc956x_msigen)
+		return ERR_PTR(-ENOMEM);
+
+	tc956x_msigen->regs = td->sfr + TC956X_MSIGEN_BASE(td->emac0 ? 0 : 1);
+	tc956x_msigen->irq = pdev->irq;
+	d_info.host_data = tc956x_msigen;
+
+	domain = devm_irq_domain_instantiate(dev, &d_info);
+	if (IS_ERR(domain))
+		return dev_err_cast_probe(
+			dev, domain, "failed to instantiate the IRQ domain\n");
+	return domain;
+}
 
 //
 // Code from tc956x_qcom.c in vendor driver
@@ -1033,7 +1054,7 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 	/* Set common default data first */
 	plat->core_type = DWMAC_CORE_XGMAC;
 	plat->force_sf_dma_mode = 1;
-	plat->flags |= STMMAC_FLAG_TSO_EN;
+	plat->flags |= STMMAC_FLAG_MULTI_MSI_EN | STMMAC_FLAG_TSO_EN;
 
 	plat->pdev = pdev;
 	plat->clk_ptp_rate = 50000000;
@@ -1570,12 +1591,11 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 {
 	struct stmmac_resources res = { };
 	struct device *dev = &pdev->dev;
-	struct net_device *netdev;
-	struct stmmac_priv *priv;
+	struct irq_domain *irq_domain;
 	struct tc956x_data *td;
 	/* use signal from EMSPHY */
 	uint16_t sh_mem_offset;
-	u32 pfn;
+	u32 pfn, val;
 	int ret;
 
 	td = tc956x_devm_data_create(pdev);
@@ -1653,9 +1673,32 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		reset_control_assert(td->chip->mcu1_reset);
 	}
 
+	/*
+	 * Enable MSIGEN Module
+	 *
+	 * TODO: Ideally msigen_reset should be shared by each MAC (rather than
+	 *       exclusively owned by the chip). That would make it possible to
+	 *       deassert/assert the reset from the irqchip code.
+	 */
+	val = readl(td->sfr + NCLKCTRL0_OFFSET);
+	val |= TC956X_MSIGENCEN;
+	writel(val, td->sfr + NCLKCTRL0_OFFSET);
+	reset_control_deassert(td->chip->msigen_reset);
+
+
+	irq_domain = devm_tc956x_msigen_register(pdev, td);
+	if (IS_ERR_OR_NULL(irq_domain)) {
+		ret = PTR_ERR(irq_domain);
+		goto err_out_msi_failed;
+	}
+
 	res.addr = XGMAC_BASE(td);
-	res.wol_irq = pdev->irq;
-	res.irq = pdev->irq;
+	/* Problems creating mappings will be reported by stmmac_dvr_probe */
+	res.irq = irq_create_mapping(irq_domain, TC956X_HWIRQ_EVENT);
+	for (int i=0; i<MTL_MAX_TX_QUEUES; i++)
+		res.tx_irq[i] = irq_create_mapping(irq_domain, TC956X_HWIRQ_TX0 + i);
+	for (int i=0; i<MTL_MAX_RX_QUEUES; i++)
+		res.rx_irq[i] = irq_create_mapping(irq_domain, TC956X_HWIRQ_RX0 + i);
 
 	sh_mem_offset = tc956x_get_shared_mem_offset(pdev, pci_dev_id(pdev) & TC956X_PCI_BD_MASK);
 	if (sh_mem_offset < TC956X_TOT_CASCADE_DEV) {
@@ -1671,7 +1714,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		goto err_platform_probe;
 	}
 
-	tc956x_msigen_init(td);
 	ret = tc956x_chipcfg_mac_init(td);
 	if (ret < 0)
 		goto err_platform_probe;
@@ -1708,14 +1750,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		if (ret != -ENODEV)
 			goto err_dvr_probe;
 	}
-
-	/*
-	 * Install the MSI ops. This is only needed until we have a proper
-	 * irqchip driver for msigen)
-	 */
-	netdev = dev_get_drvdata(dev);
-	priv = netdev_priv(netdev);
-	priv->hw->msi = &tc956x_msigen_ops;
 
 	/* Increment device usage counter */
 	tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt++;

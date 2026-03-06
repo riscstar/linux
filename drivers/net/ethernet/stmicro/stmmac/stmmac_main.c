@@ -4116,10 +4116,6 @@ static int __stmmac_open(struct net_device *dev,
 
 	stmmac_enable_all_queues(priv);
 	netif_tx_start_all_queues(priv->dev);
-#ifdef TC956X
-	tc956x_msi_intr_clr(priv, priv, dev, 0);
-	tc956x_msi_intr_en(priv, priv, dev, true);
-#endif
 	stmmac_enable_all_dma_irq(priv);
 
 	return 0;
@@ -4190,11 +4186,6 @@ static void __stmmac_release(struct net_device *dev)
 {
 	struct stmmac_priv *priv = netdev_priv(dev);
 	u32 chan;
-
-#ifdef TC956X
-	tc956x_msi_intr_en(priv, priv, dev, false);
-#endif
-
 
 	/* Stop and disconnect the PHY */
 	phylink_stop(priv->phylink);
@@ -6216,30 +6207,18 @@ static irqreturn_t stmmac_interrupt(int irq, void *dev_id)
 	struct stmmac_priv *priv = netdev_priv(dev);
 
 	/* Check if adapter is up */
-	if (test_bit(STMMAC_DOWN, &priv->state)) {
-#ifdef TC956X
-		tc956x_msi_intr_clr(priv, priv, dev, 0);
-#endif
+	if (test_bit(STMMAC_DOWN, &priv->state))
 		return IRQ_HANDLED;
-	}
 
 	/* Check ASP error if it isn't delivered via an individual IRQ */
-	if (priv->sfty_irq <= 0 && stmmac_safety_feat_interrupt(priv)) {
-#ifdef TC956X
-		tc956x_msi_intr_clr(priv, priv, dev, 0);
-#endif
+	if (priv->sfty_irq <= 0 && stmmac_safety_feat_interrupt(priv))
 		return IRQ_HANDLED;
-	}
 
 	/* To handle Common interrupts */
 	stmmac_common_interrupt(priv);
 
 	/* To handle DMA interrupts */
 	stmmac_dma_interrupt(priv);
-
-#ifdef TC956X
-	tc956x_msi_intr_clr(priv, priv, dev, 0);
-#endif
 
 	return IRQ_HANDLED;
 }

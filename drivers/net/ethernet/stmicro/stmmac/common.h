@@ -647,10 +647,6 @@ struct mac_device_info {
 	 * mask/enable registers.
 	 */
 	spinlock_t irq_ctrl_lock;
-
-#ifdef TC956X
-        const struct tc956x_msi_ops *msi;
-#endif
 };
 
 struct stmmac_rx_routing {
