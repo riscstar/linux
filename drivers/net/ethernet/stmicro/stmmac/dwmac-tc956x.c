@@ -1136,6 +1136,38 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 	return 0;
 }
 
+/* Extra fields for XGMAC_DMA_MODE */
+#define XGMAC_DSPW			BIT(8);
+#define XGMAC_DMA_MODE_INTM		GENMASK(13, 12)
+
+static void tc956x_dma_init(void __iomem *ioaddr,
+			    struct stmmac_dma_cfg *dma_cfg)
+{
+	u32 value;
+
+	/*
+	 * Set the DMA completion interrupt-mode (INTM) to level signals without
+	 * automatic re-assertion on new events.
+	 *
+	 * Ensure descriptor posted write (DSPW) is disabled. This is needed for
+	 * XGMAC 3.01a errata.
+	 */
+	value = readl(ioaddr + XGMAC_DMA_MODE);
+	value = u32_replace_bits(value, 1, XGMAC_DMA_MODE_INTM);
+	value &= ~XGMAC_DSPW;
+	writel(value, ioaddr + XGMAC_DMA_MODE);
+
+	value = readl(ioaddr + XGMAC_DMA_SYSBUS_MODE);
+
+	if (dma_cfg->aal)
+		value |= XGMAC_AAL;
+
+	if (dma_cfg->eame)
+		value |= XGMAC_EAME;
+
+	writel(value, ioaddr + XGMAC_DMA_SYSBUS_MODE);
+}
+
 static void tc956x_dma_init_rx_chan(struct stmmac_priv *priv,
 				      void __iomem *ioaddr,
 				      struct stmmac_dma_cfg *dma_cfg,
@@ -1198,6 +1230,7 @@ static int tc956x_mac_setup(void *apriv, struct mac_device_info *mac) {
 		return -ENOMEM;
 
 	ops->dma = dwxgmac210_dma_ops;
+	ops->dma.init = tc956x_dma_init;
 	ops->dma.init_rx_chan = tc956x_dma_init_rx_chan;
 	ops->dma.init_tx_chan = tc956x_dma_init_tx_chan;
 	mac->dma = &ops->dma;

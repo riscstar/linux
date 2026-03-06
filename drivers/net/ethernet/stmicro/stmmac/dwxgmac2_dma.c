@@ -31,14 +31,6 @@ static void dwxgmac2_dma_init(void __iomem *ioaddr,
 		value |= XGMAC_EAME;
 
 	writel(value, ioaddr + XGMAC_DMA_SYSBUS_MODE);
-
-#ifdef TC956X
-	value = readl(ioaddr + XGMAC_DMA_MODE);
-	/* Due to the erratum in XGMAC 3.01a,  DSPW=0, OWRQ=3 needs to be set */
-	value &= ~XGMAC_DSPW;
-	value |= XGMAC_DMA_MODE_INTM;
-	writel(value, ioaddr + XGMAC_DMA_MODE);
-#endif
 }
 
 static void dwxgmac2_dma_init_chan(struct stmmac_priv *priv,
