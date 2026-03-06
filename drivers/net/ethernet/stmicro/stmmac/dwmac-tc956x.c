@@ -1614,7 +1614,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	struct irq_domain *irq_domain;
 	struct tc956x_data *td;
 	/* use signal from EMSPHY */
-	uint16_t sh_mem_offset;
 	u32 pfn, val;
 	int ret;
 
@@ -1961,7 +1960,6 @@ static int tc956x_pcie_suspend(struct device *dev)
 	struct pci_dev *pdev = to_pci_dev(dev);
 	struct net_device *ndev = dev_get_drvdata(dev);
 	struct stmmac_priv *priv = netdev_priv(ndev);
-	struct tc956x_data *td = priv->plat->bsp_priv;
 	int ret;
 
 	stmmac_suspend(dev);
