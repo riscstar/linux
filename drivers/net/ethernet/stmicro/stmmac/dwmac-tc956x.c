@@ -1838,6 +1838,9 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 		writel(nclk_val, nclk_reg);
 	}
 
+	/* Free allocated interrupt vectors for device */
+	pci_free_irq_vectors(pdev);
+
 	/* Close shared thinks down if the primary is removed */
 	if (td == td->chip->primary) {
 		reset_control_assert(td->chip->mcu_reset);
@@ -1854,9 +1857,7 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 		nclk_val &= ~(CLK0_MAC0_CORE_MASK | CLK0_MAC0_IO_MASK);
 		writel(nclk_val, nclk_reg);
 	}
-
-	/* Free allocated interrupt vectors for device */
-	pci_free_irq_vectors(pdev);
+	tc956x_chip_put(td);
 }
 
 /**
