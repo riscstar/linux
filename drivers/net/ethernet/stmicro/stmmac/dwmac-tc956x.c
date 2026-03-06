@@ -1700,6 +1700,15 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	for (int i=0; i<MTL_MAX_RX_QUEUES; i++)
 		res.rx_irq[i] = irq_create_mapping(irq_domain, TC956X_HWIRQ_RX0 + i);
 
+	/*
+	 * Hook up the PHY interrupt.
+	 *
+	 * TODO: This probably wants to be made optional in the DT (if the
+	 *       interrupt is not connected we need to fall back to polling)
+	 */
+	td->plat->mdio_bus_data->probed_phy_irq =
+		irq_create_mapping(irq_domain, TC956X_HWIRQ_ETH);
+
 	sh_mem_offset = tc956x_get_shared_mem_offset(pdev, pci_dev_id(pdev) & TC956X_PCI_BD_MASK);
 	if (sh_mem_offset < TC956X_TOT_CASCADE_DEV) {
 		td->pci_bd  = sh_mem_offset;
