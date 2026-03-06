@@ -138,6 +138,7 @@ struct tc956x_data {
  * @pci_slot:		PCI slot on its bus this chip fills
  * @primary:		Data pointer for the primary eMAC interface
  * @secondary:		Data pointer for the secondary eMAC interface
+ * @link		Device link between secondary (consumer) and primary
  * @gpio:		Pointer to GPIO information
  * @regmap:		Register map for SFR region access
  * @mcu_reset:		MCU reset control
@@ -161,6 +162,7 @@ struct tc956x_chip {
 	u8 pci_slot;
 	struct tc956x_data *primary;
 	struct tc956x_data *secondary;
+	struct device_link *link;
 	struct reset_control *mcu_reset;
 	struct reset_control *mcu1_reset;
 	struct reset_control *intr_reset;
@@ -1547,6 +1549,7 @@ static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 			return ERR_PTR(-EINVAL);
 
 		tc->secondary = td;
+		tc->link = device_link_add(td->dev, tc->primary->dev, DL_FLAG_STATELESS);
 
 		return tc;
 	}
@@ -1581,8 +1584,11 @@ static void tc956x_chip_put(struct tc956x_data *td)
 
 	/* The primary interface needs to be the last to go */
 	if (tc->secondary) {
-		if (td == tc->secondary)
+		if (td == tc->secondary) {
+			device_link_del(tc->link);
+			tc->link = NULL;
 			tc->secondary = NULL;
+		}
 		return;
 	}
 
