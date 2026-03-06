@@ -1003,16 +1003,16 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 		val &= ~nclk_mask;
 		writel(val, nclk_reg);
 
-		/* If zero are active, disable common clocks */
-		if (!tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt) {
+		/* When the primary power goes down, disable common clocks */
+		if (td == td->chip->primary) {
 			commonclk_reg = td->sfr + NCLKCTRL0_OFFSET;
 			val = readl(commonclk_reg);
 			val = val & ~CLK0_BUS_MASK;
 			writel(val, commonclk_reg);
 		}
 	} else {
-		/* If zero were active, re-enable common clocks */
-		if (!tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt) {
+		/* When the primary powers on then re-enable common clocks */
+		if (td == td->chip->primary) {
 			commonclk_reg = td->sfr + NCLKCTRL0_OFFSET;
 			val = readl(commonclk_reg);
 			val = val | CLK0_BUS_MASK;
@@ -1880,8 +1880,8 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 		writel(nclk_val, nclk_reg);
 	}
 
-	/* If exactly one MAC is in use... */
-	if (tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt == 1) {
+	/* Close shared thinks down if the primary is removed */
+	if (td == td->chip->primary) {
 		reset_control_assert(td->chip->mcu_reset);
 		reset_control_assert(td->chip->mcu1_reset);
 		reset_control_assert(td->chip->intr_reset);
@@ -1970,8 +1970,11 @@ static int tc956x_pcie_pm_pci(struct pci_dev *pdev, bool suspend)
 	int ret;
 	int p;
 
-	/* Zero active means are suspended */
-	if (!tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt) {
+	/*
+	 * If we are suspending the primary then the secondary (if it exists)
+	 * will already be gone.
+	 */
+	if (td == td->chip->primary) {
 		tc956x_dsp_ep = pci_upstream_bridge(pdev);
 		bus = tc956x_dsp_ep->subordinate;
 
@@ -2105,8 +2108,8 @@ static int tc956x_pcie_resume(struct device *dev)
 		return ret;
 	}
 
-	/* Configure TA map registers: zero active means are suspended */
-	if (!tx956x_pci_shrd_mem[td->pci_bd].pci_dev_active_cnt)
+	/* Configure TA map registers when the primary MAC resumes */
+	if (td == td->chip->primary)
 		tc956x_config_tamap(td);
 
 	/* Configure EMAC Port */
