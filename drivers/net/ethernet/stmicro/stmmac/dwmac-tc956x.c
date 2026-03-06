@@ -1855,8 +1855,6 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 		writel(nclk_val, nclk_reg);
 	}
 
-	pdev->irq = 0;
-
 	/* Free allocated interrupt vectors for device */
 	pci_free_irq_vectors(pdev);
 
