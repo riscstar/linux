@@ -85,6 +85,7 @@ enum tc956x_mac_state {
 /**
  * struct tc956x_data - Toshiba-specific platform data
  * @dev:		Device pointer
+ * @revid:		Revision ID (as read from the chipcfg registers)
  * @devfn:		PCI device/function id
  * @plat:		Pointer to our stmmac platform data
  * @bridge_config:	Mapped bridge config data (BAR 0)
@@ -108,6 +109,7 @@ enum tc956x_mac_state {
  */
 struct tc956x_data {
 	struct device *dev;
+	u32 revid;
 	unsigned int devfn;
 	struct plat_stmmacenet_data *plat;
 	void __iomem *bridge_config;
@@ -257,7 +259,8 @@ struct tx956x_shrd_mem {
 #define XGMAC_BASE(td)	((td)->sfr + ((td)->emac0 ? 0x40000 : 0x48000))
 
 /*	Configuration Register Address	*/
-#define NCID_OFFSET			(0x0000) /* TC956X Chip and revision ID */
+#define NCID_OFFSET		(0x0000) /* TC956X Chip and revision ID */
+#define NCID_REV_ID		GENMASK(7, 0)
 #define NMODESTS_OFFSET		(0x0004) /* TC956X current operation mode */
 #define NMODESTS_MODE2		BIT(10)	/* PCIe lanes: 0:  x4x1x1; 1: x2x2x1 */
 
@@ -1140,6 +1143,9 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 #define XGMAC_DSPW			BIT(8);
 #define XGMAC_DMA_MODE_INTM		GENMASK(13, 12)
 
+#define XGMAC_DMA_CH_RX_CONTROL2(x) 	(0x00003134 + (0x80 * (x)))
+#define XGMAC_OWRQ			GENMASK(25, 24)
+
 static void tc956x_dma_init(void __iomem *ioaddr,
 			    struct stmmac_dma_cfg *dma_cfg)
 {
@@ -1169,10 +1175,11 @@ static void tc956x_dma_init(void __iomem *ioaddr,
 }
 
 static void tc956x_dma_init_rx_chan(struct stmmac_priv *priv,
-				      void __iomem *ioaddr,
-				      struct stmmac_dma_cfg *dma_cfg,
-				      dma_addr_t phy, u32 chan)
+				    void __iomem *ioaddr,
+				    struct stmmac_dma_cfg *dma_cfg,
+				    dma_addr_t phy, u32 chan)
 {
+	struct tc956x_data *td = priv->plat->bsp_priv;
 	u32 rxpbl = dma_cfg->rxpbl ?: dma_cfg->pbl;
 	u32 value;
 
@@ -1180,15 +1187,23 @@ static void tc956x_dma_init_rx_chan(struct stmmac_priv *priv,
 	value = u32_replace_bits(value, rxpbl, XGMAC_RxPBL);
 	writel(value, ioaddr + XGMAC_DMA_CH_RX_CONTROL(chan));
 
+	/*
+	 * Reduce the number of outstanding write requests to 3. This is needed
+	 * for XGMAC 3.01a errata.
+	 */
+	value = readl(ioaddr + XGMAC_DMA_CH_RX_CONTROL2(chan));
+	value = u32_replace_bits(value, td->revid == 1 ? 3 : 0, XGMAC_OWRQ);
+	writel(value, ioaddr + XGMAC_DMA_CH_RX_CONTROL2(chan));
+
 	writel(upper_32_bits(phy) + upper_32_bits(TC956X_AXI4_SLV00_SRC_ADDR),
 	       ioaddr + XGMAC_DMA_CH_RxDESC_HADDR(chan));
 	writel(lower_32_bits(phy), ioaddr + XGMAC_DMA_CH_RxDESC_LADDR(chan));
 }
 
 static void tc956x_dma_init_tx_chan(struct stmmac_priv *priv,
-				      void __iomem *ioaddr,
-				      struct stmmac_dma_cfg *dma_cfg,
-				      dma_addr_t phy, u32 chan)
+				    void __iomem *ioaddr,
+				    struct stmmac_dma_cfg *dma_cfg,
+				    dma_addr_t phy, u32 chan)
 {
 	u32 txpbl = dma_cfg->txpbl ?: dma_cfg->pbl;
 	u32 value;
@@ -1672,7 +1687,9 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 	// NCID_OFFSET gives the revision ID (and early revisions are limited
 	// to 2.5G)
-	pr_debug("NCID Register value: %x\n", readl(td->sfr + NCID_OFFSET));
+	val = readl(td->sfr + NCID_OFFSET);
+	dev_dbg(dev, "NCID Register value: %x\n", val);
+	td->revid = FIELD_GET(NCID_REV_ID, val);
 
 	// TODO: this needs to come from devicetree
 	td->plat->phy_interface = td->emac0 ? PHY_INTERFACE_MODE_10GBASER :
