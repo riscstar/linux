@@ -241,7 +241,6 @@ static const struct regmap_config tc956x_regmap_config = {
 struct tx956x_shrd_mem {
 	uint16_t pci_bd;
 	uint16_t pci_dev_active_cnt;
-	uint16_t eth_link_down_cnt;
 };
 
 //
