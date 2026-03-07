@@ -98,7 +98,6 @@ enum tc956x_mac_state {
  * @bridge_config:	Mapped bridge config data (BAR 0)
  * @sfr:		Mapped SFR region (BAR 4)
  * @emac0:		Which eMAC port this is (true: port 0; false: port 1)
- * @pm_saved_emac_clk:	Saved eMAC clock control register value
  * @pinctrl:		Pin control structure
  * @pinctrl_default:	Pin control default value
  * @phy_supply:		PHY supply egulator
@@ -121,7 +120,6 @@ struct tc956x_data {
 	void __iomem *bridge_config;
 	void __iomem *sfr;
 	bool emac0;
-	u32 pm_saved_emac_clk;
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *pinctrl_default;
 	struct regulator *phy_supply;
@@ -965,28 +963,24 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	void __iomem *commonclk_reg;
 	void __iomem *nclk_reg;
-	u32 nclk_mask;
 	u32 val;
 
-	/* Select register address by port */
-	if (td->emac0) {
-		nclk_reg = td->sfr + NCLKCTRL0_OFFSET;
-		nclk_mask = CLK0_MAC0_CORE_MASK | CLK0_MAC0_IO_MASK;
-	} else {
-		nclk_reg = td->sfr + NCLKCTRL1_OFFSET;
-		nclk_mask = CLK1_MAC1_CORE_MASK | CLK1_MAC1_IO_MASK;
-		nclk_mask |= CLK1_MAC1RMCEN;
-	}
+	nclk_reg = td->sfr + (td->emac0 ? NCLKCTRL0_OFFSET : NCLKCTRL1_OFFSET);
 
 	if (suspend) {
 		reset_control_assert(td->mac_reset);
 		reset_control_assert(td->pma_reset);
 		reset_control_assert(td->xpcs_reset);
 
-		/* Save current clock state, and disable clocks */
 		val = readl(nclk_reg);
-		td->pm_saved_emac_clk = val & nclk_mask;
-		val &= ~nclk_mask;
+
+		val &= ~(td->emac0 ? CLK0_MAC0125CLKEN : CLK1_MAC1125CLKEN);
+		val &= ~(td->emac0 ? CLK0_MAC0312CLKEN : CLK1_MAC1312CLKEN);
+
+		val &= ~(td->emac0 ? CLK0_MAC0TXCEN : CLK1_MAC1TXCEN);
+		val &= ~(td->emac0 ? CLK0_MAC0RXCEN : CLK1_MAC1RXCEN);
+		val &= ~(td->emac0 ? CLK0_MAC0ALLCLKEN : CLK1_MAC1ALLCLKEN);
+
 		writel(val, nclk_reg);
 
 		/* When the primary power goes down, disable common clocks */
@@ -1006,9 +1000,25 @@ static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 		}
 
 		/* Restore saved clock state */
-
 		val = readl(nclk_reg);
-		val = val | td->pm_saved_emac_clk;
+
+		if (test_bit(MAC_STATE_ALL_CLOCK, td->mac_state))
+			val |= (td->emac0 ? CLK0_MAC0ALLCLKEN
+					  : CLK1_MAC1ALLCLKEN);
+		if (test_bit(MAC_STATE_RX_CLOCK, td->mac_state))
+			val |= (td->emac0 ? CLK0_MAC0RXCEN
+					  : CLK1_MAC1RXCEN);
+		if (test_bit(MAC_STATE_TX_CLOCK, td->mac_state))
+			val |= (td->emac0 ? CLK0_MAC0TXCEN
+					  : CLK1_MAC1TXCEN);
+
+		if (test_bit(MAC_STATE_312_5_CLOCK, td->mac_state))
+			val |= (td->emac0 ? CLK0_MAC0312CLKEN
+					  : CLK1_MAC1312CLKEN);
+		if (test_bit(MAC_STATE_125_CLOCK, td->mac_state))
+			val |= (td->emac0 ? CLK0_MAC0125CLKEN
+					  : CLK1_MAC1125CLKEN);
+
 		writel(val, nclk_reg);
 
 		/* Restore saved reset state */
