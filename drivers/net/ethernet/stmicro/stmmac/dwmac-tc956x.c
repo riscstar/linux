@@ -79,6 +79,13 @@ enum tc956x_mac_state {
 	MAC_STATE_PMA_RESET,
 	MAC_STATE_XPCS_RESET,
 
+	MAC_STATE_125_CLOCK,			/* set: enabled; clear: not */
+	MAC_STATE_312_5_CLOCK,
+	MAC_STATE_TX_CLOCK,
+	MAC_STATE_RX_CLOCK,
+	MAC_STATE_ALL_CLOCK,
+	MAC_STATE_RGMII_CLOCK,
+
 	MAC_STATE_COUNT,			/* Not a state */
 };
 
@@ -880,6 +887,12 @@ static int tc956x_chipcfg_mac_configure(struct tc956x_data *td, int speed)
 		nemacxctl_offset = NEMAC1CTL_OFFSET;
 	}
 
+	if (mac_125_clock)
+		__set_bit(MAC_STATE_125_CLOCK, td->mac_state);
+	else
+		__clear_bit(MAC_STATE_125_CLOCK, td->mac_state);
+	__clear_bit(MAC_STATE_312_5_CLOCK, td->mac_state);
+
 	val = readl(td->sfr + nclkctrlx_offset);
 	FIELD_MODIFY(macx312clken, &val, 0);
 	FIELD_MODIFY(macx125clken, &val, mac_125_clock);
@@ -904,6 +917,10 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 	reset_control_assert(td->mac_reset);
 	__set_bit(MAC_STATE_MAC_RESET, td->mac_state);
 
+	__set_bit(MAC_STATE_TX_CLOCK, td->mac_state);
+	__set_bit(MAC_STATE_RX_CLOCK, td->mac_state);
+	__set_bit(MAC_STATE_ALL_CLOCK, td->mac_state);
+
 	if (td->emac0) {
 		/* Enable all clocks to eMAC Port0 */
 		val = readl(td->sfr + NCLKCTRL0_OFFSET);
@@ -914,6 +931,8 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 		writel(val, td->sfr + NCLKCTRL0_OFFSET);
 	} else {
 		/* Enable all clocks to eMAC Port1 */
+		__set_bit(MAC_STATE_RGMII_CLOCK, td->mac_state);
+
 		val = readl(td->sfr + NCLKCTRL1_OFFSET);
 		val |= CLK1_MAC1_IO_MASK | CLK1_MAC1RMCEN;
 		writel(val, td->sfr + NCLKCTRL1_OFFSET);
@@ -1830,7 +1849,6 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 		nclk_val &= ~CLK0_MAC0_IO_MASK;
 		writel(nclk_val, nclk_reg);
 	} else {
-
 		nclk_reg = td->sfr + NCLKCTRL1_OFFSET;
 		nclk_val = 0;
 		writel(nclk_val, nclk_reg);
@@ -1855,6 +1873,7 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 		nclk_val &= ~(CLK0_MAC0_CORE_MASK | CLK0_MAC0_IO_MASK);
 		writel(nclk_val, nclk_reg);
 	}
+
 	tc956x_chip_put(td);
 }
 
