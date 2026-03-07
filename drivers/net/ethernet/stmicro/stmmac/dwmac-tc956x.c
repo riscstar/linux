@@ -89,6 +89,39 @@ enum tc956x_mac_state {
 	MAC_STATE_COUNT,			/* Not a state */
 };
 
+/* XXX MCU, SRAM, PCIE, and I2C are always enabled/disabled together */
+/* XXX MSIGEN and UART0 are always enabled/disabled together */
+enum tc9564_chip_clock_id {
+	/* Chip clocks */
+	TC9564_CLOCK_MCU	= 0,
+	TC9564_CLOCK_SRAM	= 13,
+	TC9564_CLOCK_PCIE	= 9,
+	TC9564_CLOCK_I2C	= 12,
+	TC9564_CLOCK_INTC	= 4,
+	TC9564_CLOCK_MSIGEN	= 18,
+	TC9564_CLOCK_UART0	= 16,
+};
+
+/* XXX MAC_TX, MAC_RX, and MAC_ALL are always enabled/disabled together */
+/* XXX MAC_125M and MAC_312_5M are always enabled/disabled together */
+/* XXX MAC_PLL, MAC_SGMII, and REFCLK are always enabled/disabled together */
+enum tc9564_mac_clock_id {
+	/* Common eMAC clocks */
+	TC9564_CLOCK_MAC_TX	= 7,
+	TC9564_CLOCK_MAC_RX	= 14,
+	TC9564_CLOCK_MAC_ALL	= 31,
+	TC9564_CLOCK_MAC_125M	= 29,
+	TC9564_CLOCK_MAC_312_5M	= 30,
+
+	/* eMAC 0 only */		/* XXX Are these really MAC clocks? */
+	TC9564_CLOCK_MAC_PLL	= 24,
+	TC9564_CLOCK_MAC_SGMII	= 25,
+	TC9564_CLOCK_REFCLK	= 26,	/* XXX MAC_REFCLK? */
+
+	/* eMAC 1 only */
+	TC9564_CLOCK_MAC_RMII	= 15,	/* XXX MAC_RGMII? */
+};
+
 /**
  * struct tc956x_data - Toshiba-specific platform data
  * @dev:		Device pointer
@@ -111,6 +144,7 @@ enum tc956x_mac_state {
  * @pma_reset:		PMA reset control
  * @xpcs_reset:		XPCS reset control
  * @mac_state:		Bitmap tracking state of resets
+ * @clock_offset:	Offset to clock control register
  */
 struct tc956x_data {
 	struct device *dev;
@@ -132,6 +166,7 @@ struct tc956x_data {
 	struct reset_control *mac_reset;
 	struct reset_control *pma_reset;
 	struct reset_control *xpcs_reset;
+	u32 clock_offset;
 	DECLARE_BITMAP(mac_state, MAC_STATE_COUNT);
 };
 
@@ -142,7 +177,7 @@ struct tc956x_data {
  * @primary:		Data pointer for the primary eMAC interface
  * @secondary:		Device link between secondary (consumer) and primary
  * @gpio:		Pointer to GPIO information
- * @regmap:		Register map for SFR region access
+ * @clock_reset_regmap:	Register map used for clocks and resets
  * @mcu_reset:		MCU reset control
  * @mcu1_reset:		MCU1 reset control
  * @intr_reset:		INTC reset control
@@ -164,6 +199,9 @@ struct tc956x_chip {
 	u8 pci_slot;
 	struct tc956x_data *primary;
 	struct device_link *secondary;
+
+	struct regmap *clock_reset_regmap;
+
 	struct reset_control *mcu_reset;
 	struct reset_control *mcu1_reset;
 	struct reset_control *intr_reset;
@@ -257,50 +295,6 @@ static const struct regmap_config tc956x_regmap_config = {
 #define NMODESTS_OFFSET		(0x0004) /* TC956X current operation mode */
 #define NMODESTS_MODE2		BIT(10)	/* PCIe lanes: 0:  x4x1x1; 1: x2x2x1 */
 
-#define NCLKCTRL0_OFFSET	0x1004	/* Clock control register 0 */
-#define CLK0_MCUCEN		BIT(0)		/* COMMON */
-#define CLK0_INTCEN		BIT(4)		/* individual */
-#define CLK0_MAC0TXCEN		BIT(7)		/* IO */
-#define CLK0_PCIECEN		BIT(9)		/* COMMON */
-#define CLK0_I2SSPIEN		BIT(12)		/* COMMON */
-#define CLK0_SRMCEM		BIT(13)		/* COMMON */
-#define CLK0_MAC0RXCEN		BIT(14)		/* IO */
-#define CLK0_UARTOCEN		BIT(16)		/* OTHER */
-#define CLK0_MSIGENCEN		BIT(18)		/* OTHER */
-#define CLK0_POEPLLCEN		BIT(24)		/* BUS */
-#define CLK0_SGMPCIEN		BIT(25)		/* BUS */
-#define CLK0_REFCLKOCEN		BIT(26)		/* BUS */
-#define CLK0_MAC0125CLKEN	BIT(29)		/* CORE */
-#define CLK0_MAC0312CLKEN	BIT(30)		/* CORE */
-#define CLK0_MAC0ALLCLKEN	BIT(31)		/* IO */
-
-#define CLK0_MAC0_CORE_MASK \
-		(CLK0_MAC0125CLKEN | CLK0_MAC0312CLKEN)
-#define CLK0_MAC0_IO_MASK \
-		(CLK0_MAC0TXCEN | CLK0_MAC0RXCEN | CLK0_MAC0ALLCLKEN)
-#define CLK0_COMMON_MASK \
-		(CLK0_MCUCEN | CLK0_PCIECEN | CLK0_I2SSPIEN | CLK0_SRMCEM)
-#define CLK0_OTHER_MASK	\
-		(CLK0_UARTOCEN | CLK0_MSIGENCEN)
-#define CLK0_BUS_MASK \
-		(CLK0_POEPLLCEN | CLK0_SGMPCIEN | CLK0_REFCLKOCEN)
-
-#define NCLKCTRL1_OFFSET	0x100c	/* Clock control register 1 */
-#define CLK1_MAC1TXCEN		BIT(7)		/* IO */
-#define CLK1_MAC1RXCEN		BIT(14)		/* IO */
-#define CLK1_MAC1RMCEN		BIT(15)		/* individual */
-#define CLK1_MAC1125CLKEN	BIT(29)		/* CORE */
-#define CLK1_MAC1312CLKEN	BIT(30)		/* CORE */
-#define CLK1_MAC1ALLCLKEN	BIT(31)		/* IO */
-
-#define CLK1_MAC1_CORE_MASK \
-		(CLK1_MAC1125CLKEN | CLK1_MAC1312CLKEN)
-#define CLK1_MAC1_IO_MASK \
-		(CLK1_MAC1TXCEN | CLK1_MAC1RXCEN | CLK1_MAC1ALLCLKEN)
-
-/* Field in the NCLKCTRL0 register to enable the MSIGEN clock */
-#define TC956X_MSIGENCEN	BIT(18)
-
 #define NMISCCTL_OFFSET		(0x1800)
 
 /* MSIGEN Registers */
@@ -362,6 +356,47 @@ static const struct regmap_config tc956x_regmap_config = {
 #define GPIO_00_FUNC		0
 #define NFUNCEN4_GPIO_01_MASK	GENMASK(7, 4)
 #define GPIO_01_FUNC		0
+
+static void __tc956x_clock_set(struct tc956x_chip *chip, u32 offset,
+			       u32 bit, bool enable)
+{
+	u32 mask = BIT(bit);
+
+	(void)regmap_update_bits(chip->clock_reset_regmap, offset, mask,
+				 enable ? mask : 0);
+}
+
+static void
+tc956x_chip_clock_enable(struct tc956x_chip *tc, enum tc9564_chip_clock_id id)
+{
+	u32 offset = 0x04;	/* NCLKCTRL0_OFFSET, relative to regmap */
+
+	__tc956x_clock_set(tc, offset, (u32)id, true);
+}
+
+static void
+tc956x_chip_clock_disable(struct tc956x_chip *tc, enum tc9564_chip_clock_id id)
+{
+	u32 offset = 0x0c;	/* NCLKCTRL1_OFFSET, relative to regmap */
+
+	__tc956x_clock_set(tc, offset, (u32)id, false);
+}
+
+static void
+tc956x_mac_clock_enable(struct tc956x_data *td, enum tc9564_mac_clock_id id)
+{
+	u32 offset = td->clock_offset;
+
+	__tc956x_clock_set(td->chip, offset, (u32)id, true);
+}
+
+static void
+tc956x_mac_clock_disable(struct tc956x_data *td, enum tc9564_mac_clock_id id)
+{
+	u32 offset = td->clock_offset;
+
+	__tc956x_clock_set(td->chip, offset, (u32)id, false);
+}
 
 //
 // Code from tc956x_main.c in vendor driver
@@ -854,8 +889,7 @@ struct {
 
 static int tc956x_chipcfg_mac_configure(struct tc956x_data *td, int speed)
 {
-	u32 nclkctrlx_offset, nemacxctl_offset;
-	u32 macx312clken, macx125clken;
+	u32 nemacxctl_offset;
 	bool mac_125_clock;
 	u32 sp_sel = EMAC_SP_SEL_MASK + 1;
 	u32 val;
@@ -873,28 +907,17 @@ static int tc956x_chipcfg_mac_configure(struct tc956x_data *td, int speed)
 	if (sp_sel & ~EMAC_SP_SEL_MASK)
 		return -ENOTSUPP;
 
-	if (td->emac0) {
-		nclkctrlx_offset = NCLKCTRL0_OFFSET;
-		macx312clken = CLK0_MAC0312CLKEN;
-		macx125clken = CLK0_MAC0125CLKEN;
-		nemacxctl_offset = NEMAC0CTL_OFFSET;
-	} else {
-		nclkctrlx_offset = NCLKCTRL1_OFFSET;
-		macx312clken = CLK1_MAC1312CLKEN;
-		macx125clken = CLK1_MAC1125CLKEN;
-		nemacxctl_offset = NEMAC1CTL_OFFSET;
-	}
+	nemacxctl_offset = td->emac0 ? NEMAC0CTL_OFFSET : NEMAC1CTL_OFFSET;
 
-	if (mac_125_clock)
+	if (mac_125_clock) {
 		__set_bit(MAC_STATE_125_CLOCK, td->mac_state);
-	else
+		tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_125M);
+	} else {
 		__clear_bit(MAC_STATE_125_CLOCK, td->mac_state);
+		tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_125M);
+	}
 	__clear_bit(MAC_STATE_312_5_CLOCK, td->mac_state);
-
-	val = readl(td->sfr + nclkctrlx_offset);
-	FIELD_MODIFY(macx312clken, &val, 0);
-	FIELD_MODIFY(macx125clken, &val, mac_125_clock);
-	writel(val, td->sfr + nclkctrlx_offset);
+	tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_312_5M);
 
 	val = readl(td->sfr + nemacxctl_offset);
 	val |= EMAC_LPIHWCLKEN;
@@ -910,30 +933,27 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 {
 	struct plat_stmmacenet_data *plat = td->plat;
 	int ret;
-	u32 val;
 
-	reset_control_assert(td->mac_reset);
 	__set_bit(MAC_STATE_MAC_RESET, td->mac_state);
+	reset_control_assert(td->mac_reset);
 
 	__set_bit(MAC_STATE_TX_CLOCK, td->mac_state);
+	tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_TX);
 	__set_bit(MAC_STATE_RX_CLOCK, td->mac_state);
+	tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_RX);
 	__set_bit(MAC_STATE_ALL_CLOCK, td->mac_state);
-
+	tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_ALL);
 	if (td->emac0) {
-		/* Enable all clocks to eMAC Port0 */
-		val = readl(td->sfr + NCLKCTRL0_OFFSET);
-		val |= CLK0_MAC0_IO_MASK;
 		if (plat->phy_interface == PHY_INTERFACE_MODE_SGMII ||
-		    plat->phy_interface == PHY_INTERFACE_MODE_2500BASEX)
-			val &= ~CLK0_BUS_MASK;
-		writel(val, td->sfr + NCLKCTRL0_OFFSET);
+		    plat->phy_interface == PHY_INTERFACE_MODE_2500BASEX) {
+			/* XXX These are always re-enabled during resume */
+			tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_PLL);
+			tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_SGMII);
+			tc956x_mac_clock_disable(td, TC9564_CLOCK_REFCLK);
+		}
 	} else {
-		/* Enable all clocks to eMAC Port1 */
 		__set_bit(MAC_STATE_RGMII_CLOCK, td->mac_state);
-
-		val = readl(td->sfr + NCLKCTRL1_OFFSET);
-		val |= CLK1_MAC1_IO_MASK | CLK1_MAC1RMCEN;
-		writel(val, td->sfr + NCLKCTRL1_OFFSET);
+		tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_RMII);
 	}
 
 	/* Set the speed related registers */
@@ -955,73 +975,49 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
  * @priv:	STMMAC driver private data pointer
  * @suspend:	Whether we are being called during suspend
  *
- * Save the eMAC clock and reset settings before suspend, or restore those
- * settings during resume.
+ * Assert resets and disable clocks on suspend; re-enable clocks that
+ * were active at suspend time, and de-assert resets on resume.
  */
 static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
 {
 	struct tc956x_data *td = priv->plat->bsp_priv;
-	void __iomem *commonclk_reg;
-	void __iomem *nclk_reg;
-	u32 val;
-
-	nclk_reg = td->sfr + (td->emac0 ? NCLKCTRL0_OFFSET : NCLKCTRL1_OFFSET);
 
 	if (suspend) {
 		reset_control_assert(td->mac_reset);
 		reset_control_assert(td->pma_reset);
 		reset_control_assert(td->xpcs_reset);
 
-		val = readl(nclk_reg);
+		tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_ALL);
+		tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_TX);
+		tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_RX);
 
-		val &= ~(td->emac0 ? CLK0_MAC0125CLKEN : CLK1_MAC1125CLKEN);
-		val &= ~(td->emac0 ? CLK0_MAC0312CLKEN : CLK1_MAC1312CLKEN);
+		tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_125M);
+		tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_312_5M);
 
-		val &= ~(td->emac0 ? CLK0_MAC0TXCEN : CLK1_MAC1TXCEN);
-		val &= ~(td->emac0 ? CLK0_MAC0RXCEN : CLK1_MAC1RXCEN);
-		val &= ~(td->emac0 ? CLK0_MAC0ALLCLKEN : CLK1_MAC1ALLCLKEN);
-
-		writel(val, nclk_reg);
-
-		/* When the primary power goes down, disable common clocks */
 		if (td == td->chip->primary) {
-			commonclk_reg = td->sfr + NCLKCTRL0_OFFSET;
-			val = readl(commonclk_reg);
-			val = val & ~CLK0_BUS_MASK;
-			writel(val, commonclk_reg);
+			tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_PLL);
+			tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_SGMII);
+			tc956x_mac_clock_disable(td, TC9564_CLOCK_REFCLK);
 		}
 	} else {
-		/* When the primary powers on then re-enable common clocks */
 		if (td == td->chip->primary) {
-			commonclk_reg = td->sfr + NCLKCTRL0_OFFSET;
-			val = readl(commonclk_reg);
-			val = val | CLK0_BUS_MASK;
-			writel(val, commonclk_reg);
+			tc956x_mac_clock_enable(td, TC9564_CLOCK_REFCLK);
+			tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_SGMII);
+			tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_PLL);
 		}
 
-		/* Restore saved clock state */
-		val = readl(nclk_reg);
-
-		if (test_bit(MAC_STATE_ALL_CLOCK, td->mac_state))
-			val |= (td->emac0 ? CLK0_MAC0ALLCLKEN
-					  : CLK1_MAC1ALLCLKEN);
-		if (test_bit(MAC_STATE_RX_CLOCK, td->mac_state))
-			val |= (td->emac0 ? CLK0_MAC0RXCEN
-					  : CLK1_MAC1RXCEN);
-		if (test_bit(MAC_STATE_TX_CLOCK, td->mac_state))
-			val |= (td->emac0 ? CLK0_MAC0TXCEN
-					  : CLK1_MAC1TXCEN);
-
 		if (test_bit(MAC_STATE_312_5_CLOCK, td->mac_state))
-			val |= (td->emac0 ? CLK0_MAC0312CLKEN
-					  : CLK1_MAC1312CLKEN);
+			tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_312_5M);
 		if (test_bit(MAC_STATE_125_CLOCK, td->mac_state))
-			val |= (td->emac0 ? CLK0_MAC0125CLKEN
-					  : CLK1_MAC1125CLKEN);
+			tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_125M);
 
-		writel(val, nclk_reg);
+		if (test_bit(MAC_STATE_RX_CLOCK, td->mac_state))
+			tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_RX);
+		if (test_bit(MAC_STATE_TX_CLOCK, td->mac_state))
+			tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_TX);
+		if (test_bit(MAC_STATE_ALL_CLOCK, td->mac_state))
+			tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_ALL);
 
-		/* Restore saved reset state */
 		if (test_bit(MAC_STATE_XPCS_RESET, td->mac_state))
 			reset_control_deassert(td->xpcs_reset);
 		if (test_bit(MAC_STATE_PMA_RESET, td->mac_state))
@@ -1384,6 +1380,7 @@ static int tc956x_devm_mfd_init(struct tc956x_chip *chip)
 				       &tc956x_clk_reset_regmap_config);
 	if (IS_ERR(regmap))
 		return PTR_ERR(regmap);
+	chip->clock_reset_regmap = regmap;
 
 	return devm_mfd_add_devices(dev, PLATFORM_DEVID_AUTO,
 				    tc956x_mfd_cells,
@@ -1687,6 +1684,9 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	}
 	td->emac0 = pfn == 0;
 
+	/* NCLKCTRL0_OFFSET or NCLKCTRL1_OFFSET, relative to regmap */
+	td->clock_offset = td->emac0 ? 0x04 : 0x0c;
+
 	// NCID_OFFSET gives the revision ID (and early revisions are limited
 	// to 2.5G)
 	val = readl(td->sfr + NCID_OFFSET);
@@ -1731,11 +1731,8 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	 *       exclusively owned by the chip). That would make it possible to
 	 *       deassert/assert the reset from the irqchip code.
 	 */
-	val = readl(td->sfr + NCLKCTRL0_OFFSET);
-	val |= TC956X_MSIGENCEN;
-	writel(val, td->sfr + NCLKCTRL0_OFFSET);
+	tc956x_chip_clock_enable(td->chip, TC9564_CLOCK_MSIGEN);
 	reset_control_deassert(td->chip->msigen_reset);
-
 
 	irq_domain = devm_tc956x_msigen_register(pdev, td);
 	if (IS_ERR_OR_NULL(irq_domain)) {
@@ -1777,27 +1774,19 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 	ret = stmmac_dvr_probe(dev, td->plat, &res);
 	if (ret) {
-		void __iomem *nclk_reg;
-		u32 nclk_mask;
-		u32 val;
-
-		if (td->emac0) {
-			nclk_reg = td->sfr + NCLKCTRL0_OFFSET;
-			nclk_mask = CLK0_MAC0_CORE_MASK | CLK0_MAC0_IO_MASK;
-		} else {
-			nclk_reg = td->sfr + NCLKCTRL1_OFFSET;
-			nclk_mask = CLK1_MAC1_CORE_MASK | CLK1_MAC1_IO_MASK;
-			nclk_mask |= CLK1_MAC1RMCEN;
-		}
-
 		reset_control_assert(td->mac_reset);
 		reset_control_assert(td->pma_reset);
 		reset_control_assert(td->xpcs_reset);
 
-		/* Disable clocks */
-		val = readl(nclk_reg);
-		val &= ~nclk_mask;
-		writel(val, nclk_reg);
+		tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_ALL);
+		tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_RX);
+		tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_TX);
+
+		tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_125M);
+		tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_312_5M);
+
+		if (!td->emac0)
+			tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_RMII);
 
 		if (ret != -ENODEV)
 			goto err_dvr_probe;
@@ -1809,7 +1798,7 @@ err_dvr_probe:
 	(void)tc956x_platform_remove(td);
 err_platform_probe:
 err_out_msi_failed:
-	pci_free_irq_vectors(pdev);
+	// pci_free_irq_vectors(pdev);
 err_chip_put:
 	tc956x_chip_put(td);
 err_clear_master:
@@ -1831,8 +1820,6 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 	struct net_device *ndev = dev_get_drvdata(dev);
 	struct stmmac_priv *priv = netdev_priv(ndev);
 	struct tc956x_data *td = priv->plat->bsp_priv;
-	void __iomem *nclk_reg;
-	u32 nclk_val;
 
 	/* phy_addr == -1 indicates that PHY was not found and
 	 * device is registered as only PCIe device. So skip any
@@ -1852,36 +1839,44 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 	reset_control_assert(td->pma_reset);
 	reset_control_assert(td->xpcs_reset);
 
-	if (td->emac0) {
-		nclk_reg = td->sfr + NCLKCTRL0_OFFSET;
-		nclk_val = readl(nclk_reg);
-		nclk_val &= ~CLK0_MAC0_CORE_MASK;
-		nclk_val &= ~CLK0_MAC0_IO_MASK;
-		writel(nclk_val, nclk_reg);
-	} else {
-		nclk_reg = td->sfr + NCLKCTRL1_OFFSET;
-		nclk_val = 0;
-		writel(nclk_val, nclk_reg);
-	}
+	tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_TX);
+	tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_RX);
+	tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_ALL);
+
+	tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_125M);
+	tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_312_5M);
 
 	/* Free allocated interrupt vectors for device */
 	pci_free_irq_vectors(pdev);
 
 	/* Close shared things down if the primary is removed */
 	if (td == td->chip->primary) {
-		reset_control_assert(td->chip->mcu_reset);
-		reset_control_assert(td->chip->mcu1_reset);
-		reset_control_assert(td->chip->intr_reset);
-		reset_control_assert(td->chip->msigen_reset);
-		reset_control_assert(td->chip->uart0_reset);
+		struct tc956x_chip *chip = td->chip;
 
-		/* Set Common CLK control registers */
-		nclk_reg = td->sfr + NCLKCTRL0_OFFSET;
-		nclk_val = readl(nclk_reg);
-		nclk_val |= CLK0_COMMON_MASK;
-		nclk_val &= ~(CLK0_OTHER_MASK | CLK0_BUS_MASK | CLK0_INTCEN);
-		nclk_val &= ~(CLK0_MAC0_CORE_MASK | CLK0_MAC0_IO_MASK);
-		writel(nclk_val, nclk_reg);
+		/* XXX
+		 * I think this still might not be enough.  If we happen
+		 * to remove the primary interface but not the secondary,
+		 * I'm not sure the device core will still perform actions
+		 * (like suspending/resuming) on the primary device.
+		 */
+		reset_control_assert(chip->mcu_reset);
+		reset_control_assert(chip->mcu1_reset);
+		reset_control_assert(chip->intr_reset);
+		reset_control_assert(chip->msigen_reset);
+		reset_control_assert(chip->uart0_reset);
+
+		tc956x_chip_clock_enable(chip, TC9564_CLOCK_MCU);
+		tc956x_chip_clock_enable(chip, TC9564_CLOCK_SRAM);
+		tc956x_chip_clock_enable(chip, TC9564_CLOCK_PCIE);
+		tc956x_chip_clock_enable(chip, TC9564_CLOCK_I2C);
+
+		tc956x_chip_clock_disable(chip, TC9564_CLOCK_MSIGEN);
+		tc956x_chip_clock_disable(chip, TC9564_CLOCK_UART0);
+		tc956x_chip_clock_disable(chip, TC9564_CLOCK_INTC);
+
+		tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_PLL);
+		tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_SGMII);
+		tc956x_mac_clock_disable(td, TC9564_CLOCK_REFCLK);
 	}
 
 	tc956x_chip_put(td);
@@ -2033,6 +2028,7 @@ static int tc956x_pcie_resume_config(struct pci_dev *pdev)
 	WARN_ON(ret);
 
 	tc956x_pma_init(td);
+
 	__clear_bit(MAC_STATE_XPCS_RESET, td->mac_state);
 	reset_control_deassert(td->xpcs_reset);
 
