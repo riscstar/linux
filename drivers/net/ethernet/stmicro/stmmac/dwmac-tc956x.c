@@ -184,11 +184,6 @@ struct tc956x_data {
  * @secondary:		Device link between secondary (consumer) and primary
  * @gpio:		Pointer to GPIO information
  * @reset_clock_regmap:	Register map used for clocks and resets
- * @mcu_reset:		MCU reset control
- * @mcu1_reset:		MCU1 reset control
- * @intr_reset:		INTC reset control
- * @uart0_reset:	UART0 reset control
- * @msigen_reset:	MSIGEN reset control
  * @links:		Links in the list of all chips
  *
  * A single tc956x_chip structure represents the chip as a whole,
@@ -208,11 +203,6 @@ struct tc956x_chip {
 
 	struct regmap *reset_clock_regmap;
 
-	struct reset_control *mcu_reset;
-	struct reset_control *mcu1_reset;
-	struct reset_control *msigen_reset;
-	struct reset_control *intr_reset;
-	struct reset_control *uart0_reset;
 	struct list_head links;		/* XXX any locking needed? */
 };
 
@@ -1531,50 +1521,6 @@ static struct tc956x_data *tc956x_devm_data_create(struct pci_dev *pdev)
 	return td;
 }
 
-/*
- * When successful all reset controls will be valid (no error), and
- * the underlying driver implements the assert and deassert callbacks.
- * So there is no need to test for errors when asserting or deasserting.
- */
-static int tc956x_devm_chip_resets_get(struct tc956x_chip *chip)
-{
-	struct device *dev = chip->primary->dev;
-	int retries = 10;
-
-	/* XXX We don't need any reset except for MSIGEN */
-
-	/*
-	 * We cannot return -EPROBE_DEFER (at least not from function 0) because
-	 * we have already created child devices (including the reset
-	 * controller) so we just have to wait for it to appear.
-	 */
-	chip->mcu_reset = devm_reset_control_get_exclusive(dev, "MCU");
-	while (IS_ERR(chip->mcu_reset) && retries-- > 0) {
-		msleep(10);
-		chip->mcu_reset = devm_reset_control_get_exclusive(dev, "MCU");
-	}
-	if (IS_ERR(chip->mcu_reset))
-		return PTR_ERR(chip->mcu_reset);
-
-	chip->mcu1_reset = devm_reset_control_get_exclusive(dev, "MCU1");
-	if (IS_ERR(chip->mcu1_reset))
-		return PTR_ERR(chip->mcu1_reset);
-
-	chip->intr_reset = devm_reset_control_get_exclusive(dev, "INTC");
-	if (IS_ERR(chip->intr_reset))
-		return PTR_ERR(chip->intr_reset);
-
-	chip->msigen_reset = devm_reset_control_get_exclusive(dev, "MSIGEN");
-	if (IS_ERR(chip->msigen_reset))
-		return PTR_ERR(chip->msigen_reset);
-
-	chip->uart0_reset = devm_reset_control_get_exclusive(dev, "UART0");
-	if (IS_ERR(chip->uart0_reset))
-		return PTR_ERR(chip->uart0_reset);
-
-	return 0;
-}
-
 static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 {
 	u8 pci_bus_num = PCI_BUS_NUM(td->devfn);
@@ -1620,10 +1566,6 @@ static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 	ret = tc956x_devm_mfd_init(chip);
 	if (ret)
 		return dev_err_ptr_probe(td->dev, ret, "mfd init failed\n");
-
-	ret = tc956x_devm_chip_resets_get(chip);
-	if (ret)
-		return dev_err_ptr_probe(td->dev, ret, "no chip resets\n");
 
 	list_add(&chip->links, &tc956x_chips);
 
@@ -1754,19 +1696,13 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	pci_write_config_dword(pdev, pdev->msi_cap + PCI_MSI_MASK_64, 0);
 
 	if (td->emac0) {
-		reset_control_assert(td->chip->mcu_reset);
-		reset_control_assert(td->chip->mcu1_reset);
+		tc956x_chip_reset_assert(td->chip, CHIP_RESET_MCU);
+		tc956x_chip_reset_assert(td->chip, CHIP_RESET_MCU1);
 	}
 
-	/*
-	 * Enable MSIGEN Module
-	 *
-	 * TODO: Ideally msigen_reset should be shared by each MAC (rather than
-	 *       exclusively owned by the chip). That would make it possible to
-	 *       deassert/assert the reset from the irqchip code.
-	 */
+	/* Enable MSIGEN Module */
 	tc956x_chip_clock_enable(td->chip, CHIP_CLOCK_MSIGEN);
-	reset_control_deassert(td->chip->msigen_reset);
+	tc956x_chip_reset_deassert(td->chip, CHIP_RESET_MSIGEN);
 
 	irq_domain = devm_tc956x_msigen_register(pdev, td);
 	if (IS_ERR_OR_NULL(irq_domain)) {
@@ -1891,11 +1827,11 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 		 * I'm not sure the device core will still perform actions
 		 * (like suspending/resuming) on the primary device.
 		 */
-		reset_control_assert(chip->mcu_reset);
-		reset_control_assert(chip->mcu1_reset);
-		reset_control_assert(chip->intr_reset);
-		reset_control_assert(chip->msigen_reset);
-		reset_control_assert(chip->uart0_reset);
+		tc956x_chip_reset_assert(chip, CHIP_RESET_MCU);
+		tc956x_chip_reset_assert(chip, CHIP_RESET_MCU1);
+		tc956x_chip_reset_assert(chip, CHIP_RESET_MSIGEN);
+		tc956x_chip_reset_assert(chip, CHIP_RESET_INTC);
+		tc956x_chip_reset_assert(chip, CHIP_RESET_UART0);
 
 		tc956x_chip_clock_enable(chip, CHIP_CLOCK_MCU);
 		tc956x_chip_clock_enable(chip, CHIP_CLOCK_SRAM);
