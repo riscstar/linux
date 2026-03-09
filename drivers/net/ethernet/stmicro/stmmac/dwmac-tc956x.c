@@ -86,6 +86,23 @@ enum tc956x_mac_state {
 	MAC_STATE_COUNT,			/* Not a state */
 };
 
+/* XXX MCU and MCU1 are always asserted/deasserted together */
+/* XXX INTC and UART0 are always asserted (only) together */
+enum tc9564_chip_reset_id {
+	CHIP_RESET_MCU		= 0,
+	CHIP_RESET_MCU1		= 1,
+	CHIP_RESET_MSIGEN	= 18,
+	CHIP_RESET_INTC		= 4,
+	CHIP_RESET_UART0	= 16,
+};
+
+/* XXX All three of these are used independently */
+enum tc9564_mac_reset_id {
+	MAC_RESET_MAC		= 7,
+	MAC_RESET_PMA		= 30,
+	MAC_RESET_XPCS		= 31,
+};
+
 /* XXX MCU, SRAM, PCIE, and I2C are always enabled/disabled together */
 /* XXX MSIGEN and UART0 are always enabled/disabled together */
 enum tc9564_chip_clock_id {
@@ -133,10 +150,10 @@ enum tc9564_mac_clock_id {
  * @wol_irq:		Wake-on-LAN IRQ number
  * @chip:		Pointer to the containing chip information
  * @regmap:		Register map for SFR region access
- * @mac_reset:		MAC reset control
  * @pma_reset:		PMA reset control
  * @xpcs_reset:		XPCS reset control
  * @mac_state:		Bitmap tracking state of resets
+ * @reset_offset:	Offset to reset control register
  * @clock_offset:	Offset to clock control register
  */
 struct tc956x_data {
@@ -156,9 +173,9 @@ struct tc956x_data {
 	int wol_irq;
 	struct tc956x_chip *chip;
 	struct regmap *regmap;
-	struct reset_control *mac_reset;
 	struct reset_control *pma_reset;
 	struct reset_control *xpcs_reset;
+	u32 reset_offset;
 	u32 clock_offset;
 	DECLARE_BITMAP(mac_state, MAC_STATE_COUNT);
 };
@@ -197,9 +214,9 @@ struct tc956x_chip {
 
 	struct reset_control *mcu_reset;
 	struct reset_control *mcu1_reset;
+	struct reset_control *msigen_reset;
 	struct reset_control *intr_reset;
 	struct reset_control *uart0_reset;
-	struct reset_control *msigen_reset;
 	struct list_head links;		/* XXX any locking needed? */
 };
 
@@ -350,6 +367,8 @@ static const struct regmap_config tc956x_regmap_config = {
 #define NFUNCEN4_GPIO_01_MASK	GENMASK(7, 4)
 #define GPIO_01_FUNC		0
 
+#define RSTCTRL0_OFFSET		0x08	/* Relative to clock/reset regmap */
+#define RSTCTRL1_OFFSET		0x10	/* Relative to clock/reset regmap */
 #define CLKCTRL0_OFFSET		0x04	/* Relative to clock/reset regmap */
 #define CLKCTRL1_OFFSET		0x0c	/* Relative to clock/reset regmap */
 
@@ -362,6 +381,15 @@ static void __reset_clock_set(struct tc956x_chip *chip, u32 offset,
 	(void)regmap_update_bits(chip->reset_clock_regmap, offset, mask,
 				 set ? mask : 0);
 }
+
+#define tc956x_chip_reset_assert(_chip, _id) \
+	__reset_clock_set((_chip), RSTCTRL0_OFFSET, (u32)(_id), true)
+#define tc956x_chip_reset_deassert(_chip, _id) \
+	__reset_clock_set((_chip), RSTCTRL0_OFFSET, (u32)(_id), false)
+#define tc956x_mac_reset_assert(_td, _id) \
+	__reset_clock_set((_td)->chip, (_td)->reset_offset, (u32)(_id), true)
+#define tc956x_mac_reset_deassert(_td, _id) \
+	__reset_clock_set((_td)->chip, (_td)->reset_offset, (u32)(_id), false)
 
 #define tc956x_chip_clock_enable(_chip, _id) \
 	__reset_clock_set((_chip), CLKCTRL0_OFFSET, (u32)(_id), true)
@@ -907,7 +935,7 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 	struct plat_stmmacenet_data *plat = td->plat;
 	int ret;
 
-	reset_control_assert(td->mac_reset);
+	tc956x_mac_reset_assert(td, MAC_RESET_MAC);
 
 	__set_bit(MAC_STATE_TX_CLOCK, td->mac_state);
 	tc956x_mac_clock_enable(td, MAC_CLOCK_TX);
@@ -936,7 +964,7 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 				     phy_modes(plat->phy_interface),
 				     plat->max_speed);
 
-	reset_control_deassert(td->mac_reset);
+	tc956x_mac_reset_deassert(td, MAC_RESET_MAC);
 
 	return 0;
 }
@@ -1335,7 +1363,7 @@ static int tc956x_suspend(struct device *dev, void *bsp_priv)
 		return ret;
 	}
 
-	reset_control_assert(td->mac_reset);
+	tc956x_mac_reset_assert(td, MAC_RESET_MAC);
 	reset_control_assert(td->pma_reset);
 	reset_control_assert(td->xpcs_reset);
 
@@ -1645,10 +1673,6 @@ static int tc956x_devm_mac_resets_get(struct tc956x_data *td)
 {
 	struct device *dev = td->dev;
 
-	td->mac_reset = devm_reset_control_get_exclusive(dev, "MAC");
-	if (IS_ERR(td->mac_reset))
-		return PTR_ERR(td->mac_reset);
-
 	td->pma_reset = devm_reset_control_get_exclusive(dev, "PMA");
 	if (IS_ERR(td->pma_reset))
 		return PTR_ERR(td->pma_reset);
@@ -1721,6 +1745,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	td->emac0 = pfn == 0;
 
 	/* NCLKCTRL0_OFFSET or NCLKCTRL1_OFFSET, relative to regmap */
+	td->reset_offset = td->emac0 ? RSTCTRL0_OFFSET : RSTCTRL1_OFFSET;
 	td->clock_offset = td->emac0 ? CLKCTRL0_OFFSET : CLKCTRL1_OFFSET;
 
 	// NCID_OFFSET gives the revision ID (and early revisions are limited
@@ -1811,7 +1836,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 
 	ret = stmmac_dvr_probe(dev, td->plat, &res);
 	if (ret) {
-		reset_control_assert(td->mac_reset);
+		tc956x_mac_reset_assert(td, MAC_RESET_MAC);
 		reset_control_assert(td->pma_reset);
 		reset_control_assert(td->xpcs_reset);
 
@@ -1871,7 +1896,7 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 		tc956x_platform_remove(td);
 	}
 
-	reset_control_assert(td->mac_reset);
+	tc956x_mac_reset_assert(td, MAC_RESET_MAC);
 	reset_control_assert(td->pma_reset);
 	reset_control_assert(td->xpcs_reset);
 
