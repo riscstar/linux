@@ -1360,6 +1360,212 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 	tc956x_pma_init(td);
 }
 
+/**
+ * tc956x_pcie_pm_enable_pci() - Enable a PCI device
+ * @pdev:	Pointer to the PCI device to enable
+ *
+ * Enable the PCI device passed as argument.
+ *
+ * Return:	0 if successful, or an error code if setting power state fails
+ */
+static int tc956x_pcie_pm_enable_pci(struct pci_dev *pdev)
+{
+	int ret;
+
+	pci_set_power_state(pdev, PCI_D0);
+
+	ret = pci_enable_device_mem(pdev);
+	if (ret) {
+		dev_err(&pdev->dev, "error %d enabling PCI device memory", ret);
+		return ret;
+	}
+
+	pci_restore_state(pdev);
+	pci_set_master(pdev);
+
+	return 0;
+}
+
+/**
+ * tc956x_pcie_pm_disable_pci() - Disable a PCI device
+ * @pdev:	Pointer to the PCI device to disable
+ *
+ * Disable the PCI device passed as argument.
+ */
+static void tc956x_pcie_pm_disable_pci(struct pci_dev *pdev)
+{
+	pci_save_state(pdev);
+	pci_disable_device(pdev);
+	pci_prepare_to_sleep(pdev);
+}
+
+/**
+ * tc956x_pcie_pm_pci() - Disable PCIe child devices
+ * @pdev:	Pointer to the PCI device whose children are affected
+ * @suspend:	Whether we are being called during suspend
+ *
+ * Disable PCI devices that are children of the given PCI device.
+ *
+ * Return:	0 if successful, or an error code if an error occurs
+ */
+static int tc956x_pcie_pm_pci(struct pci_dev *pdev, bool suspend)
+{
+	struct net_device *ndev = dev_get_drvdata(&pdev->dev);
+	struct stmmac_priv *priv = netdev_priv(ndev);
+	struct tc956x_data *td = priv->plat->bsp_priv;
+	struct pci_dev *tc956x_port_pdev[2] = { };
+	struct pci_dev *tc956x_dsp_ep;
+	struct pci_dev *tc956x_pd;
+	struct pci_bus *bus;
+	int i = 0;
+	int ret;
+	int p;
+
+	/*
+	 * If we are suspending the primary then the secondary (if it exists)
+	 * will already be gone.
+	 */
+	if (td == td->chip->primary) {
+		tc956x_dsp_ep = pci_upstream_bridge(pdev);
+		bus = tc956x_dsp_ep->subordinate;
+
+		if (bus)
+			list_for_each_entry(tc956x_pd, &bus->devices, bus_list)
+				tc956x_port_pdev[i++] = tc956x_pd;
+
+		for (p = 0; ((p < i) && (tc956x_port_pdev[p] != NULL)); p++) {
+			/* Enter only if at least 1 Port Suspended */
+			if (suspend) {
+				tc956x_pcie_pm_disable_pci(tc956x_port_pdev[p]);
+			} else {
+				ret = tc956x_pcie_pm_enable_pci(tc956x_port_pdev[p]);
+				if (ret < 0)
+					return ret;
+			}
+		}
+	}
+
+	return 0;
+}
+
+/**
+ * tc956x_pcie_suspend() - Device driver suspend callback
+ * @dev:	Device pointer
+ *
+ * Perform the activities required to suspend the TC956x platform device.
+ * This includes suspending the eMACs (and managing wake-on-LAN state)
+ * and suspending the PCIe interfaces.
+ *
+ * Return:	0 if successful, or an error code if an error occurs
+ */
+static int tc956x_pcie_suspend(struct device *dev, void *bsp_priv)
+{
+	struct pci_dev *pdev = to_pci_dev(dev);
+	struct net_device *ndev = dev_get_drvdata(dev);
+	struct stmmac_priv *priv = netdev_priv(ndev);
+	int ret;
+
+	ret = tc956x_platform_suspend(priv);
+	if (ret) {
+		dev_err(dev, "%s: error in calling tc956x_platform_suspend", pci_name(pdev));
+		return ret;
+	}
+
+	tc956x_pm_set_power(priv, true);
+
+	return tc956x_pcie_pm_pci(pdev, true);
+}
+
+/**
+ * tc956x_pcie_resume_config() - Restore device configuration during resume
+ * @pdev:	PCI device pointer
+ *
+ * Restore the state of the eMAC to functional state during resume.
+ *
+ * Return:	0 if successful, or an error code if an error occurs
+ */
+static int tc956x_pcie_resume_config(struct pci_dev *pdev)
+{
+	struct device *dev = &pdev->dev;
+	struct net_device *ndev = dev_get_drvdata(dev);
+	struct stmmac_priv *priv = netdev_priv(ndev);
+	struct tc956x_data *td = priv->plat->bsp_priv;
+	int ret = 0;
+
+	/* Skip Config when Port unavailable */
+	if (priv->dma_cap.sma_mdio == 1) {
+		if ((priv->plat->phy_addr == -1) || (priv->mii == NULL)) {
+			dev_dbg(dev, "%s : Invalid PHY Address (%d)\n", __func__, priv->plat->phy_addr);
+			ret = -1;
+			goto err_phy_addr;
+		}
+	}
+
+	ret = tc956x_chipcfg_mac_init(td);
+	WARN_ON(ret);
+
+	tc956x_pma_init(td);
+
+	__clear_bit(MAC_STATE_XPCS_RESET, td->mac_state);
+	reset_control_deassert(td->xpcs_reset);
+
+	return 0;
+
+err_phy_addr:
+	return ret;
+}
+
+/**
+ * tc956x_pcie_resume() - Device driver resume callback
+ * @dev:	Device pointer
+ *
+ * Perform the activities required to resume the TC956x platform device.
+ * This includes resuming the PCIe interfaces, and disabling wake-on-LAN
+ * and resuming the eMACs.
+ *
+ * Return:	0 if successful, or an error code if an error occurs
+ */
+static int tc956x_pcie_resume(struct device *dev, void *bsp_priv)
+{
+	struct pci_dev *pdev = to_pci_dev(dev);
+	struct net_device *ndev = dev_get_drvdata(dev);
+	struct stmmac_priv *priv = netdev_priv(ndev);
+	struct tc956x_data *td = priv->plat->bsp_priv;
+	int ret;
+
+	ret = tc956x_pcie_pm_enable_pci(pdev);
+	if (ret < 0)
+		return ret;
+
+	tc956x_pm_set_power(priv, false);
+
+	/* XXX Error handling in this function needs work */
+	ret = tc956x_assert_phy_reset(td, td->reset_asserted);
+	if (ret) {
+		dev_err(dev, "error restoring PHY reset state");
+		pci_disable_device(pdev);
+
+		return ret;
+	}
+
+	ret = tc956x_platform_resume(priv);
+	if (ret) {
+		dev_err(dev, "%s: error in calling tc956x_platform_resume", pci_name(pdev));
+		pci_disable_device(pdev);
+
+		return ret;
+	}
+
+	/* Configure TA map registers when the primary MAC resumes */
+	if (td == td->chip->primary)
+		tc956x_config_tamap(td);
+
+	/* Configure EMAC Port */
+	tc956x_pcie_resume_config(pdev);
+
+	return 0;
+}
+
 static const struct mfd_cell tc956x_mfd_cells[] = {
 	{ .name = "tc956x-gpio", },
 	{ .name = "tc956x-reset-controller", },
@@ -1405,6 +1611,8 @@ tc956x_plat_dat_alloc(struct tc956x_data *td, struct pci_dev *pdev)
 	plat->fix_mac_speed = tc956x_fix_mac_speed;
 	plat->pcs_init = tc956x_pcs_init;
 	plat->select_pcs = tc956x_select_pcs;
+	plat->suspend = tc956x_pcie_suspend;
+	plat->resume = tc956x_pcie_resume;
 
 	/* XXX We don't initialize this; what is required? */
 	plat->mdio_bus_data = devm_kzalloc(dev, sizeof(*plat->mdio_bus_data),
@@ -1882,215 +2090,6 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 	tc956x_chip_put(td);
 }
 
-/**
- * tc956x_pcie_pm_enable_pci() - Enable a PCI device
- * @pdev:	Pointer to the PCI device to enable
- *
- * Enable the PCI device passed as argument.
- *
- * Return:	0 if successful, or an error code if setting power state fails
- */
-static int tc956x_pcie_pm_enable_pci(struct pci_dev *pdev)
-{
-	int ret;
-
-	pci_set_power_state(pdev, PCI_D0);
-
-	ret = pci_enable_device_mem(pdev);
-	if (ret) {
-		dev_err(&pdev->dev, "error %d enabling PCI device memory", ret);
-		return ret;
-	}
-
-	pci_restore_state(pdev);
-	pci_set_master(pdev);
-
-	return 0;
-}
-
-/**
- * tc956x_pcie_pm_disable_pci() - Disable a PCI device
- * @pdev:	Pointer to the PCI device to disable
- *
- * Disable the PCI device passed as argument.
- */
-static void tc956x_pcie_pm_disable_pci(struct pci_dev *pdev)
-{
-	pci_save_state(pdev);
-	pci_disable_device(pdev);
-	pci_prepare_to_sleep(pdev);
-}
-
-/**
- * tc956x_pcie_pm_pci() - Disable PCIe child devices
- * @pdev:	Pointer to the PCI device whose children are affected
- * @suspend:	Whether we are being called during suspend
- *
- * Disable PCI devices that are children of the given PCI device.
- *
- * Return:	0 if successful, or an error code if an error occurs
- */
-static int tc956x_pcie_pm_pci(struct pci_dev *pdev, bool suspend)
-{
-	struct net_device *ndev = dev_get_drvdata(&pdev->dev);
-	struct stmmac_priv *priv = netdev_priv(ndev);
-	struct tc956x_data *td = priv->plat->bsp_priv;
-	struct pci_dev *tc956x_port_pdev[2] = { };
-	struct pci_dev *tc956x_dsp_ep;
-	struct pci_dev *tc956x_pd;
-	struct pci_bus *bus;
-	int i = 0;
-	int ret;
-	int p;
-
-	/*
-	 * If we are suspending the primary then the secondary (if it exists)
-	 * will already be gone.
-	 */
-	if (td == td->chip->primary) {
-		tc956x_dsp_ep = pci_upstream_bridge(pdev);
-		bus = tc956x_dsp_ep->subordinate;
-
-		if (bus)
-			list_for_each_entry(tc956x_pd, &bus->devices, bus_list)
-				tc956x_port_pdev[i++] = tc956x_pd;
-
-		for (p = 0; ((p < i) && (tc956x_port_pdev[p] != NULL)); p++) {
-			/* Enter only if at least 1 Port Suspended */
-			if (suspend) {
-				tc956x_pcie_pm_disable_pci(tc956x_port_pdev[p]);
-			} else {
-				ret = tc956x_pcie_pm_enable_pci(tc956x_port_pdev[p]);
-				if (ret < 0)
-					return ret;
-			}
-		}
-	}
-
-	return 0;
-}
-
-/**
- * tc956x_pcie_suspend() - Device driver suspend callback
- * @dev:	Device pointer
- *
- * Perform the activities required to suspend the TC956x platform device.
- * This includes suspending the eMACs (and managing wake-on-LAN state)
- * and suspending the PCIe interfaces.
- *
- * Return:	0 if successful, or an error code if an error occurs
- */
-static int tc956x_pcie_suspend(struct device *dev)
-{
-	struct pci_dev *pdev = to_pci_dev(dev);
-	struct net_device *ndev = dev_get_drvdata(dev);
-	struct stmmac_priv *priv = netdev_priv(ndev);
-	int ret;
-
-	stmmac_suspend(dev);
-	ret = tc956x_platform_suspend(priv);
-	if (ret) {
-		dev_err(dev, "%s: error in calling tc956x_platform_suspend", pci_name(pdev));
-		return ret;
-	}
-
-	tc956x_pm_set_power(priv, true);
-
-	return tc956x_pcie_pm_pci(pdev, true);
-}
-
-/**
- * tc956x_pcie_resume_config() - Restore device configuration during resume
- * @pdev:	PCI device pointer
- *
- * Restore the state of the eMAC to functional state during resume.
- *
- * Return:	0 if successful, or an error code if an error occurs
- */
-static int tc956x_pcie_resume_config(struct pci_dev *pdev)
-{
-	struct device *dev = &pdev->dev;
-	struct net_device *ndev = dev_get_drvdata(dev);
-	struct stmmac_priv *priv = netdev_priv(ndev);
-	struct tc956x_data *td = priv->plat->bsp_priv;
-	int ret = 0;
-
-	/* Skip Config when Port unavailable */
-	if (priv->dma_cap.sma_mdio == 1) {
-		if ((priv->plat->phy_addr == -1) || (priv->mii == NULL)) {
-			dev_dbg(dev, "%s : Invalid PHY Address (%d)\n", __func__, priv->plat->phy_addr);
-			ret = -1;
-			goto err_phy_addr;
-		}
-	}
-
-	ret = tc956x_chipcfg_mac_init(td);
-	WARN_ON(ret);
-
-	tc956x_pma_init(td);
-
-	__clear_bit(MAC_STATE_XPCS_RESET, td->mac_state);
-	reset_control_deassert(td->xpcs_reset);
-
-	return 0;
-
-err_phy_addr:
-	return ret;
-}
-
-/**
- * tc956x_pcie_resume() - Device driver resume callback
- * @dev:	Device pointer
- *
- * Perform the activities required to resume the TC956x platform device.
- * This includes resuming the PCIe interfaces, and disabling wake-on-LAN
- * and resuming the eMACs.
- *
- * Return:	0 if successful, or an error code if an error occurs
- */
-static int tc956x_pcie_resume(struct device *dev)
-{
-	struct pci_dev *pdev = to_pci_dev(dev);
-	struct net_device *ndev = dev_get_drvdata(dev);
-	struct stmmac_priv *priv = netdev_priv(ndev);
-	struct tc956x_data *td = priv->plat->bsp_priv;
-	int ret;
-
-	ret = tc956x_pcie_pm_enable_pci(pdev);
-	if (ret < 0)
-		return ret;
-
-	tc956x_pm_set_power(priv, false);
-
-	/* XXX Error handling in this function needs work */
-	ret = tc956x_assert_phy_reset(td, td->reset_asserted);
-	if (ret) {
-		dev_err(dev, "error restoring PHY reset state");
-		pci_disable_device(pdev);
-
-		return ret;
-	}
-
-	ret = tc956x_platform_resume(priv);
-	if (ret) {
-		dev_err(dev, "%s: error in calling tc956x_platform_resume", pci_name(pdev));
-		pci_disable_device(pdev);
-
-		return ret;
-	}
-
-	/* Configure TA map registers when the primary MAC resumes */
-	if (td == td->chip->primary)
-		tc956x_config_tamap(td);
-
-	/* Configure EMAC Port */
-	tc956x_pcie_resume_config(pdev);
-
-	/* Call stmmac_resume() */
-	stmmac_resume(dev);
-
-	return 0;
-}
 
 static const struct pci_device_id tc956x_id_table[] = {
 	{ PCI_DEVICE(PCI_VENDOR_ID_TOSHIBA, PCI_DEVICE_ID_TOSHIBA_TC956X), },
@@ -2103,10 +2102,6 @@ static const struct pci_device_id tc956x_id_table[] = {
 MODULE_DEVICE_TABLE(pci, tc956x_id_table);
 #endif
 
-static DEFINE_SIMPLE_DEV_PM_OPS(tc956x_pm_ops,
-				tc956x_pcie_suspend,
-				tc956x_pcie_resume);
-
 static struct pci_driver tc956x_pci_driver = {
 	.name		= DRIVER_NAME,
 	.id_table	= tc956x_id_table,
@@ -2115,7 +2110,7 @@ static struct pci_driver tc956x_pci_driver = {
 	.driver		= {
 		.name	= DRIVER_NAME,
 		.owner	= THIS_MODULE,
-		.pm	= pm_sleep_ptr(&tc956x_pm_ops),
+		.pm     = &stmmac_simple_pm_ops,
 	},
 };
 
