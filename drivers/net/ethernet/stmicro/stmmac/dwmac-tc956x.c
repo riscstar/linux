@@ -1420,8 +1420,7 @@ static int tc956x_pcie_pm_pci(struct pci_dev *pdev, bool suspend)
 }
 
 /**
- * tc956x_pcie_suspend() - Device driver suspend callback
- * @dev:	Device pointer
+ * tc956x_suspend() - Device driver suspend callback
  *
  * Perform the activities required to suspend the TC956x platform device.
  * This includes suspending the eMACs (and managing wake-on-LAN state)
@@ -1429,7 +1428,7 @@ static int tc956x_pcie_pm_pci(struct pci_dev *pdev, bool suspend)
  *
  * Return:	0 if successful, or an error code if an error occurs
  */
-static int tc956x_pcie_suspend(struct device *dev, void *bsp_priv)
+static int tc956x_suspend(struct device *dev, void *bsp_priv)
 {
 	struct net_device *ndev = dev_get_drvdata(dev);
 	struct stmmac_priv *priv = netdev_priv(ndev);
@@ -1453,8 +1452,7 @@ static int tc956x_pcie_suspend(struct device *dev, void *bsp_priv)
 }
 
 /**
- * tc956x_pcie_resume() - Device driver resume callback
- * @dev:	Device pointer
+ * tc956x_resume() - Device driver resume callback
  *
  * Perform the activities required to resume the TC956x platform device.
  * This includes resuming the PCIe interfaces, and disabling wake-on-LAN
@@ -1462,7 +1460,7 @@ static int tc956x_pcie_suspend(struct device *dev, void *bsp_priv)
  *
  * Return:	0 if successful, or an error code if an error occurs
  */
-static int tc956x_pcie_resume(struct device *dev, void *bsp_priv)
+static int tc956x_resume(struct device *dev, void *bsp_priv)
 {
 	struct pci_dev *pdev = to_pci_dev(dev);
 	struct net_device *ndev = dev_get_drvdata(dev);
@@ -1552,8 +1550,8 @@ tc956x_plat_dat_alloc(struct tc956x_data *td, struct pci_dev *pdev)
 	plat->fix_mac_speed = tc956x_fix_mac_speed;
 	plat->pcs_init = tc956x_pcs_init;
 	plat->select_pcs = tc956x_select_pcs;
-	plat->suspend = tc956x_pcie_suspend;
-	plat->resume = tc956x_pcie_resume;
+	plat->suspend = tc956x_suspend;
+	plat->resume = tc956x_resume;
 
 	/* XXX We don't initialize this; what is required? */
 	plat->mdio_bus_data = devm_kzalloc(dev, sizeof(*plat->mdio_bus_data),
