@@ -701,10 +701,6 @@ static int tc956x_platform_probe(struct tc956x_data *td,
 
 	dev_dbg(td->dev, "QPS615 platform probing has started\n");
 
-	ret = tc956x_platform_of_parse(td);
-	if (ret)
-		return ret;
-
 	ret = tc956x_reset_gpio_get(td);
 	if (ret)
 		return ret;
@@ -1500,12 +1496,16 @@ static struct tc956x_data *tc956x_devm_data_create(struct pci_dev *pdev)
 	if (!td)
 		return NULL;
 
+	td->dev = dev;
+	td->devfn = pdev->devfn;
+
+	ret = tc956x_platform_of_parse(td);
+	if (ret)
+		return ERR_PTR(ret);
+
 	td->plat = tc956x_plat_dat_alloc(td, pdev);
 	if (!td->plat)
 		return NULL;
-
-	td->dev = dev;
-	td->devfn = pdev->devfn;
 
 	ret = pcim_enable_device(pdev);
 	if (ret) {
