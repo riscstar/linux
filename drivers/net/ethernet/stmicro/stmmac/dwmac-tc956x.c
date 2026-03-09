@@ -214,7 +214,7 @@ static const struct regmap_config tc956x_gpio_regmap_config = {
 	.max_register	= 0x1214,	/* Register GPIOO1 */
 };
 
-static const struct regmap_config tc956x_clk_reset_regmap_config = {
+static const struct regmap_config tc956x_reset_clock_regmap_config = {
 	.name		= "tc956x-clk-reset",
 	.reg_bits	= 32,
 	.reg_stride	= 4,
@@ -1415,12 +1415,6 @@ static int tc956x_devm_mfd_init(struct tc956x_chip *chip)
 	if (IS_ERR(regmap))
 		return PTR_ERR(regmap);
 
-	regmap = devm_regmap_init_mmio(dev, regs,
-				       &tc956x_clk_reset_regmap_config);
-	if (IS_ERR(regmap))
-		return PTR_ERR(regmap);
-	chip->reset_clock_regmap = regmap;
-
 	return devm_mfd_add_devices(dev, PLATFORM_DEVID_AUTO,
 				    tc956x_mfd_cells,
 				    ARRAY_SIZE(tc956x_mfd_cells),
@@ -1563,6 +1557,7 @@ static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 	u8 pci_slot = PCI_SLOT(td->devfn);
 	struct device *dev = td->dev;
 	struct tc956x_chip *chip;
+	struct regmap *regmap;
 	int ret;
 
 	/* Use the existing chip structure if it's already been created */
@@ -1583,7 +1578,7 @@ static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 		return chip;
 	}
 
-	/* We need a new chip structure */
+	/* We're operating on the primary MAC, and need a new chip structure */
 	chip = devm_kzalloc(dev, sizeof(*chip), GFP_KERNEL);
 	if (!chip)
 		return NULL;
@@ -1591,6 +1586,12 @@ static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 	chip->pci_bus_num = pci_bus_num;
 	chip->pci_slot = pci_slot;
 	chip->primary = td;
+
+	regmap = devm_regmap_init_mmio(td->dev, td->sfr,
+				       &tc956x_reset_clock_regmap_config);
+	if (IS_ERR(regmap))
+		return ERR_CAST(regmap);
+	chip->reset_clock_regmap = regmap;
 
 	ret = tc956x_devm_mfd_init(chip);
 	if (ret)
