@@ -1765,7 +1765,10 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	if (td->emac0)
 		tc956x_config_tamap(td);
 
-	/* Enable MSI  and Allocate Vectors */
+	/*
+	 * Enable MSI and Allocate Vectors. Despite the spelling (no pcim) the
+	 * free will be handled by devres due to the prior pcim_enable_device()
+	 */
 	ret = pci_alloc_irq_vectors(pdev, TC956X_TOT_MSI_VEC,
 				TC956X_TOT_MSI_VEC, PCI_IRQ_MSI);
 
@@ -1856,7 +1859,6 @@ err_dvr_probe:
 	(void)tc956x_platform_remove(td);
 err_platform_probe:
 err_out_msi_failed:
-	// pci_free_irq_vectors(pdev);
 err_chip_put:
 	tc956x_chip_put(td);
 err_clear_master:
@@ -1907,9 +1909,6 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 
 	tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_125M);
 	tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_312_5M);
-
-	/* Free allocated interrupt vectors for device */
-	pci_free_irq_vectors(pdev);
 
 	/* Close shared things down if the primary is removed */
 	if (td == td->chip->primary) {
