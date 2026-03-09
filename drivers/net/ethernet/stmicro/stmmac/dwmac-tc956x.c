@@ -1525,16 +1525,6 @@ static struct tc956x_data *tc956x_devm_data_create(struct pci_dev *pdev)
 		return ERR_CAST(td->regmap);
 	}
 
-	dev_dbg(dev, "BAR0 physical address = 0x%llx length 0x%llx\n",
-		(u64)pci_resource_start(pdev, 0),
-		(u64)pci_resource_len(pdev, 0));
-	dev_dbg(dev, "BAR2 physical address = 0x%llx length 0x%llx\n",
-		(u64)pci_resource_start(pdev, 2),
-		(u64)pci_resource_len(pdev, 2));
-	dev_dbg(dev, "BAR4 physical address = 0x%llx length 0x%llx\n",
-		(u64)pci_resource_start(pdev, 4),
-		(u64)pci_resource_len(pdev, 4));
-
 	return td;
 }
 
