@@ -377,7 +377,7 @@ tc956x_chip_clock_enable(struct tc956x_chip *tc, enum tc9564_chip_clock_id id)
 static void
 tc956x_chip_clock_disable(struct tc956x_chip *tc, enum tc9564_chip_clock_id id)
 {
-	u32 offset = 0x0c;	/* NCLKCTRL1_OFFSET, relative to regmap */
+	u32 offset = 0x04;	/* NCLKCTRL0_OFFSET, relative to regmap */
 
 	__tc956x_clock_set(tc, offset, (u32)id, false);
 }
