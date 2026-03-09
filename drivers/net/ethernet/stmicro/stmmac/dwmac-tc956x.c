@@ -664,10 +664,6 @@ static int tc956x_platform_of_parse(struct tc956x_data *td)
 	if (!np)
 		return -EINVAL;
 
-	ret = tc956x_reset_gpio_get(td);
-	if (ret)
-		return ret;
-
 	ret = of_irq_get_byname(np, "wake-on-lan");
 	if (ret <= 0) {
 		dev_err(dev, "failed to get wake-on-lan property\n");
@@ -706,6 +702,10 @@ static int tc956x_platform_probe(struct tc956x_data *td,
 	dev_dbg(td->dev, "QPS615 platform probing has started\n");
 
 	ret = tc956x_platform_of_parse(td);
+	if (ret)
+		return ret;
+
+	ret = tc956x_reset_gpio_get(td);
 	if (ret)
 		return ret;
 
