@@ -76,10 +76,6 @@
 /* These values are bit positions in struct tc956x_data->mac_state */
 enum tc956x_mac_state {
 	MAC_STATE_125_CLOCK,			/* set: enabled; clear: not */
-	MAC_STATE_312_5_CLOCK,
-	MAC_STATE_TX_CLOCK,
-	MAC_STATE_RX_CLOCK,
-	MAC_STATE_ALL_CLOCK,
 	MAC_STATE_RGMII_CLOCK,
 
 	MAC_STATE_COUNT,			/* Not a state */
@@ -902,7 +898,6 @@ static int tc956x_chipcfg_mac_configure(struct tc956x_data *td, int speed)
 		__clear_bit(MAC_STATE_125_CLOCK, td->mac_state);
 		tc956x_mac_clock_disable(td, MAC_CLOCK_125M);
 	}
-	__clear_bit(MAC_STATE_312_5_CLOCK, td->mac_state);
 	tc956x_mac_clock_disable(td, MAC_CLOCK_312_5M);
 
 	val = readl(td->sfr + nemacxctl_offset);
@@ -922,11 +917,8 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 
 	tc956x_mac_reset_assert(td, MAC_RESET_MAC);
 
-	__set_bit(MAC_STATE_TX_CLOCK, td->mac_state);
 	tc956x_mac_clock_enable(td, MAC_CLOCK_TX);
-	__set_bit(MAC_STATE_RX_CLOCK, td->mac_state);
 	tc956x_mac_clock_enable(td, MAC_CLOCK_RX);
-	__set_bit(MAC_STATE_ALL_CLOCK, td->mac_state);
 	tc956x_mac_clock_enable(td, MAC_CLOCK_ALL);
 	if (td->emac0) {
 		if (plat->phy_interface == PHY_INTERFACE_MODE_SGMII ||
@@ -978,17 +970,12 @@ static void tc956x_restart_clocks(struct tc956x_data *td)
 		tc956x_mac_clock_enable(td, MAC_CLOCK_PLL);
 	}
 
-	if (test_bit(MAC_STATE_312_5_CLOCK, td->mac_state))
-		tc956x_mac_clock_enable(td, MAC_CLOCK_312_5M);
 	if (test_bit(MAC_STATE_125_CLOCK, td->mac_state))
 		tc956x_mac_clock_enable(td, MAC_CLOCK_125M);
 
-	if (test_bit(MAC_STATE_RX_CLOCK, td->mac_state))
-		tc956x_mac_clock_enable(td, MAC_CLOCK_RX);
-	if (test_bit(MAC_STATE_TX_CLOCK, td->mac_state))
-		tc956x_mac_clock_enable(td, MAC_CLOCK_TX);
-	if (test_bit(MAC_STATE_ALL_CLOCK, td->mac_state))
-		tc956x_mac_clock_enable(td, MAC_CLOCK_ALL);
+	tc956x_mac_clock_enable(td, MAC_CLOCK_RX);
+	tc956x_mac_clock_enable(td, MAC_CLOCK_TX);
+	tc956x_mac_clock_enable(td, MAC_CLOCK_ALL);
 }
 
 static void tc956x_get_interfaces(struct stmmac_priv *priv, void *bsp_priv,
