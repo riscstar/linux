@@ -1461,45 +1461,6 @@ static int tc956x_pcie_suspend(struct device *dev, void *bsp_priv)
 }
 
 /**
- * tc956x_pcie_resume_config() - Restore device configuration during resume
- * @pdev:	PCI device pointer
- *
- * Restore the state of the eMAC to functional state during resume.
- *
- * Return:	0 if successful, or an error code if an error occurs
- */
-static int tc956x_pcie_resume_config(struct pci_dev *pdev)
-{
-	struct device *dev = &pdev->dev;
-	struct net_device *ndev = dev_get_drvdata(dev);
-	struct stmmac_priv *priv = netdev_priv(ndev);
-	struct tc956x_data *td = priv->plat->bsp_priv;
-	int ret = 0;
-
-	/* Skip Config when Port unavailable */
-	if (priv->dma_cap.sma_mdio == 1) {
-		if ((priv->plat->phy_addr == -1) || (priv->mii == NULL)) {
-			dev_dbg(dev, "%s : Invalid PHY Address (%d)\n", __func__, priv->plat->phy_addr);
-			ret = -1;
-			goto err_phy_addr;
-		}
-	}
-
-	ret = tc956x_chipcfg_mac_init(td);
-	WARN_ON(ret);
-
-	tc956x_pma_init(td);
-
-	__clear_bit(MAC_STATE_XPCS_RESET, td->mac_state);
-	reset_control_deassert(td->xpcs_reset);
-
-	return 0;
-
-err_phy_addr:
-	return ret;
-}
-
-/**
  * tc956x_pcie_resume() - Device driver resume callback
  * @dev:	Device pointer
  *
@@ -1552,7 +1513,13 @@ static int tc956x_pcie_resume(struct device *dev, void *bsp_priv)
 		tc956x_config_tamap(td);
 
 	/* Configure EMAC Port */
-	tc956x_pcie_resume_config(pdev);
+	ret = tc956x_chipcfg_mac_init(td);
+	WARN_ON(ret);
+
+	tc956x_pma_init(td);
+
+	__clear_bit(MAC_STATE_XPCS_RESET, td->mac_state);
+	reset_control_deassert(td->xpcs_reset);
 
 	return 0;
 }
