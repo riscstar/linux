@@ -628,14 +628,19 @@ static int tc956x_reset_gpio_get(struct tc956x_data *td)
 {
 	struct device *dev = td->dev;
 	struct device_node *np;
+	int retries = 10;
 	int ret;
 
 	np = dev_of_node(dev);
 	if (!np)
 		return -EINVAL;
 
-	td->phy_reset = devm_gpiod_get(dev, "phy-reset", GPIOD_OUT_LOW);
-	if (IS_ERR(td->phy_reset))
+	do {
+		td->phy_reset = devm_gpiod_get(dev, "phy-reset", GPIOD_OUT_LOW);
+		msleep(10);
+	} while (IS_ERR(td->phy_reset) && retries--);
+
+	if (retries < 0)
 		return PTR_ERR(td->phy_reset);
 
 	/* XXX Can we use a good constant and avoid having to specify this? * */
