@@ -879,17 +879,17 @@ struct {
 	{ PHY_INTERFACE_MODE_SGMII, SPEED_1000, SP_SEL_SGMII_1000M, true },
 	{ PHY_INTERFACE_MODE_SGMII, SPEED_100, SP_SEL_SGMII_100M, true },
 	{ PHY_INTERFACE_MODE_SGMII, SPEED_10, SP_SEL_SGMII_10M, true },
-
 };
 
 static int tc956x_chipcfg_mac_configure(struct tc956x_data *td, int speed)
 {
+	u32 sp_sel = EMAC_SP_SEL_MASK + 1;
 	u32 nemacxctl_offset;
 	bool mac_125_clock;
-	u32 sp_sel = EMAC_SP_SEL_MASK + 1;
 	u32 val;
+	int i;
 
-	for (int i=0; i < ARRAY_SIZE(tc956x_chipcfg_mac_speed); i++) {
+	for (i = 0; i < ARRAY_SIZE(tc956x_chipcfg_mac_speed); i++) {
 		if (tc956x_chipcfg_mac_speed[i].phy_interface ==
 			    td->plat->phy_interface &&
 		    tc956x_chipcfg_mac_speed[i].speed == speed) {
@@ -979,7 +979,8 @@ static void tc956x_stop_clocks(struct tc956x_data *td)
 	}
 }
 
-static void tc956x_restart_clocks(struct tc956x_data *td) {
+static void tc956x_restart_clocks(struct tc956x_data *td)
+{
 	if (td == td->chip->primary) {
 		tc956x_mac_clock_enable(td, TC9564_CLOCK_REFCLK);
 		tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_SGMII);
@@ -1196,9 +1197,8 @@ static void tc956x_desc_set_sec_addr(struct dma_desc *p, dma_addr_t addr, bool i
 			      upper_32_bits(TC956X_AXI4_SLV00_SRC_ADDR));
 }
 
-
-
-static int tc956x_mac_setup(void *apriv, struct mac_device_info *mac) {
+static int tc956x_mac_setup(void *apriv, struct mac_device_info *mac)
+{
 	struct stmmac_priv *priv = apriv;
 	struct {
 		struct stmmac_dma_ops dma;
@@ -1334,6 +1334,8 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 
 /**
  * tc956x_suspend() - Device driver suspend callback
+ * @dev:		Device pointer
+ * @bsp_priv:		stmmac dsp_priv pointer
  *
  * Perform the activities required to suspend the TC956x platform device.
  * This includes suspending the eMACs (and managing wake-on-LAN state)
@@ -1366,6 +1368,8 @@ static int tc956x_suspend(struct device *dev, void *bsp_priv)
 
 /**
  * tc956x_resume() - Device driver resume callback
+ * @dev:		Device pointer
+ * @bsp_priv:		stmmac dsp_priv pointer
  *
  * Perform the activities required to resume the TC956x platform device.
  * This includes resuming the PCIe interfaces, and disabling wake-on-LAN
