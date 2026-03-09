@@ -75,10 +75,6 @@
 
 /* These values are bit positions in struct tc956x_data->mac_state */
 enum tc956x_mac_state {
-	MAC_STATE_MAC_RESET,			/* set: asserted; clear: not */
-	MAC_STATE_PMA_RESET,
-	MAC_STATE_XPCS_RESET,
-
 	MAC_STATE_125_CLOCK,			/* set: enabled; clear: not */
 	MAC_STATE_312_5_CLOCK,
 	MAC_STATE_TX_CLOCK,
@@ -833,7 +829,6 @@ static void tc956x_pma_init(struct tc956x_data *td)
 	void __iomem *pmaaddr = XGMAC_BASE(td) + PMA_XGMAC_OFFSET;
 	u32 val;
 
-	__set_bit(MAC_STATE_PMA_RESET, td->mac_state);
 	reset_control_assert(td->pma_reset);
 
 	/*Power on CML buffer*/
@@ -860,7 +855,6 @@ static void tc956x_pma_init(struct tc956x_data *td)
 	writel(XGMAC_PMA_OFFSET0, pmaaddr + XGMAC_PMA_HWT_REFCK_R_EN_R4);
 	writel(XGMAC_PMA_OFFSET0, pmaaddr + XGMAC_PMA_HWT_REFCK_TERM_EN_R4);
 
-	__clear_bit(MAC_STATE_PMA_RESET, td->mac_state);
 	reset_control_deassert(td->pma_reset);
 
 	WARN_ON(readl_poll_timeout(td->sfr + (td->emac0 ? NEMAC0CTL_OFFSET :
@@ -934,7 +928,6 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 	struct plat_stmmacenet_data *plat = td->plat;
 	int ret;
 
-	__set_bit(MAC_STATE_MAC_RESET, td->mac_state);
 	reset_control_assert(td->mac_reset);
 
 	__set_bit(MAC_STATE_TX_CLOCK, td->mac_state);
@@ -964,7 +957,6 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 				     phy_modes(plat->phy_interface),
 				     plat->max_speed);
 
-	__clear_bit(MAC_STATE_MAC_RESET, td->mac_state);
 	reset_control_deassert(td->mac_reset);
 
 	return 0;
@@ -1484,13 +1476,6 @@ static int tc956x_pcie_resume(struct device *dev, void *bsp_priv)
 
 	tc956x_restart_clocks(td);
 
-	if (test_bit(MAC_STATE_XPCS_RESET, td->mac_state))
-		reset_control_deassert(td->xpcs_reset);
-	if (test_bit(MAC_STATE_PMA_RESET, td->mac_state))
-		reset_control_deassert(td->pma_reset);
-	if (test_bit(MAC_STATE_MAC_RESET, td->mac_state))
-		reset_control_deassert(td->mac_reset);
-
 	/* XXX Error handling in this function needs work */
 	ret = tc956x_assert_phy_reset(td, td->reset_asserted);
 	if (ret) {
@@ -1517,8 +1502,6 @@ static int tc956x_pcie_resume(struct device *dev, void *bsp_priv)
 	WARN_ON(ret);
 
 	tc956x_pma_init(td);
-
-	__clear_bit(MAC_STATE_XPCS_RESET, td->mac_state);
 	reset_control_deassert(td->xpcs_reset);
 
 	return 0;
@@ -1934,8 +1917,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		goto err_platform_probe;
 
 	tc956x_pma_init(td);
-
-	__clear_bit(MAC_STATE_XPCS_RESET, td->mac_state);
 	reset_control_deassert(td->xpcs_reset);
 
 	ret = stmmac_dvr_probe(dev, td->plat, &res);
