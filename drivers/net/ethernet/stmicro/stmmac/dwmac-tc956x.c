@@ -33,10 +33,11 @@
 #include <linux/of_irq.h>
 #include <linux/delay.h>
 
-#include "stmmac.h"
-#include "dwxgmac2.h"
 #include "common.h"
 #include "dwmac-tc956x-reset.h"
+#include "dwxgmac2.h"
+#include "stmmac.h"
+#include "stmmac_libpci.h"
 
 #define DRIVER_NAME "dwmac-tc956x"
 
@@ -1332,94 +1333,6 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 }
 
 /**
- * tc956x_pcie_pm_enable_pci() - Enable a PCI device
- * @pdev:	Pointer to the PCI device to enable
- *
- * Enable the PCI device passed as argument.
- *
- * Return:	0 if successful, or an error code if setting power state fails
- */
-static int tc956x_pcie_pm_enable_pci(struct pci_dev *pdev)
-{
-	int ret;
-
-	pci_set_power_state(pdev, PCI_D0);
-
-	ret = pci_enable_device_mem(pdev);
-	if (ret) {
-		dev_err(&pdev->dev, "error %d enabling PCI device memory", ret);
-		return ret;
-	}
-
-	pci_restore_state(pdev);
-	pci_set_master(pdev);
-
-	return 0;
-}
-
-/**
- * tc956x_pcie_pm_disable_pci() - Disable a PCI device
- * @pdev:	Pointer to the PCI device to disable
- *
- * Disable the PCI device passed as argument.
- */
-static void tc956x_pcie_pm_disable_pci(struct pci_dev *pdev)
-{
-	pci_save_state(pdev);
-	pci_disable_device(pdev);
-	pci_prepare_to_sleep(pdev);
-}
-
-/**
- * tc956x_pcie_pm_pci() - Disable PCIe child devices
- * @pdev:	Pointer to the PCI device whose children are affected
- * @suspend:	Whether we are being called during suspend
- *
- * Disable PCI devices that are children of the given PCI device.
- *
- * Return:	0 if successful, or an error code if an error occurs
- */
-static int tc956x_pcie_pm_pci(struct pci_dev *pdev, bool suspend)
-{
-	struct net_device *ndev = dev_get_drvdata(&pdev->dev);
-	struct stmmac_priv *priv = netdev_priv(ndev);
-	struct tc956x_data *td = priv->plat->bsp_priv;
-	struct pci_dev *tc956x_port_pdev[2] = { };
-	struct pci_dev *tc956x_dsp_ep;
-	struct pci_dev *tc956x_pd;
-	struct pci_bus *bus;
-	int i = 0;
-	int ret;
-	int p;
-
-	/*
-	 * If we are suspending the primary then the secondary (if it exists)
-	 * will already be gone.
-	 */
-	if (td == td->chip->primary) {
-		tc956x_dsp_ep = pci_upstream_bridge(pdev);
-		bus = tc956x_dsp_ep->subordinate;
-
-		if (bus)
-			list_for_each_entry(tc956x_pd, &bus->devices, bus_list)
-				tc956x_port_pdev[i++] = tc956x_pd;
-
-		for (p = 0; ((p < i) && (tc956x_port_pdev[p] != NULL)); p++) {
-			/* Enter only if at least 1 Port Suspended */
-			if (suspend) {
-				tc956x_pcie_pm_disable_pci(tc956x_port_pdev[p]);
-			} else {
-				ret = tc956x_pcie_pm_enable_pci(tc956x_port_pdev[p]);
-				if (ret < 0)
-					return ret;
-			}
-		}
-	}
-
-	return 0;
-}
-
-/**
  * tc956x_suspend() - Device driver suspend callback
  *
  * Perform the activities required to suspend the TC956x platform device.
@@ -1448,7 +1361,7 @@ static int tc956x_suspend(struct device *dev, void *bsp_priv)
 
 	tc956x_stop_clocks(td);
 
-	return tc956x_pcie_pm_pci(pdev, true);
+	return stmmac_pci_plat_suspend(dev, bsp_priv);
 }
 
 /**
@@ -1468,7 +1381,7 @@ static int tc956x_resume(struct device *dev, void *bsp_priv)
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	int ret;
 
-	ret = tc956x_pcie_pm_enable_pci(pdev);
+	ret = stmmac_pci_plat_resume(dev, bsp_priv);
 	if (ret < 0)
 		return ret;
 
