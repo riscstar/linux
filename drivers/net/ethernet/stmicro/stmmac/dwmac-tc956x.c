@@ -354,11 +354,15 @@ static const struct regmap_config tc956x_regmap_config = {
 #define NFUNCEN4_GPIO_01_MASK	GENMASK(7, 4)
 #define GPIO_01_FUNC		0
 
+#define CLKCTRL0_OFFSET		0x04	/* Relative to clock/reset regmap */
+#define CLKCTRL1_OFFSET		0x0c	/* Relative to clock/reset regmap */
+
 static void __tc956x_clock_set(struct tc956x_chip *chip, u32 offset,
 			       u32 bit, bool enable)
 {
 	u32 mask = BIT(bit);
 
+	/* Note: no need to check for errors on read/write for MMIO regmap */
 	(void)regmap_update_bits(chip->clock_reset_regmap, offset, mask,
 				 enable ? mask : 0);
 }
@@ -366,33 +370,25 @@ static void __tc956x_clock_set(struct tc956x_chip *chip, u32 offset,
 static void
 tc956x_chip_clock_enable(struct tc956x_chip *tc, enum tc9564_chip_clock_id id)
 {
-	u32 offset = 0x04;	/* NCLKCTRL0_OFFSET, relative to regmap */
-
-	__tc956x_clock_set(tc, offset, (u32)id, true);
+	__tc956x_clock_set(tc, CLKCTRL0_OFFSET, (u32)id, true);
 }
 
 static void
 tc956x_chip_clock_disable(struct tc956x_chip *tc, enum tc9564_chip_clock_id id)
 {
-	u32 offset = 0x04;	/* NCLKCTRL0_OFFSET, relative to regmap */
-
-	__tc956x_clock_set(tc, offset, (u32)id, false);
+	__tc956x_clock_set(tc, CLKCTRL0_OFFSET, (u32)id, false);
 }
 
 static void
 tc956x_mac_clock_enable(struct tc956x_data *td, enum tc9564_mac_clock_id id)
 {
-	u32 offset = td->clock_offset;
-
-	__tc956x_clock_set(td->chip, offset, (u32)id, true);
+	__tc956x_clock_set(td->chip, td->clock_offset, (u32)id, true);
 }
 
 static void
 tc956x_mac_clock_disable(struct tc956x_data *td, enum tc9564_mac_clock_id id)
 {
-	u32 offset = td->clock_offset;
-
-	__tc956x_clock_set(td->chip, offset, (u32)id, false);
+	__tc956x_clock_set(td->chip, td->clock_offset, (u32)id, false);
 }
 
 //
@@ -1434,7 +1430,6 @@ static int tc956x_devm_mfd_init(struct tc956x_chip *chip)
 	void __iomem *regs = chip->primary->sfr;
 	struct regmap *regmap;
 
-	/* Note: no need to check for errors on read/write for MMIO regmap */
 	regmap = devm_regmap_init_mmio(dev, regs, &tc956x_gpio_regmap_config);
 	if (IS_ERR(regmap))
 		return PTR_ERR(regmap);
@@ -1744,7 +1739,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	td->emac0 = pfn == 0;
 
 	/* NCLKCTRL0_OFFSET or NCLKCTRL1_OFFSET, relative to regmap */
-	td->clock_offset = td->emac0 ? 0x04 : 0x0c;
+	td->clock_offset = td->emac0 ? CLKCTRL0_OFFSET : CLKCTRL1_OFFSET;
 
 	// NCID_OFFSET gives the revision ID (and early revisions are limited
 	// to 2.5G)
