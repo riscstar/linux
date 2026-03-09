@@ -73,13 +73,6 @@
 #define PCI_BAR_BRIDGE_CONFIG		0
 #define PCI_BAR_SFR			4
 
-/* These values are bit positions in struct tc956x_data->mac_state */
-enum tc956x_mac_state {
-	MAC_STATE_125_CLOCK,			/* set: enabled; clear: not */
-
-	MAC_STATE_COUNT,			/* Not a state */
-};
-
 /* XXX MCU and MCU1 are always asserted/deasserted together */
 /* XXX INTC and UART0 are always asserted (only) together */
 enum tc9564_chip_reset_id {
@@ -144,9 +137,9 @@ enum tc9564_mac_clock_id {
  * @wol_irq:		Wake-on-LAN IRQ number
  * @chip:		Pointer to the containing chip information
  * @regmap:		Register map for SFR region access
- * @mac_state:		Bitmap tracking state of resets
  * @reset_offset:	Offset to reset control register
  * @clock_offset:	Offset to clock control register
+ * @mac_125_clock:	Whether the 125 MHz clock is enabled
  */
 struct tc956x_data {
 	struct device *dev;
@@ -167,7 +160,7 @@ struct tc956x_data {
 	struct regmap *regmap;
 	u32 reset_offset;
 	u32 clock_offset;
-	DECLARE_BITMAP(mac_state, MAC_STATE_COUNT);
+	bool mac_125_clock;
 };
 
 /**
@@ -871,7 +864,6 @@ static int tc956x_chipcfg_mac_configure(struct tc956x_data *td, int speed)
 {
 	u32 sp_sel = EMAC_SP_SEL_MASK + 1;
 	u32 nemacxctl_offset;
-	bool mac_125_clock;
 	u32 val;
 	int i;
 
@@ -880,7 +872,7 @@ static int tc956x_chipcfg_mac_configure(struct tc956x_data *td, int speed)
 			    td->plat->phy_interface &&
 		    tc956x_chipcfg_mac_speed[i].speed == speed) {
 			sp_sel = tc956x_chipcfg_mac_speed[i].sp_sel;
-			mac_125_clock =
+			td->mac_125_clock =
 				tc956x_chipcfg_mac_speed[i].mac_125_clock;
 			break;
 		}
@@ -890,13 +882,10 @@ static int tc956x_chipcfg_mac_configure(struct tc956x_data *td, int speed)
 
 	nemacxctl_offset = td->emac0 ? NEMAC0CTL_OFFSET : NEMAC1CTL_OFFSET;
 
-	if (mac_125_clock) {
-		__set_bit(MAC_STATE_125_CLOCK, td->mac_state);
+	if (td->mac_125_clock)
 		tc956x_mac_clock_enable(td, MAC_CLOCK_125M);
-	} else {
-		__clear_bit(MAC_STATE_125_CLOCK, td->mac_state);
+	else
 		tc956x_mac_clock_disable(td, MAC_CLOCK_125M);
-	}
 	tc956x_mac_clock_disable(td, MAC_CLOCK_312_5M);
 
 	val = readl(td->sfr + nemacxctl_offset);
@@ -972,7 +961,7 @@ static void tc956x_restart_clocks(struct tc956x_data *td)
 		tc956x_mac_clock_enable(td, MAC_CLOCK_RMII);
 	}
 
-	if (test_bit(MAC_STATE_125_CLOCK, td->mac_state))
+	if (td->mac_125_clock)
 		tc956x_mac_clock_enable(td, MAC_CLOCK_125M);
 
 	tc956x_mac_clock_enable(td, MAC_CLOCK_RX);
