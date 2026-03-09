@@ -970,61 +970,40 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 	return 0;
 }
 
-/**
- * tc956x_pm_set_power() - Set clock and reset for suspend or resume
- * @priv:	STMMAC driver private data pointer
- * @suspend:	Whether we are being called during suspend
- *
- * Assert resets and disable clocks on suspend; re-enable clocks that
- * were active at suspend time, and de-assert resets on resume.
- */
-static void tc956x_pm_set_power(struct stmmac_priv *priv, bool suspend)
+static void tc956x_stop_clocks(struct tc956x_data *td)
 {
-	struct tc956x_data *td = priv->plat->bsp_priv;
+	tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_ALL);
+	tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_TX);
+	tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_RX);
 
-	if (suspend) {
-		reset_control_assert(td->mac_reset);
-		reset_control_assert(td->pma_reset);
-		reset_control_assert(td->xpcs_reset);
+	tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_125M);
+	tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_312_5M);
 
-		tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_ALL);
-		tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_TX);
-		tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_RX);
-
-		tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_125M);
-		tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_312_5M);
-
-		if (td == td->chip->primary) {
-			tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_PLL);
-			tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_SGMII);
-			tc956x_mac_clock_disable(td, TC9564_CLOCK_REFCLK);
-		}
-	} else {
-		if (td == td->chip->primary) {
-			tc956x_mac_clock_enable(td, TC9564_CLOCK_REFCLK);
-			tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_SGMII);
-			tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_PLL);
-		}
-
-		if (test_bit(MAC_STATE_312_5_CLOCK, td->mac_state))
-			tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_312_5M);
-		if (test_bit(MAC_STATE_125_CLOCK, td->mac_state))
-			tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_125M);
-
-		if (test_bit(MAC_STATE_RX_CLOCK, td->mac_state))
-			tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_RX);
-		if (test_bit(MAC_STATE_TX_CLOCK, td->mac_state))
-			tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_TX);
-		if (test_bit(MAC_STATE_ALL_CLOCK, td->mac_state))
-			tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_ALL);
-
-		if (test_bit(MAC_STATE_XPCS_RESET, td->mac_state))
-			reset_control_deassert(td->xpcs_reset);
-		if (test_bit(MAC_STATE_PMA_RESET, td->mac_state))
-			reset_control_deassert(td->pma_reset);
-		if (test_bit(MAC_STATE_MAC_RESET, td->mac_state))
-			reset_control_deassert(td->mac_reset);
+	if (td == td->chip->primary) {
+		tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_PLL);
+		tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_SGMII);
+		tc956x_mac_clock_disable(td, TC9564_CLOCK_REFCLK);
 	}
+}
+
+static void tc956x_restart_clocks(struct tc956x_data *td) {
+	if (td == td->chip->primary) {
+		tc956x_mac_clock_enable(td, TC9564_CLOCK_REFCLK);
+		tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_SGMII);
+		tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_PLL);
+	}
+
+	if (test_bit(MAC_STATE_312_5_CLOCK, td->mac_state))
+		tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_312_5M);
+	if (test_bit(MAC_STATE_125_CLOCK, td->mac_state))
+		tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_125M);
+
+	if (test_bit(MAC_STATE_RX_CLOCK, td->mac_state))
+		tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_RX);
+	if (test_bit(MAC_STATE_TX_CLOCK, td->mac_state))
+		tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_TX);
+	if (test_bit(MAC_STATE_ALL_CLOCK, td->mac_state))
+		tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_ALL);
 }
 
 static void tc956x_get_interfaces(struct stmmac_priv *priv, void *bsp_priv,
@@ -1460,9 +1439,10 @@ static int tc956x_pcie_pm_pci(struct pci_dev *pdev, bool suspend)
  */
 static int tc956x_pcie_suspend(struct device *dev, void *bsp_priv)
 {
-	struct pci_dev *pdev = to_pci_dev(dev);
 	struct net_device *ndev = dev_get_drvdata(dev);
 	struct stmmac_priv *priv = netdev_priv(ndev);
+	struct pci_dev *pdev = to_pci_dev(dev);
+	struct tc956x_data *td = bsp_priv;
 	int ret;
 
 	ret = tc956x_platform_suspend(priv);
@@ -1471,7 +1451,11 @@ static int tc956x_pcie_suspend(struct device *dev, void *bsp_priv)
 		return ret;
 	}
 
-	tc956x_pm_set_power(priv, true);
+	reset_control_assert(td->mac_reset);
+	reset_control_assert(td->pma_reset);
+	reset_control_assert(td->xpcs_reset);
+
+	tc956x_stop_clocks(td);
 
 	return tc956x_pcie_pm_pci(pdev, true);
 }
@@ -1537,7 +1521,14 @@ static int tc956x_pcie_resume(struct device *dev, void *bsp_priv)
 	if (ret < 0)
 		return ret;
 
-	tc956x_pm_set_power(priv, false);
+	tc956x_restart_clocks(td);
+
+	if (test_bit(MAC_STATE_XPCS_RESET, td->mac_state))
+		reset_control_deassert(td->xpcs_reset);
+	if (test_bit(MAC_STATE_PMA_RESET, td->mac_state))
+		reset_control_deassert(td->pma_reset);
+	if (test_bit(MAC_STATE_MAC_RESET, td->mac_state))
+		reset_control_deassert(td->mac_reset);
 
 	/* XXX Error handling in this function needs work */
 	ret = tc956x_assert_phy_reset(td, td->reset_asserted);
@@ -2047,6 +2038,10 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 	reset_control_assert(td->pma_reset);
 	reset_control_assert(td->xpcs_reset);
 
+	/*
+	 * XXX We could probably arrange things so this code can reuse the logic
+	 *     in tc956x_stop_clocks()
+	 */
 	tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_TX);
 	tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_RX);
 	tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_ALL);
