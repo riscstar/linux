@@ -89,34 +89,30 @@ enum tc956x_mac_state {
 /* XXX MCU, SRAM, PCIE, and I2C are always enabled/disabled together */
 /* XXX MSIGEN and UART0 are always enabled/disabled together */
 enum tc9564_chip_clock_id {
-	/* Chip clocks */
-	TC9564_CLOCK_MCU	= 0,
-	TC9564_CLOCK_SRAM	= 13,
-	TC9564_CLOCK_PCIE	= 9,
-	TC9564_CLOCK_I2C	= 12,
-	TC9564_CLOCK_INTC	= 4,
-	TC9564_CLOCK_MSIGEN	= 18,
-	TC9564_CLOCK_UART0	= 16,
+	CHIP_CLOCK_MCU		= 0,
+	CHIP_CLOCK_SRAM		= 13,
+	CHIP_CLOCK_PCIE		= 9,
+	CHIP_CLOCK_I2C		= 12,
+	CHIP_CLOCK_MSIGEN	= 18,
+	CHIP_CLOCK_INTC		= 4,
+	CHIP_CLOCK_UART0	= 16,
 };
 
 /* XXX MAC_TX, MAC_RX, and MAC_ALL are always enabled/disabled together */
 /* XXX MAC_125M and MAC_312_5M are always enabled/disabled together */
 /* XXX MAC_PLL, MAC_SGMII, and REFCLK are always enabled/disabled together */
 enum tc9564_mac_clock_id {
-	/* Common eMAC clocks */
-	TC9564_CLOCK_MAC_TX	= 7,
-	TC9564_CLOCK_MAC_RX	= 14,
-	TC9564_CLOCK_MAC_ALL	= 31,
-	TC9564_CLOCK_MAC_125M	= 29,
-	TC9564_CLOCK_MAC_312_5M	= 30,
-
+	MAC_CLOCK_TX		= 7,
+	MAC_CLOCK_RX		= 14,
+	MAC_CLOCK_ALL		= 31,
+	MAC_CLOCK_125M		= 29,
+	MAC_CLOCK_312_5M	= 30,
 	/* eMAC 0 only */		/* XXX Are these really MAC clocks? */
-	TC9564_CLOCK_MAC_PLL	= 24,
-	TC9564_CLOCK_MAC_SGMII	= 25,
-	TC9564_CLOCK_REFCLK	= 26,	/* XXX MAC_REFCLK? */
-
+	MAC_CLOCK_PLL		= 24,
+	MAC_CLOCK_SGMII		= 25,
+	MAC_CLOCK_REFCLK	= 26,	/* XXX Probably CHIP_CLOCK_REFCLK */
 	/* eMAC 1 only */
-	TC9564_CLOCK_MAC_RMII	= 15,	/* XXX MAC_RGMII? */
+	MAC_CLOCK_RMII		= 15,
 };
 
 /**
@@ -174,7 +170,7 @@ struct tc956x_data {
  * @primary:		Data pointer for the primary eMAC interface
  * @secondary:		Device link between secondary (consumer) and primary
  * @gpio:		Pointer to GPIO information
- * @clock_reset_regmap:	Register map used for clocks and resets
+ * @reset_clock_regmap:	Register map used for clocks and resets
  * @mcu_reset:		MCU reset control
  * @mcu1_reset:		MCU1 reset control
  * @intr_reset:		INTC reset control
@@ -197,7 +193,7 @@ struct tc956x_chip {
 	struct tc956x_data *primary;
 	struct device_link *secondary;
 
-	struct regmap *clock_reset_regmap;
+	struct regmap *reset_clock_regmap;
 
 	struct reset_control *mcu_reset;
 	struct reset_control *mcu1_reset;
@@ -357,39 +353,24 @@ static const struct regmap_config tc956x_regmap_config = {
 #define CLKCTRL0_OFFSET		0x04	/* Relative to clock/reset regmap */
 #define CLKCTRL1_OFFSET		0x0c	/* Relative to clock/reset regmap */
 
-static void __tc956x_clock_set(struct tc956x_chip *chip, u32 offset,
-			       u32 bit, bool enable)
+static void __reset_clock_set(struct tc956x_chip *chip, u32 offset,
+			      u32 bit, bool set)
 {
 	u32 mask = BIT(bit);
 
 	/* Note: no need to check for errors on read/write for MMIO regmap */
-	(void)regmap_update_bits(chip->clock_reset_regmap, offset, mask,
-				 enable ? mask : 0);
+	(void)regmap_update_bits(chip->reset_clock_regmap, offset, mask,
+				 set ? mask : 0);
 }
 
-static void
-tc956x_chip_clock_enable(struct tc956x_chip *tc, enum tc9564_chip_clock_id id)
-{
-	__tc956x_clock_set(tc, CLKCTRL0_OFFSET, (u32)id, true);
-}
-
-static void
-tc956x_chip_clock_disable(struct tc956x_chip *tc, enum tc9564_chip_clock_id id)
-{
-	__tc956x_clock_set(tc, CLKCTRL0_OFFSET, (u32)id, false);
-}
-
-static void
-tc956x_mac_clock_enable(struct tc956x_data *td, enum tc9564_mac_clock_id id)
-{
-	__tc956x_clock_set(td->chip, td->clock_offset, (u32)id, true);
-}
-
-static void
-tc956x_mac_clock_disable(struct tc956x_data *td, enum tc9564_mac_clock_id id)
-{
-	__tc956x_clock_set(td->chip, td->clock_offset, (u32)id, false);
-}
+#define tc956x_chip_clock_enable(_chip, _id) \
+	__reset_clock_set((_chip), CLKCTRL0_OFFSET, (u32)(_id), true)
+#define tc956x_chip_clock_disable(_chip, _id) \
+	__reset_clock_set((_chip), CLKCTRL0_OFFSET, (u32)(_id), false)
+#define tc956x_mac_clock_enable(_td, _id) \
+	__reset_clock_set((_td)->chip, (_td)->clock_offset, (u32)(_id), true)
+#define tc956x_mac_clock_disable(_td, _id) \
+	__reset_clock_set((_td)->chip, (_td)->clock_offset, (u32)(_id), false)
 
 //
 // Code from tc956x_main.c in vendor driver
@@ -903,13 +884,13 @@ static int tc956x_chipcfg_mac_configure(struct tc956x_data *td, int speed)
 
 	if (mac_125_clock) {
 		__set_bit(MAC_STATE_125_CLOCK, td->mac_state);
-		tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_125M);
+		tc956x_mac_clock_enable(td, MAC_CLOCK_125M);
 	} else {
 		__clear_bit(MAC_STATE_125_CLOCK, td->mac_state);
-		tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_125M);
+		tc956x_mac_clock_disable(td, MAC_CLOCK_125M);
 	}
 	__clear_bit(MAC_STATE_312_5_CLOCK, td->mac_state);
-	tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_312_5M);
+	tc956x_mac_clock_disable(td, MAC_CLOCK_312_5M);
 
 	val = readl(td->sfr + nemacxctl_offset);
 	val |= EMAC_LPIHWCLKEN;
@@ -929,22 +910,22 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 	reset_control_assert(td->mac_reset);
 
 	__set_bit(MAC_STATE_TX_CLOCK, td->mac_state);
-	tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_TX);
+	tc956x_mac_clock_enable(td, MAC_CLOCK_TX);
 	__set_bit(MAC_STATE_RX_CLOCK, td->mac_state);
-	tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_RX);
+	tc956x_mac_clock_enable(td, MAC_CLOCK_RX);
 	__set_bit(MAC_STATE_ALL_CLOCK, td->mac_state);
-	tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_ALL);
+	tc956x_mac_clock_enable(td, MAC_CLOCK_ALL);
 	if (td->emac0) {
 		if (plat->phy_interface == PHY_INTERFACE_MODE_SGMII ||
 		    plat->phy_interface == PHY_INTERFACE_MODE_2500BASEX) {
 			/* XXX These are always re-enabled during resume */
-			tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_PLL);
-			tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_SGMII);
-			tc956x_mac_clock_disable(td, TC9564_CLOCK_REFCLK);
+			tc956x_mac_clock_disable(td, MAC_CLOCK_PLL);
+			tc956x_mac_clock_disable(td, MAC_CLOCK_SGMII);
+			tc956x_mac_clock_disable(td, MAC_CLOCK_REFCLK);
 		}
 	} else {
 		__set_bit(MAC_STATE_RGMII_CLOCK, td->mac_state);
-		tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_RMII);
+		tc956x_mac_clock_enable(td, MAC_CLOCK_RMII);
 	}
 
 	/* Set the speed related registers */
@@ -962,39 +943,39 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 
 static void tc956x_stop_clocks(struct tc956x_data *td)
 {
-	tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_ALL);
-	tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_TX);
-	tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_RX);
+	tc956x_mac_clock_disable(td, MAC_CLOCK_ALL);
+	tc956x_mac_clock_disable(td, MAC_CLOCK_TX);
+	tc956x_mac_clock_disable(td, MAC_CLOCK_RX);
 
-	tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_125M);
-	tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_312_5M);
+	tc956x_mac_clock_disable(td, MAC_CLOCK_125M);
+	tc956x_mac_clock_disable(td, MAC_CLOCK_312_5M);
 
 	if (td == td->chip->primary) {
-		tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_PLL);
-		tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_SGMII);
-		tc956x_mac_clock_disable(td, TC9564_CLOCK_REFCLK);
+		tc956x_mac_clock_disable(td, MAC_CLOCK_PLL);
+		tc956x_mac_clock_disable(td, MAC_CLOCK_SGMII);
+		tc956x_mac_clock_disable(td, MAC_CLOCK_REFCLK);
 	}
 }
 
 static void tc956x_restart_clocks(struct tc956x_data *td)
 {
 	if (td == td->chip->primary) {
-		tc956x_mac_clock_enable(td, TC9564_CLOCK_REFCLK);
-		tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_SGMII);
-		tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_PLL);
+		tc956x_mac_clock_enable(td, MAC_CLOCK_REFCLK);
+		tc956x_mac_clock_enable(td, MAC_CLOCK_SGMII);
+		tc956x_mac_clock_enable(td, MAC_CLOCK_PLL);
 	}
 
 	if (test_bit(MAC_STATE_312_5_CLOCK, td->mac_state))
-		tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_312_5M);
+		tc956x_mac_clock_enable(td, MAC_CLOCK_312_5M);
 	if (test_bit(MAC_STATE_125_CLOCK, td->mac_state))
-		tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_125M);
+		tc956x_mac_clock_enable(td, MAC_CLOCK_125M);
 
 	if (test_bit(MAC_STATE_RX_CLOCK, td->mac_state))
-		tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_RX);
+		tc956x_mac_clock_enable(td, MAC_CLOCK_RX);
 	if (test_bit(MAC_STATE_TX_CLOCK, td->mac_state))
-		tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_TX);
+		tc956x_mac_clock_enable(td, MAC_CLOCK_TX);
 	if (test_bit(MAC_STATE_ALL_CLOCK, td->mac_state))
-		tc956x_mac_clock_enable(td, TC9564_CLOCK_MAC_ALL);
+		tc956x_mac_clock_enable(td, MAC_CLOCK_ALL);
 }
 
 static void tc956x_get_interfaces(struct stmmac_priv *priv, void *bsp_priv,
@@ -1438,7 +1419,7 @@ static int tc956x_devm_mfd_init(struct tc956x_chip *chip)
 				       &tc956x_clk_reset_regmap_config);
 	if (IS_ERR(regmap))
 		return PTR_ERR(regmap);
-	chip->clock_reset_regmap = regmap;
+	chip->reset_clock_regmap = regmap;
 
 	return devm_mfd_add_devices(dev, PLATFORM_DEVID_AUTO,
 				    tc956x_mfd_cells,
@@ -1788,7 +1769,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	 *       exclusively owned by the chip). That would make it possible to
 	 *       deassert/assert the reset from the irqchip code.
 	 */
-	tc956x_chip_clock_enable(td->chip, TC9564_CLOCK_MSIGEN);
+	tc956x_chip_clock_enable(td->chip, CHIP_CLOCK_MSIGEN);
 	reset_control_deassert(td->chip->msigen_reset);
 
 	irq_domain = devm_tc956x_msigen_register(pdev, td);
@@ -1833,15 +1814,15 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		reset_control_assert(td->pma_reset);
 		reset_control_assert(td->xpcs_reset);
 
-		tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_ALL);
-		tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_RX);
-		tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_TX);
+		tc956x_mac_clock_disable(td, MAC_CLOCK_ALL);
+		tc956x_mac_clock_disable(td, MAC_CLOCK_RX);
+		tc956x_mac_clock_disable(td, MAC_CLOCK_TX);
 
-		tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_125M);
-		tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_312_5M);
+		tc956x_mac_clock_disable(td, MAC_CLOCK_125M);
+		tc956x_mac_clock_disable(td, MAC_CLOCK_312_5M);
 
 		if (!td->emac0)
-			tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_RMII);
+			tc956x_mac_clock_disable(td, MAC_CLOCK_RMII);
 
 		if (ret != -ENODEV)
 			goto err_dvr_probe;
@@ -1897,12 +1878,12 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 	 * XXX We could probably arrange things so this code can reuse the logic
 	 *     in tc956x_stop_clocks()
 	 */
-	tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_TX);
-	tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_RX);
-	tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_ALL);
+	tc956x_mac_clock_disable(td, MAC_CLOCK_TX);
+	tc956x_mac_clock_disable(td, MAC_CLOCK_RX);
+	tc956x_mac_clock_disable(td, MAC_CLOCK_ALL);
 
-	tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_125M);
-	tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_312_5M);
+	tc956x_mac_clock_disable(td, MAC_CLOCK_125M);
+	tc956x_mac_clock_disable(td, MAC_CLOCK_312_5M);
 
 	/* Close shared things down if the primary is removed */
 	if (td == td->chip->primary) {
@@ -1920,18 +1901,18 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 		reset_control_assert(chip->msigen_reset);
 		reset_control_assert(chip->uart0_reset);
 
-		tc956x_chip_clock_enable(chip, TC9564_CLOCK_MCU);
-		tc956x_chip_clock_enable(chip, TC9564_CLOCK_SRAM);
-		tc956x_chip_clock_enable(chip, TC9564_CLOCK_PCIE);
-		tc956x_chip_clock_enable(chip, TC9564_CLOCK_I2C);
+		tc956x_chip_clock_enable(chip, CHIP_CLOCK_MCU);
+		tc956x_chip_clock_enable(chip, CHIP_CLOCK_SRAM);
+		tc956x_chip_clock_enable(chip, CHIP_CLOCK_PCIE);
+		tc956x_chip_clock_enable(chip, CHIP_CLOCK_I2C);
 
-		tc956x_chip_clock_disable(chip, TC9564_CLOCK_MSIGEN);
-		tc956x_chip_clock_disable(chip, TC9564_CLOCK_UART0);
-		tc956x_chip_clock_disable(chip, TC9564_CLOCK_INTC);
+		tc956x_chip_clock_disable(chip, CHIP_CLOCK_MSIGEN);
+		tc956x_chip_clock_disable(chip, CHIP_CLOCK_INTC);
+		tc956x_chip_clock_disable(chip, CHIP_CLOCK_UART0);
 
-		tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_PLL);
-		tc956x_mac_clock_disable(td, TC9564_CLOCK_MAC_SGMII);
-		tc956x_mac_clock_disable(td, TC9564_CLOCK_REFCLK);
+		tc956x_mac_clock_disable(td, MAC_CLOCK_PLL);
+		tc956x_mac_clock_disable(td, MAC_CLOCK_SGMII);
+		tc956x_mac_clock_disable(td, MAC_CLOCK_REFCLK);
 	}
 
 	tc956x_chip_put(td);
