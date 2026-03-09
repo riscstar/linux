@@ -150,8 +150,6 @@ enum tc9564_mac_clock_id {
  * @wol_irq:		Wake-on-LAN IRQ number
  * @chip:		Pointer to the containing chip information
  * @regmap:		Register map for SFR region access
- * @pma_reset:		PMA reset control
- * @xpcs_reset:		XPCS reset control
  * @mac_state:		Bitmap tracking state of resets
  * @reset_offset:	Offset to reset control register
  * @clock_offset:	Offset to clock control register
@@ -173,8 +171,6 @@ struct tc956x_data {
 	int wol_irq;
 	struct tc956x_chip *chip;
 	struct regmap *regmap;
-	struct reset_control *pma_reset;
-	struct reset_control *xpcs_reset;
 	u32 reset_offset;
 	u32 clock_offset;
 	DECLARE_BITMAP(mac_state, MAC_STATE_COUNT);
@@ -836,7 +832,7 @@ static void tc956x_pma_init(struct tc956x_data *td)
 	void __iomem *pmaaddr = XGMAC_BASE(td) + PMA_XGMAC_OFFSET;
 	u32 val;
 
-	reset_control_assert(td->pma_reset);
+	tc956x_mac_reset_assert(td, MAC_RESET_PMA);
 
 	/*Power on CML buffer*/
 	val = readl(pmaaddr + XGMAC_PMA_GL_PM_CFG0);
@@ -862,7 +858,7 @@ static void tc956x_pma_init(struct tc956x_data *td)
 	writel(XGMAC_PMA_OFFSET0, pmaaddr + XGMAC_PMA_HWT_REFCK_R_EN_R4);
 	writel(XGMAC_PMA_OFFSET0, pmaaddr + XGMAC_PMA_HWT_REFCK_TERM_EN_R4);
 
-	reset_control_deassert(td->pma_reset);
+	tc956x_mac_reset_deassert(td, MAC_RESET_PMA);
 
 	WARN_ON(readl_poll_timeout(td->sfr + (td->emac0 ? NEMAC0CTL_OFFSET :
 							  NEMAC1CTL_OFFSET),
@@ -1364,8 +1360,8 @@ static int tc956x_suspend(struct device *dev, void *bsp_priv)
 	}
 
 	tc956x_mac_reset_assert(td, MAC_RESET_MAC);
-	reset_control_assert(td->pma_reset);
-	reset_control_assert(td->xpcs_reset);
+	tc956x_mac_reset_assert(td, MAC_RESET_PMA);
+	tc956x_mac_reset_assert(td, MAC_RESET_XPCS);
 
 	tc956x_stop_clocks(td);
 
@@ -1423,7 +1419,7 @@ static int tc956x_resume(struct device *dev, void *bsp_priv)
 	WARN_ON(ret);
 
 	tc956x_pma_init(td);
-	reset_control_deassert(td->xpcs_reset);
+	tc956x_mac_reset_deassert(td, MAC_RESET_XPCS);
 
 	return 0;
 }
@@ -1664,26 +1660,6 @@ static void tc956x_chip_put(struct tc956x_data *td)
 	kfree(chip);
 }
 
-/*
- * When successful all reset controls will be valid (no error), and
- * the underlying driver implements the assert and deassert callbacks.
- * So there is no need to test for errors when asserting or deasserting.
- */
-static int tc956x_devm_mac_resets_get(struct tc956x_data *td)
-{
-	struct device *dev = td->dev;
-
-	td->pma_reset = devm_reset_control_get_exclusive(dev, "PMA");
-	if (IS_ERR(td->pma_reset))
-		return PTR_ERR(td->pma_reset);
-
-	td->xpcs_reset = devm_reset_control_get_exclusive(dev, "XPCS");
-	if (IS_ERR(td->xpcs_reset))
-		return PTR_ERR(td->xpcs_reset);
-
-	return 0;
-}
-
 /**
  * tc956x_pci_probe() - PCI driver probe callback
  * @pdev:	PCI device pointer
@@ -1716,12 +1692,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		ret = dev_err_probe(dev, td->chip ? PTR_ERR(td->chip) : -ENOMEM,
 				    "cannot get chip\n");
 		goto err_clear_master;
-	}
-
-	ret = tc956x_devm_mac_resets_get(td);
-	if (ret) {
-		ret = dev_err_probe(dev, -EPROBE_DEFER, "no mac resets\n");
-		goto err_chip_put;
 	}
 
 #if IS_ENABLED(CONFIG_TRACE_MMIO_ACCESS)
@@ -1832,13 +1802,13 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		goto err_platform_probe;
 
 	tc956x_pma_init(td);
-	reset_control_deassert(td->xpcs_reset);
+	tc956x_mac_reset_deassert(td, MAC_RESET_XPCS);
 
 	ret = stmmac_dvr_probe(dev, td->plat, &res);
 	if (ret) {
 		tc956x_mac_reset_assert(td, MAC_RESET_MAC);
-		reset_control_assert(td->pma_reset);
-		reset_control_assert(td->xpcs_reset);
+		tc956x_mac_reset_assert(td, MAC_RESET_PMA);
+		tc956x_mac_reset_assert(td, MAC_RESET_XPCS);
 
 		tc956x_mac_clock_disable(td, MAC_CLOCK_ALL);
 		tc956x_mac_clock_disable(td, MAC_CLOCK_RX);
@@ -1897,8 +1867,8 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 	}
 
 	tc956x_mac_reset_assert(td, MAC_RESET_MAC);
-	reset_control_assert(td->pma_reset);
-	reset_control_assert(td->xpcs_reset);
+	tc956x_mac_reset_assert(td, MAC_RESET_PMA);
+	tc956x_mac_reset_assert(td, MAC_RESET_XPCS);
 
 	/*
 	 * XXX We could probably arrange things so this code can reuse the logic
