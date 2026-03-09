@@ -34,7 +34,6 @@
 #include <linux/delay.h>
 
 #include "common.h"
-#include "dwmac-tc956x-reset.h"
 #include "dwxgmac2.h"
 #include "stmmac.h"
 #include "stmmac_libpci.h"
@@ -1416,7 +1415,6 @@ static int tc956x_resume(struct device *dev, void *bsp_priv)
 
 static const struct mfd_cell tc956x_mfd_cells[] = {
 	{ .name = "tc956x-gpio", },
-	{ .name = "tc956x-reset-controller", },
 };
 
 static int tc956x_devm_mfd_init(struct tc956x_chip *chip)

@@ -51,5 +51,4 @@ obj-$(CONFIG_DWMAC_LOONGSON)	+= dwmac-loongson.o
 obj-$(CONFIG_DWMAC_MOTORCOMM)	+= dwmac-motorcomm.o
 obj-$(CONFIG_DWMAC_TC956X)	+= dwmac-tc956x.o
 obj-$(CONFIG_DWMAC_TC956X)	+= dwmac-tc956x-gpio.o
-obj-$(CONFIG_DWMAC_TC956X)	+= dwmac-tc956x-reset.o
 stmmac-pci-objs:= stmmac_pci.o
