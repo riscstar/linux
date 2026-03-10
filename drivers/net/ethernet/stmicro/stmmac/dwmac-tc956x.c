@@ -539,6 +539,10 @@ static int tc956x_phy_power_off(struct tc956x_data *td)
 {
 	int ret = 0;
 
+	/* make this function safe to call unconditionally from error paths */
+	if (!td->phy_reset)
+		return 0;
+
 	ret = tc956x_assert_phy_reset(td, true);
 	if (ret)
 		return ret;
@@ -651,17 +655,6 @@ err_power_on:
 	irq_set_irq_wake(td->wol_irq, 0);
 err_pinctrl_select_state:
 	return -EINVAL;
-}
-
-static int tc956x_platform_remove(struct tc956x_data *td)
-{
-	int ret = 0;
-
-	ret = tc956x_phy_power_off(td);
-	if (ret)
-		dev_warn(td->dev, "Failed to power off PHY with error %d\n", ret);
-
-	return ret;
 }
 
 #define XPCS_XGMAC_OFFSET  0x3a00
@@ -1565,7 +1558,7 @@ static int tc956x_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	return 0;
 
 err_dvr_probe:
-	(void)tc956x_platform_remove(td);
+	(void) tc956x_phy_power_off(td);
 err_platform_probe:
 err_out_msi_failed:
 err_chip_put:
@@ -1586,17 +1579,12 @@ static void tc956x_remove(struct pci_dev *pdev)
 	 * device is registered as only PCIe device. So skip any
 	 * ethernet device related uninitialization
 	 */
-	if (priv->dma_cap.sma_mdio == 1) {
-		if (priv->plat->phy_addr != -1) {
-			stmmac_dvr_remove(dev);
-			tc956x_platform_remove(td);
-		}
-	} else {
+	if (priv->dma_cap.sma_mdio != 1 ||
+            priv->plat->phy_addr != 1) {
 		stmmac_dvr_remove(dev);
-		tc956x_platform_remove(td);
+		(void) tc956x_phy_power_off(td);
+		tc956x_stop_mac(td);
 	}
-
-	tc956x_stop_mac(td);
 
 	scoped_guard(mutex, &tc956x_chips_lock) {
 		tc956x_chip_put(td);
