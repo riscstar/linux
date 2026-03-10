@@ -239,7 +239,7 @@ static const struct regmap_config tc956x_regmap_config = {
 		(AXI4_SLV_TABLE_OFFSET + (tid) * AXI4_TABLE_STRIDE)
 
 #define SRC_ADDR_LO_OFFSET		0x00
-#define ATR_IMPL_MASK		BIT(0)		/* 1 = enabled */
+#define ATR_IMPL		BIT(0)		/* 1 = enabled */
 #define ATR_SIZE_MASK		GENMASK(6, 1)	/* size 2^(ATR + 1) */
 #define SRC_ADDR_HI_OFFSET		0x04
 #define TRSL_ADDR_LO_OFFSET		0x08
@@ -894,8 +894,8 @@ static int tc956x_chipcfg_mac_configure(struct tc956x_data *td, int speed)
 	val = readl(td->sfr + nemacxctl_offset);
 	val |= EMAC_LPIHWCLKEN;
 	val &= ~EMAC_INV_SGM_SIG_DET;
-	FIELD_MODIFY(EMAC_PHY_INF_SEL_MASK, &val, PCS_CLK_PHY);
-	FIELD_MODIFY(EMAC_SP_SEL_MASK, &val, sp_sel);
+	val = u32_replace_bits(val, PCS_CLK_PHY, EMAC_PHY_INF_SEL_MASK);
+	val = u32_replace_bits(val, sp_sel, EMAC_SP_SEL_MASK);
 	writel(val, td->sfr + nemacxctl_offset);
 
 	return 0;
@@ -1136,7 +1136,7 @@ static void tc956x_dma_init_rx_chan(struct stmmac_priv *priv,
 	value = u32_replace_bits(value, setting, XGMAC_OWRQ);
 	writel(value, ioaddr + XGMAC_DMA_CH_RX_CONTROL2(chan));
 
-	writel(upper_32_bits(phy) + upper_32_bits(TC956X_AXI4_SLV00_SRC_ADDR),
+	writel(upper_32_bits(phy) | upper_32_bits(TC956X_AXI4_SLV00_SRC_ADDR),
 	       ioaddr + XGMAC_DMA_CH_RxDESC_HADDR(chan));
 	writel(lower_32_bits(phy), ioaddr + XGMAC_DMA_CH_RxDESC_LADDR(chan));
 }
@@ -1213,8 +1213,8 @@ static void tc956x_config_tamap(struct tc956x_data *td)
 	u32 i;
 
 	/* This is value assigned to the TRSL_PARAM register */
-	trsf_param_val = FIELD_PREP(TRSL_ID_MASK, TRSL_ID_PCIE_TX_RX);
-	trsf_param_val |= FIELD_PREP(TRSF_PARAM_MASK, 0);
+	trsf_param_val = u32_encode_bits(TRSL_ID_PCIE_TX_RX, TRSL_ID_MASK);
+	trsf_param_val |= u32_encode_bits(0, TRSF_PARAM_MASK);
 
 	base = td->bridge_config + AXI4_SLV_BASE(td->emac0 ? 0 : 1);
 
@@ -1233,15 +1233,16 @@ static void tc956x_config_tamap(struct tc956x_data *td)
 	/* EDMA address region 0x10 0000 0000 - 0x1F FFFF FFFF is
 	 * translated to 0x0 0000 0000 - 0xF FFFF FFFF
 	 */
-	BUILD_BUG_ON(TC956X_AXI4_SLV00_SRC_ADDR & ATR_IMPL_MASK);
-	BUILD_BUG_ON(FIELD_GET(ATR_SIZE_MASK, TC956X_AXI4_SLV00_SRC_ADDR));
+	BUILD_BUG_ON(TC956X_AXI4_SLV00_SRC_ADDR & ATR_IMPL);
+	BUILD_BUG_ON(!!u32_get_bits(lower_32_bits(TC956X_AXI4_SLV00_SRC_ADDR),
+						  ATR_SIZE_MASK));
 	BUILD_BUG_ON(TC956X_AXI4_SLV00_ATR_SIZE < 12);
 
 	base = td->bridge_config + AXI4_SLV_BASE(0);
 
 	val = lower_32_bits(TC956X_AXI4_SLV00_SRC_ADDR);
-	val |= FIELD_PREP(ATR_SIZE_MASK, TC956X_AXI4_SLV00_ATR_SIZE - 1);
-	val |= ATR_IMPL_MASK;
+	val |= u32_encode_bits(TC956X_AXI4_SLV00_ATR_SIZE - 1, ATR_SIZE_MASK);
+	val |= ATR_IMPL;
 	writel(val, base + SRC_ADDR_LO_OFFSET);
 
 	val = upper_32_bits(TC956X_AXI4_SLV00_SRC_ADDR);
