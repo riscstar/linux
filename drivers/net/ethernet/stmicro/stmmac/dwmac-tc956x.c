@@ -1506,6 +1506,22 @@ static struct tc956x_data *tc956x_devm_data_create(struct pci_dev *pdev)
 	return td;
 }
 
+static void tc956x_stop_chip(struct tc956x_chip *chip)
+{
+	tc956x_chip_reset_assert(chip, CHIP_RESET_MCU);
+	tc956x_chip_reset_assert(chip, CHIP_RESET_MCU1);
+	tc956x_chip_reset_assert(chip, CHIP_RESET_MSIGEN);
+	tc956x_chip_reset_assert(chip, CHIP_RESET_INTC);
+	tc956x_chip_reset_assert(chip, CHIP_RESET_UART0);
+
+	tc956x_chip_clock_disable(chip, CHIP_CLOCK_MCU);
+	tc956x_chip_clock_disable(chip, CHIP_CLOCK_SRAM);
+
+	tc956x_chip_clock_disable(chip, CHIP_CLOCK_MSIGEN);
+	tc956x_chip_clock_disable(chip, CHIP_CLOCK_INTC);
+	tc956x_chip_clock_disable(chip, CHIP_CLOCK_UART0);
+}
+
 static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 {
 	u8 pci_bus_num = PCI_BUS_NUM(td->devfn);
@@ -1554,6 +1570,9 @@ static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 	if (IS_ERR(regmap))
 		return ERR_CAST(regmap);
 	chip->reset_clock_regmap = regmap;
+
+	/* Put chip resets and clocks into a known initial state */
+	tc956x_stop_chip(chip);
 
 	ret = tc956x_devm_mfd_init(chip);
 	if (ret)
@@ -1681,11 +1700,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		__func__, pdev->irq, pci_irq_vector(pdev, 0));
 	pci_write_config_dword(pdev, pdev->msi_cap + PCI_MSI_MASK_64, 0);
 
-	if (td->emac0) {
-		tc956x_chip_reset_assert(td->chip, CHIP_RESET_MCU);
-		tc956x_chip_reset_assert(td->chip, CHIP_RESET_MCU1);
-	}
-
 	/* Enable MSIGEN Module */
 	tc956x_chip_clock_enable(td->chip, CHIP_CLOCK_MSIGEN);
 	tc956x_chip_reset_deassert(td->chip, CHIP_RESET_MSIGEN);
@@ -1795,6 +1809,7 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 		tc956x_chip_reset_assert(chip, CHIP_RESET_INTC);
 		tc956x_chip_reset_assert(chip, CHIP_RESET_UART0);
 
+		/* XXX Why *enable*? Call tc956x_stop_chip() here instead */
 		tc956x_chip_clock_enable(chip, CHIP_CLOCK_MCU);
 		tc956x_chip_clock_enable(chip, CHIP_CLOCK_SRAM);
 
