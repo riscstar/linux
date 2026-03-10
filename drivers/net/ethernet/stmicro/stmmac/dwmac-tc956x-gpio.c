@@ -17,10 +17,13 @@
  * GPIOs 22-24, 27-28, 31, and 34 are treated as "input only".
  */
 
+#include <linux/auxiliary_bus.h>
 #include <linux/gpio/driver.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
+
+#define DRIVER_NAME		"tc9564-gpio"
 
 #define TC956X_GPIO_COUNT	37	/* Number of GPIOs (20-21 reserved) */
 
@@ -151,9 +154,10 @@ static int tc956x_gpio_init_valid_mask(struct gpio_chip *gc,
 	return 0;
 }
 
-static int tc956x_gpio_probe(struct platform_device *pdev)
+static int tc956x_gpio_probe(struct auxiliary_device *adev,
+			     const struct auxiliary_device_id *id)
 {
-	struct device *dev = &pdev->dev;
+	struct device *dev = &adev->dev;
 	struct tc956x_gpio *gpio;
 	struct gpio_chip *gc;
 
@@ -161,7 +165,7 @@ static int tc956x_gpio_probe(struct platform_device *pdev)
 	if (!gpio)
 		return -ENOMEM;
 
-	gpio->regmap = dev_get_regmap(dev->parent, "tc956x-gpio");
+	gpio->regmap = dev->platform_data;
 	if (!gpio->regmap)
 		return -EINVAL;
 
@@ -190,15 +194,19 @@ static int tc956x_gpio_probe(struct platform_device *pdev)
 	return devm_gpiochip_add_data(dev, gc, gpio);
 }
 
-static struct platform_driver tc956x_gpio_driver = {
-	.probe = tc956x_gpio_probe,
-	.driver = {
-		.name = "tc956x-gpio",
-	},
+static const struct auxiliary_device_id tc964_gpio_ids[] = {
+	{ .name = "dwmac_tc956x." DRIVER_NAME, },
+	{ }
 };
+MODULE_DEVICE_TABLE(auxiliary, tc964_gpio_ids);
 
-module_platform_driver(tc956x_gpio_driver);
+static struct auxiliary_driver tc956x_gpio_driver = {
+	.name		= DRIVER_NAME,
+	.probe          = tc956x_gpio_probe,
+	.id_table       = tc964_gpio_ids,
+};
+module_auxiliary_driver(tc956x_gpio_driver);
 
 MODULE_DESCRIPTION("Toshiba TC956x PCIe GPIO Driver");
 MODULE_LICENSE("GPL");
-MODULE_ALIAS("platform:tc956x-gpio");
+MODULE_ALIAS("auxiliary:" DRIVER_NAME);

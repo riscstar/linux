@@ -10,6 +10,7 @@
 
 #define pr_fmt(fmt) "dwmac-tc956x: " fmt
 
+#include <linux/auxiliary_bus.h>
 #include <linux/stmmac.h>
 #include <linux/bitops.h>
 #include <linux/clk-provider.h>
@@ -22,7 +23,6 @@
 #include <linux/gpio/consumer.h>
 #include <linux/gpio/driver.h>
 #include <linux/gpio/machine.h>
-#include <linux/mfd/core.h>
 #include <linux/pcs/pcs-xpcs.h>
 #include <linux/pcs/pcs-xpcs-regmap.h>
 #include <linux/pinctrl/consumer.h>
@@ -39,7 +39,9 @@
 #include "stmmac.h"
 #include "stmmac_libpci.h"
 
-#define DRIVER_NAME "dwmac-tc956x"
+#define DRIVER_NAME		"dwmac-tc956x"
+
+#define GPIO_DEVICE_NAME	"tc9564-gpio"
 
 /*
  * XXX TC956X_AXI4_SLV00_ATR_SIZE (36) defines the source translation
@@ -1219,24 +1221,55 @@ static int tc956x_resume(struct device *dev, void *bsp_priv)
 	return 0;
 }
 
-static const struct mfd_cell tc956x_mfd_cells[] = {
-	{ .name = "tc956x-gpio", },
-};
-
-static int tc956x_devm_mfd_init(struct tc956x_chip *chip)
+static void tc956x_adev_release(struct device *dev)
 {
-	struct device *dev = chip->primary->dev;
-	void __iomem *regs = chip->primary->sfr;
+	kfree(to_auxiliary_dev(dev));
+}
+
+static void tc956x_adev_remove(void *data)
+{
+	struct auxiliary_device *adev = data;
+
+	auxiliary_device_delete(adev);
+	auxiliary_device_uninit(adev);
+}
+
+/* The embedded GPIO controller has an auxiliary device driver */
+static int tc956x_devm_gpio_device_add(struct tc956x_chip *chip)
+{
+	struct tc956x_data *td = chip->primary;
+	struct auxiliary_device *adev;
+	struct device *dev = td->dev;
+	void __iomem *regs = td->sfr;
 	struct regmap *regmap;
+	int ret;
+
+	adev = devm_kzalloc(dev, sizeof(*adev), GFP_KERNEL);
+	if (!adev)
+		return -ENOMEM;
 
 	regmap = devm_regmap_init_mmio(dev, regs, &tc956x_gpio_regmap_config);
 	if (IS_ERR(regmap))
 		return PTR_ERR(regmap);
 
-	return devm_mfd_add_devices(dev, PLATFORM_DEVID_AUTO,
-				    tc956x_mfd_cells,
-				    ARRAY_SIZE(tc956x_mfd_cells),
-				    NULL, 0, NULL);
+	adev->name = GPIO_DEVICE_NAME;
+	adev->dev.parent = dev;
+	adev->dev.release = tc956x_adev_release;
+	adev->dev.of_node = dev->of_node;
+	adev->dev.platform_data = regmap;
+	adev->id = PCI_FUNC(to_pci_dev(dev)->devfn);
+
+	ret = auxiliary_device_init(adev);
+	if (ret)
+		return ret;
+
+	ret = auxiliary_device_add(adev);
+	if (ret) {
+		auxiliary_device_uninit(adev);
+		return ret;
+	}
+
+	return devm_add_action_or_reset(dev, tc956x_adev_remove, adev);
 }
 
 static struct plat_stmmacenet_data *
@@ -1393,9 +1426,9 @@ static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 	/* Put chip resets and clocks into a known initial state */
 	tc956x_stop_chip(chip);
 
-	ret = tc956x_devm_mfd_init(chip);
+	ret = tc956x_devm_gpio_device_add(chip);
 	if (ret)
-		return dev_err_ptr_probe(td->dev, ret, "mfd init failed\n");
+		return dev_err_ptr_probe(td->dev, ret, "GPIO add failed\n");
 
 	tc956x_config_tamap(td);
 	tc956x_chip_clock_enable(chip, CHIP_CLOCK_MSIGEN);
