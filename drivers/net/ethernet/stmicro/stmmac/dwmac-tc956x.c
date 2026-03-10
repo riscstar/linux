@@ -207,10 +207,6 @@ static const struct regmap_config tc956x_regmap_config = {
 /* XXX TC9564? Also, this is a physical function; virtual is 0x0221 */
 #define PCI_DEVICE_ID_TOSHIBA_TC956X		0x0220
 
-//
-// Definitions taken from tc956xmac.h in vendor driver
-//
-
 #define AXI4_SLV_TABLE_OFFSET		0x0800
 
 /* Each AXI translation entry has has a block of registers this far apart */
@@ -240,14 +236,9 @@ static const struct regmap_config tc956x_regmap_config = {
 
 #define CM3_TAMAP_COUNT			4
 
-//
-// Definitions taken from common.h in vendor driver
-//
-
 #define TC956X_TOT_CASCADE_DEV	7 /* Maximum number of devices for 2 Level cascade setup */
 #define TC956X_PCI_BD_MASK	0xFFF8
 
-// TODO: this was unifdef'ed (some build options result in the value being two)
 #define TC956X_TOT_MSI_VEC	1
 
 #define TC956X_DA_MAP		0xF
@@ -351,9 +342,6 @@ static void __reset_clock_set(struct tc956x_chip *chip, u32 offset,
 #define tc956x_mac_clock_disable(_td, _id) \
 	__reset_clock_set((_td)->chip, (_td)->clock_offset, (u32)(_id), false)
 
-//
-// Code from tc956x_main.c in vendor driver
-//
 
 static void tc956x_reg_update(void __iomem *addr, u32 mask, u32 new)
 {
@@ -398,10 +386,6 @@ static int tc956x_assert_phy_reset(struct tc956x_data *td, bool assert)
 
 	return 0;
 }
-
-//
-// Code from tc956x_msigen.c in vendor driver
-//
 
 struct tc956x_msigen_data {
 	void __iomem *regs;
@@ -527,10 +511,6 @@ static struct irq_domain *devm_tc956x_msigen_register(struct pci_dev *pdev,
 			dev, domain, "failed to instantiate the IRQ domain\n");
 	return domain;
 }
-
-//
-// Code from tc956x_qcom.c in vendor driver
-//
 
 static int tc956x_phy_power_on(struct tc956x_data *td)
 {
@@ -721,10 +701,6 @@ static int tc956x_platform_resume(struct stmmac_priv *priv)
 	return ret;
 }
 
-//
-// Code from tc956x_pma.h in vendor driver
-//
-
 #define XPCS_XGMAC_OFFSET  0x3A00
 #define PMA_XGMAC_OFFSET   0x4000
 
@@ -750,10 +726,6 @@ static int tc956x_platform_resume(struct stmmac_priv *priv)
 /*PMA register values*/
 #define XGMAC_PMA_OFFSET0					0x00000000
 #define XGMAC_PMA_OFFSET1					0x0001EF04
-
-//
-// Code from tc956x_pma.c in vendor driver
-//
 
 static void tc956x_pma_init(struct tc956x_data *td)
 {
@@ -792,10 +764,6 @@ static void tc956x_pma_init(struct tc956x_data *td)
 							  NEMAC1CTL_OFFSET),
 				   val, val & EMAC_INIT_DONE, 50, 1000000));
 }
-
-//
-// Code from tc956x_pci.c in vendor driver
-//
 
 struct {
 	phy_interface_t phy_interface;
