@@ -1576,7 +1576,6 @@ err_out_msi_failed:
 err_chip_put:
 	tc956x_chip_put(td);
 err_clear_master:
-	pci_clear_master(pdev);
 
 	return ret;
 }
