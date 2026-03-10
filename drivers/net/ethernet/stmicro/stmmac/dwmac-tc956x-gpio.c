@@ -5,15 +5,13 @@
  */
 
 /*
- * The Toshiba TC956x implements a PCIe Gen 3 switch that connects an
- * upstream x4 port to two downstream PCIe x2 ports.  It incorporates
- * an internal endpoint as well, which implements two Synopsys XGMAC
- * Ethernet interfaces.
+ * The Toshiba TC9564 implements a PCIe Gen 3 switch that connects an upstream
+ * x4 port to two downstream PCIe x2 ports.  It incorporates an internal
+ * endpoint as well, which implements two Synopsys XGMAC Ethernet interfaces.
  *
- * In addition, a set of 35 GPIOs are implemented.  One set of registers
- * controls the first 32 (other than 20 and 21, which are reserved).
- * A second set of registers controls GPIOs 32 through 36.
- *
+ * A set of 35 GPIOs are also implemented by an embedded GPIO controller.  A
+ * set of three registers controls the first 32 GPIOs (other than 20 and 21,
+ * which are reserved).  Three other registers control GPIOs 32 through 36.
  * GPIOs 22-24, 27-28, 31, and 34 are treated as "input only".
  */
 
@@ -27,29 +25,30 @@
 
 #define TC956X_GPIO_COUNT	37	/* Number of GPIOs (20-21 reserved) */
 
-/* The GPIO offsets are relative to 0x1200 in SFR space */
+/* The GPIO offsets are relative to 0x1200 in TC9564 SFR space */
 #define GPIO_IN0_OFFSET		0x00		/* Input value (0-31) */
-#define GPIO_IN1_OFFSET		0x04		/* Input value (32-36) */
 #define GPIO_EN0_OFFSET		0x08		/* 0: out; 1: in (0-31) */
-#define GPIO_EN1_OFFSET		0x0c		/* 0: out; 1: in (32-36) */
 #define GPIO_OUT0_OFFSET	0x10		/* Output value (0-31) */
+
+#define GPIO_IN1_OFFSET		0x04		/* Input value (32-36) */
+#define GPIO_EN1_OFFSET		0x0c		/* 0: out; 1: in (32-36) */
 #define GPIO_OUT1_OFFSET	0x14		/* Output value (32-36) */
 
 /*
- * struct tc956x_gpio - Information related to the embedded GPIO controller
+ * struct tc9564_gpio - Information related to the embedded GPIO controller
  * @chip:		GPIO chip structure
  * @regmap:		MMIO register map for SFR GPIO region access
  * @input_only:		Bitmap indicating which GPIOs are input-only
  */
-struct tc956x_gpio {
+struct tc9564_gpio {
 	struct gpio_chip chip;
 	struct regmap *regmap;
 	DECLARE_BITMAP(input_only, TC956X_GPIO_COUNT);
 };
 
-static int tc956x_gpio_get_direction(struct gpio_chip *gc, unsigned int offset)
+static int tc9564_gpio_get_direction(struct gpio_chip *gc, unsigned int offset)
 {
-	struct tc956x_gpio *gpio = gpiochip_get_data(gc);
+	struct tc9564_gpio *gpio = gpiochip_get_data(gc);
 	u32 reg;
 	u32 val;
 
@@ -57,6 +56,7 @@ static int tc956x_gpio_get_direction(struct gpio_chip *gc, unsigned int offset)
 		return GPIO_LINE_DIRECTION_IN;
 
 	reg = offset < 32 ? GPIO_EN0_OFFSET : GPIO_EN1_OFFSET;
+
 	regmap_read(gpio->regmap, reg, &val);
 	if (val & BIT(offset % 32))
 		return GPIO_LINE_DIRECTION_IN;
@@ -64,10 +64,10 @@ static int tc956x_gpio_get_direction(struct gpio_chip *gc, unsigned int offset)
 	return GPIO_LINE_DIRECTION_OUT;
 }
 
-static int tc956x_gpio_direction_input(struct gpio_chip *gc,
+static int tc9564_gpio_direction_input(struct gpio_chip *gc,
 				       unsigned int offset)
 {
-	struct tc956x_gpio *gpio = gpiochip_get_data(gc);
+	struct tc9564_gpio *gpio = gpiochip_get_data(gc);
 	u32 reg;
 	u32 val;
 	u32 new;
@@ -81,10 +81,10 @@ static int tc956x_gpio_direction_input(struct gpio_chip *gc,
 	return 0;
 }
 
-static int tc956x_gpio_direction_output(struct gpio_chip *gc,
+static int tc9564_gpio_direction_output(struct gpio_chip *gc,
 					unsigned int offset, int value)
 {
-	struct tc956x_gpio *gpio = gpiochip_get_data(gc);
+	struct tc9564_gpio *gpio = gpiochip_get_data(gc);
 	u32 mask = BIT(offset % 32);
 	u32 reg;
 	u32 val;
@@ -111,9 +111,9 @@ static int tc956x_gpio_direction_output(struct gpio_chip *gc,
 	return 0;
 }
 
-static int tc956x_gpio_get(struct gpio_chip *gc, unsigned int offset)
+static int tc9564_gpio_get(struct gpio_chip *gc, unsigned int offset)
 {
-	struct tc956x_gpio *gpio = gpiochip_get_data(gc);
+	struct tc9564_gpio *gpio = gpiochip_get_data(gc);
 	u32 reg;
 	u32 val;
 
@@ -123,9 +123,9 @@ static int tc956x_gpio_get(struct gpio_chip *gc, unsigned int offset)
 	return val & BIT(offset % 32) ? 1 : 0;
 }
 
-static int tc956x_gpio_set(struct gpio_chip *gc, unsigned int offset, int value)
+static int tc9564_gpio_set(struct gpio_chip *gc, unsigned int offset, int value)
 {
-	struct tc956x_gpio *gpio = gpiochip_get_data(gc);
+	struct tc9564_gpio *gpio = gpiochip_get_data(gc);
 	u32 mask = BIT(offset % 32);
 	u32 reg;
 	u32 val;
@@ -143,7 +143,7 @@ static int tc956x_gpio_set(struct gpio_chip *gc, unsigned int offset, int value)
 	return 0;
 }
 
-static int tc956x_gpio_init_valid_mask(struct gpio_chip *gc,
+static int tc9564_gpio_init_valid_mask(struct gpio_chip *gc,
 				       unsigned long *valid_mask,
 				       unsigned int ngpios)
 {
@@ -154,20 +154,20 @@ static int tc956x_gpio_init_valid_mask(struct gpio_chip *gc,
 	return 0;
 }
 
-static int tc956x_gpio_probe(struct auxiliary_device *adev,
+static int tc9564_gpio_probe(struct auxiliary_device *adev,
 			     const struct auxiliary_device_id *id)
 {
 	struct device *dev = &adev->dev;
-	struct tc956x_gpio *gpio;
+	struct tc9564_gpio *gpio;
 	struct gpio_chip *gc;
+
+	if (!dev->platform_data)
+		return -EINVAL;
 
 	gpio = devm_kzalloc(dev, sizeof(*gpio), GFP_KERNEL);
 	if (!gpio)
 		return -ENOMEM;
-
 	gpio->regmap = dev->platform_data;
-	if (!gpio->regmap)
-		return -EINVAL;
 
 	/* Mark GPIOs 22, 23, 24, 27, 28, 31, and 34 are input only */
 	bitmap_set(gpio->input_only, 22, 3);
@@ -177,15 +177,15 @@ static int tc956x_gpio_probe(struct auxiliary_device *adev,
 
 	gc = &gpio->chip;
 
-	gc->label = "tc956x-gpio";
+	gc->label = "tc9564-gpio";
 	gc->parent = dev->parent;
 
-	gc->get_direction = tc956x_gpio_get_direction;
-	gc->direction_input = tc956x_gpio_direction_input;
-	gc->direction_output = tc956x_gpio_direction_output;
-	gc->get = tc956x_gpio_get;
-	gc->set = tc956x_gpio_set;
-	gc->init_valid_mask = tc956x_gpio_init_valid_mask;
+	gc->get_direction = tc9564_gpio_get_direction;
+	gc->direction_input = tc9564_gpio_direction_input;
+	gc->direction_output = tc9564_gpio_direction_output;
+	gc->get = tc9564_gpio_get;
+	gc->set = tc9564_gpio_set;
+	gc->init_valid_mask = tc9564_gpio_init_valid_mask;
 
 	gc->base = -1;
 	gc->ngpio = TC956X_GPIO_COUNT;
@@ -200,13 +200,13 @@ static const struct auxiliary_device_id tc964_gpio_ids[] = {
 };
 MODULE_DEVICE_TABLE(auxiliary, tc964_gpio_ids);
 
-static struct auxiliary_driver tc956x_gpio_driver = {
+static struct auxiliary_driver tc9564_gpio_driver = {
 	.name		= DRIVER_NAME,
-	.probe          = tc956x_gpio_probe,
+	.probe          = tc9564_gpio_probe,
 	.id_table       = tc964_gpio_ids,
 };
-module_auxiliary_driver(tc956x_gpio_driver);
+module_auxiliary_driver(tc9564_gpio_driver);
 
-MODULE_DESCRIPTION("Toshiba TC956x PCIe GPIO Driver");
+MODULE_DESCRIPTION("Toshiba TC9564 PCIe GPIO Driver");
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("auxiliary:" DRIVER_NAME);
