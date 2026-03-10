@@ -1724,23 +1724,12 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 		goto err_platform_probe;
 
 	tc956x_pma_init(td);
+
 	tc956x_mac_reset_deassert(td, MAC_RESET_XPCS);
 
 	ret = stmmac_dvr_probe(dev, td->plat, &res);
 	if (ret) {
-		tc956x_mac_reset_assert(td, MAC_RESET_MAC);
-		tc956x_mac_reset_assert(td, MAC_RESET_PMA);
-		tc956x_mac_reset_assert(td, MAC_RESET_XPCS);
-
-		tc956x_mac_clock_disable(td, MAC_CLOCK_ALL);
-		tc956x_mac_clock_disable(td, MAC_CLOCK_RX);
-		tc956x_mac_clock_disable(td, MAC_CLOCK_TX);
-
-		tc956x_mac_clock_disable(td, MAC_CLOCK_125M);
-		tc956x_mac_clock_disable(td, MAC_CLOCK_312_5M);
-
-		if (!td->emac0)
-			tc956x_mac_clock_disable(td, MAC_CLOCK_RMII);
+		tc956x_stop_mac(td);
 
 		if (ret != -ENODEV)
 			goto err_dvr_probe;
@@ -1818,7 +1807,6 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 
 	tc956x_chip_put(td);
 }
-
 
 static const struct pci_device_id tc956x_id_table[] = {
 	{ PCI_DEVICE(PCI_VENDOR_ID_TOSHIBA, PCI_DEVICE_ID_TOSHIBA_TC956X), },
