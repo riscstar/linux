@@ -616,8 +616,6 @@ static int tc956x_platform_probe(struct tc956x_data *td,
 {
 	int ret = 0;
 
-	dev_dbg(td->dev, "QPS615 platform probing has started\n");
-
 	ret = tc956x_reset_gpio_get(td);
 	if (ret)
 		return ret;
@@ -635,8 +633,6 @@ static int tc956x_platform_probe(struct tc956x_data *td,
 	}
 
 	res->wol_irq = td->wol_irq;
-	dev_dbg(td->dev, "QPS615 platform probing has finished successfully\n");
-
 	return 0;
 
 err_power_on:
@@ -648,8 +644,6 @@ err_pinctrl_select_state:
 static int tc956x_platform_remove(struct tc956x_data *td)
 {
 	int ret = 0;
-
-	dev_dbg(td->dev, "Freeing QPS615 platform resources\n");
 
 	ret = tc956x_phy_power_off(td);
 	if (ret)
