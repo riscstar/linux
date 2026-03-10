@@ -1427,8 +1427,6 @@ static void tc956x_chip_put(struct tc956x_data *td)
 	chip->primary = NULL;
 	chip->pci_slot = 0;
 	chip->pci_bus_num = 0;
-
-	kfree(chip);
 }
 
 static int tc956x_probe(struct pci_dev *pdev, const struct pci_device_id *id)
