@@ -928,18 +928,6 @@
 				reset-controller;
 				#reset-cells = <1>;
 
-				resets = <&primary 0>,
-					 <&primary 1>,
-					 <&primary 2>,
-					 <&primary 3>,
-					 <&primary 4>,
-					 <&primary 5>,
-					 <&primary 6>,
-					 <&primary 7>;
-				reset-names = "MCU", "MCU1", "INTC",
-					      "MSIGEN", "UART0",
-					      "MAC", "PMA", "XPCS";
-
 				phy-reset-gpios = <&primary 0 GPIO_ACTIVE_HIGH>;
 
 				pinctrl-names = "default";
