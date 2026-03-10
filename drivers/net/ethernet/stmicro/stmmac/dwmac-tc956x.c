@@ -311,11 +311,6 @@ static const struct regmap_config tc956x_regmap_config = {
 #define EMAC_LPIHWCLKEN			BIT(8)	/* 1 = low power mode */
 #define EMAC_INIT_DONE			BIT(21)
 
-#define SP_ETH1_SHIFT			24
-#define SP_ETH_1G				1
-#define SP_ETH_100M				3
-#define SP_ETH_10M				7
-
 /* Pin configuration for PHY resets; eMAC0 uses GPIO00, eMAC1 uses GPIO01 */
 #define NFUNCEN4_OFFSET		0x1528
 #define NFUNCEN4_GPIO_00_MASK	GENMASK(3, 0)
