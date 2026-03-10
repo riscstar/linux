@@ -1409,21 +1409,19 @@ static void tc956x_chip_put(struct tc956x_data *td)
 
 	td->chip = NULL;
 
-	/* The primary interface needs to be the last to go */
-	if (chip->secondary) {
-		/* XXX Why not just td == chip->secondary as done elsewhere? */
-		if (td->dev == chip->secondary->consumer) {
-			device_link_del(chip->secondary);
-			chip->secondary = NULL;
-		}
+	if (chip->secondary && td->dev == chip->secondary->consumer) {
+		device_link_del(chip->secondary);
+		chip->secondary = NULL;
 		return;
 	}
 
 	/*
-	 * XXX This logic is insufficient.  We need to control when the
-	 * XXX memory that the chip structure will point to gets unmapped.
-	 * XXX We'll deal with this later.
+	 * The primary interface needs to be the last to go. The driver uses
+	 * device links to guarantee that... so if this warning fires then
+	 * things have gone pretty badly wrong!
 	 */
+	WARN(chip->secondary, "tc956x_chip_put() calls are incorrectly ordered");
+
 	list_del(&chip->links);
 
 	chip->primary = NULL;
