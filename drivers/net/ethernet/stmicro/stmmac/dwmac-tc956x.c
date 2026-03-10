@@ -1113,14 +1113,6 @@ static void tc956x_config_tamap(struct tc956x_data *td)
 	val = upper_32_bits(TC956X_AXI4_SLV00_TRSL_ADDR);
 	writel(val, base + TRSL_ADDR_HI_OFFSET);
 	writel(trsf_param_val, base + TRSL_PARAM_OFFSET);
-
-	pr_debug("SRC_ADDR HI = 0x%08x\n", readl(base + SRC_ADDR_HI_OFFSET));
-	pr_debug("SRC_ADDR LO = 0x%08x\n", readl(base + SRC_ADDR_LO_OFFSET));
-	pr_debug("TRSL_ADDR_HI = 0x%08x\n", readl(base + TRSL_ADDR_HI_OFFSET));
-	pr_debug("TRSL_ADDR_LO = 0x%08x\n", readl(base + TRSL_ADDR_LO_OFFSET));
-	pr_debug("TRSL_PARAM = 0x%08x\n", readl(base + TRSL_PARAM_OFFSET));
-	pr_debug("TRSL_MASK_HI = 0x%08x\n", readl(base + TRSL_MASK_HI_OFFSET));
-	pr_debug("TRSL_MASK_LO = 0x%08x\n", readl(base + TRSL_MASK_LO_OFFSET));
 }
 
 static int tc956x_pcs_init(struct stmmac_priv *priv)
