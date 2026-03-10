@@ -936,8 +936,12 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 	return 0;
 }
 
-static void tc956x_stop_clocks(struct tc956x_data *td)
+static void tc956x_stop_mac(struct tc956x_data *td)
 {
+	tc956x_mac_reset_assert(td, MAC_RESET_MAC);
+	tc956x_mac_reset_assert(td, MAC_RESET_PMA);
+	tc956x_mac_reset_assert(td, MAC_RESET_XPCS);
+
 	tc956x_mac_clock_disable(td, MAC_CLOCK_ALL);
 	tc956x_mac_clock_disable(td, MAC_CLOCK_RX);
 	tc956x_mac_clock_disable(td, MAC_CLOCK_TX);
@@ -954,7 +958,7 @@ static void tc956x_stop_clocks(struct tc956x_data *td)
 	}
 }
 
-static void tc956x_restart_clocks(struct tc956x_data *td)
+static void tc956x_restart_mac_clocks(struct tc956x_data *td)
 {
 	if (td == td->chip->primary) {
 		tc956x_mac_clock_enable(td, MAC_CLOCK_REFCLK);
@@ -970,6 +974,8 @@ static void tc956x_restart_clocks(struct tc956x_data *td)
 	tc956x_mac_clock_enable(td, MAC_CLOCK_TX);
 	tc956x_mac_clock_enable(td, MAC_CLOCK_RX);
 	tc956x_mac_clock_enable(td, MAC_CLOCK_ALL);
+
+	/* XXX Why aren't resets de-asserted here? */
 }
 
 static void tc956x_get_interfaces(struct stmmac_priv *priv, void *bsp_priv,
@@ -1333,11 +1339,7 @@ static int tc956x_suspend(struct device *dev, void *bsp_priv)
 		return ret;
 	}
 
-	tc956x_mac_reset_assert(td, MAC_RESET_MAC);
-	tc956x_mac_reset_assert(td, MAC_RESET_PMA);
-	tc956x_mac_reset_assert(td, MAC_RESET_XPCS);
-
-	tc956x_stop_clocks(td);
+	tc956x_stop_mac(td);
 
 	return stmmac_pci_plat_suspend(dev, bsp_priv);
 }
@@ -1365,7 +1367,7 @@ static int tc956x_resume(struct device *dev, void *bsp_priv)
 	if (ret < 0)
 		return ret;
 
-	tc956x_restart_clocks(td);
+	tc956x_restart_mac_clocks(td);
 
 	/* XXX Error handling in this function needs work */
 	ret = tc956x_assert_phy_reset(td, td->reset_asserted);
@@ -1786,11 +1788,7 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 		tc956x_platform_remove(td);
 	}
 
-	tc956x_mac_reset_assert(td, MAC_RESET_MAC);
-	tc956x_mac_reset_assert(td, MAC_RESET_PMA);
-	tc956x_mac_reset_assert(td, MAC_RESET_XPCS);
-
-	tc956x_stop_clocks(td);
+	tc956x_stop_mac(td);
 
 	/* Close shared things down if the primary is removed */
 	if (td == td->chip->primary) {
