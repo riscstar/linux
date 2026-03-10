@@ -1407,6 +1407,10 @@ static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 	if (ret)
 		return dev_err_ptr_probe(td->dev, ret, "mfd init failed\n");
 
+	tc956x_config_tamap(td);
+	tc956x_chip_clock_enable(chip, CHIP_CLOCK_MSIGEN);
+	tc956x_chip_reset_deassert(chip, CHIP_RESET_MSIGEN);
+
 	list_add(&chip->links, &tc956x_chips);
 
 	return chip;
@@ -1432,6 +1436,8 @@ static void tc956x_chip_put(struct tc956x_data *td)
 	WARN(chip->secondary, "tc956x_chip_put() calls are incorrectly ordered");
 
 	list_del(&chip->links);
+
+	tc956x_stop_chip(chip);
 
 	chip->primary = NULL;
 	chip->pci_slot = 0;
@@ -1497,10 +1503,6 @@ static int tc956x_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (ret)
 		goto err_chip_put;
 
-	/* XXX eMAC0, or first one probed? */
-	if (td->emac0)
-		tc956x_config_tamap(td);
-
 	/*
 	 * Enable MSI and Allocate Vectors. Despite the spelling (no pcim) the
 	 * free will be handled by devres due to the prior pcim_enable_device()
@@ -1517,10 +1519,6 @@ static int tc956x_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	dev_dbg(dev, "%s : pdev->irq %d  pci_irq_vector %d\n",
 		__func__, pdev->irq, pci_irq_vector(pdev, 0));
 	pci_write_config_dword(pdev, pdev->msi_cap + PCI_MSI_MASK_64, 0);
-
-	/* Enable MSIGEN Module */
-	tc956x_chip_clock_enable(td->chip, CHIP_CLOCK_MSIGEN);
-	tc956x_chip_reset_deassert(td->chip, CHIP_RESET_MSIGEN);
 
 	irq_domain = devm_tc956x_msigen_register(pdev, td);
 	if (IS_ERR_OR_NULL(irq_domain)) {
@@ -1602,10 +1600,6 @@ static void tc956x_remove(struct pci_dev *pdev)
 	}
 
 	tc956x_stop_mac(td);
-
-	/* Close shared things down if the primary is removed */
-	if (td == td->chip->primary)
-		tc956x_stop_chip(td->chip);
 
 	scoped_guard(mutex, &tc956x_chips_lock) {
 		tc956x_chip_put(td);
