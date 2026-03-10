@@ -120,8 +120,6 @@ enum tc9564_mac_clock_id {
  * @wol_irq:		Wake-on-LAN IRQ number
  * @chip:		Pointer to the containing chip information
  * @regmap:		Register map for SFR region access
- * @reset_offset:	Offset to reset control register
- * @clock_offset:	Offset to clock control register
  */
 struct tc956x_data {
 	struct device *dev;
@@ -137,8 +135,6 @@ struct tc956x_data {
 	int wol_irq;
 	struct tc956x_chip *chip;
 	struct regmap *regmap;
-	u32 reset_offset;
-	u32 clock_offset;
 };
 
 /**
@@ -328,20 +324,27 @@ static void __reset_clock_set(struct tc956x_chip *chip, u32 offset,
 	__reset_clock_set((_chip), RSTCTRL0_OFFSET, (u32)(_id), true)
 #define tc956x_chip_reset_deassert(_chip, _id) \
 	__reset_clock_set((_chip), RSTCTRL0_OFFSET, (u32)(_id), false)
+
+#define tc956x_mac_reset_offset(_td) \
+	((_td)->emac0 ? RSTCTRL0_OFFSET : RSTCTRL1_OFFSET)
 #define tc956x_mac_reset_assert(_td, _id) \
-	__reset_clock_set((_td)->chip, (_td)->reset_offset, (u32)(_id), true)
+	__reset_clock_set((_td)->chip, tc956x_mac_reset_offset(_td), (u32)(_id), true)
 #define tc956x_mac_reset_deassert(_td, _id) \
-	__reset_clock_set((_td)->chip, (_td)->reset_offset, (u32)(_id), false)
+	__reset_clock_set((_td)->chip, tc956x_mac_reset_offset(_td), (u32)(_id), false)
 
 #define tc956x_chip_clock_enable(_chip, _id) \
 	__reset_clock_set((_chip), CLKCTRL0_OFFSET, (u32)(_id), true)
 #define tc956x_chip_clock_disable(_chip, _id) \
 	__reset_clock_set((_chip), CLKCTRL0_OFFSET, (u32)(_id), false)
-#define tc956x_mac_clock_enable(_td, _id) \
-	__reset_clock_set((_td)->chip, (_td)->clock_offset, (u32)(_id), true)
-#define tc956x_mac_clock_disable(_td, _id) \
-	__reset_clock_set((_td)->chip, (_td)->clock_offset, (u32)(_id), false)
 
+#define tc956x_mac_clock_offset(_td) \
+	((_td)->emac0 ? CLKCTRL0_OFFSET : CLKCTRL1_OFFSET)
+#define tc956x_mac_clock_enable(_td, _id)                            \
+	__reset_clock_set((_td)->chip, tc956x_mac_clock_offset(_td), \
+			  (u32)(_id), true)
+#define tc956x_mac_clock_disable(_td, _id)                           \
+	__reset_clock_set((_td)->chip, tc956x_mac_clock_offset(_td), \
+			  (u32)(_id), false)
 
 static void tc956x_reg_update(void __iomem *addr, u32 mask, u32 new)
 {
@@ -1482,10 +1485,6 @@ static int tc956x_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		goto err_chip_put;
 	}
 	td->emac0 = pci_fn == 0;
-
-	/* NCLKCTRL0_OFFSET or NCLKCTRL1_OFFSET, relative to regmap */
-	td->reset_offset = td->emac0 ? RSTCTRL0_OFFSET : RSTCTRL1_OFFSET;
-	td->clock_offset = td->emac0 ? CLKCTRL0_OFFSET : CLKCTRL1_OFFSET;
 
 	// TODO: this needs to come from devicetree
 	td->plat->phy_interface = td->emac0 ? PHY_INTERFACE_MODE_10GBASER :
