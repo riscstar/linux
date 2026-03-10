@@ -32,6 +32,7 @@
 #include <linux/types.h>
 #include <linux/of_irq.h>
 #include <linux/delay.h>
+#include <linux/cleanup.h>
 
 #include "common.h"
 #include "dwxgmac2.h"
@@ -168,10 +169,11 @@ struct tc956x_chip {
 
 	struct regmap *reset_clock_regmap;
 
-	struct list_head links;		/* XXX any locking needed? */
+	struct list_head links;
 };
 
 static LIST_HEAD(tc956x_chips);		/* List of TC956x chips */
+static DEFINE_MUTEX(tc956x_chips_lock); /* Don't rely on synchronous probing */
 
 static const struct regmap_config tc956x_gpio_regmap_config = {
 	.name		= "tc956x-gpio",
@@ -1445,6 +1447,14 @@ static int tc956x_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	pci_set_master(pdev);
 
+	/*
+	 * We must hold the chips lock until we have decided whether or not we
+	 * will be the primary device. This is a relatively long held lock
+	 * because we cannot fully commit to being the primary until right at
+	 * end of the probe function.
+	 */
+	guard(mutex)(&tc956x_chips_lock);
+
 	td->chip = tc956x_chip_get(td);
 	if (IS_ERR_OR_NULL(td->chip)) {
 		ret = dev_err_probe(dev, td->chip ? PTR_ERR(td->chip) : -ENOMEM,
@@ -1591,7 +1601,9 @@ static void tc956x_remove(struct pci_dev *pdev)
 	if (td == td->chip->primary)
 		tc956x_stop_chip(td->chip);
 
-	tc956x_chip_put(td);
+	scoped_guard(mutex, &tc956x_chips_lock) {
+		tc956x_chip_put(td);
+	}
 }
 
 static const struct pci_device_id tc956x_id_table[] = {
