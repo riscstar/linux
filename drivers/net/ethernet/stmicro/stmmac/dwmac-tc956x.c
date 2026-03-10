@@ -1794,29 +1794,8 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 	tc956x_stop_mac(td);
 
 	/* Close shared things down if the primary is removed */
-	if (td == td->chip->primary) {
-		struct tc956x_chip *chip = td->chip;
-
-		/* XXX
-		 * I think this still might not be enough.  If we happen
-		 * to remove the primary interface but not the secondary,
-		 * I'm not sure the device core will still perform actions
-		 * (like suspending/resuming) on the primary device.
-		 */
-		tc956x_chip_reset_assert(chip, CHIP_RESET_MCU);
-		tc956x_chip_reset_assert(chip, CHIP_RESET_MCU1);
-		tc956x_chip_reset_assert(chip, CHIP_RESET_MSIGEN);
-		tc956x_chip_reset_assert(chip, CHIP_RESET_INTC);
-		tc956x_chip_reset_assert(chip, CHIP_RESET_UART0);
-
-		/* XXX Why *enable*? Call tc956x_stop_chip() here instead */
-		tc956x_chip_clock_enable(chip, CHIP_CLOCK_MCU);
-		tc956x_chip_clock_enable(chip, CHIP_CLOCK_SRAM);
-
-		tc956x_chip_clock_disable(chip, CHIP_CLOCK_MSIGEN);
-		tc956x_chip_clock_disable(chip, CHIP_CLOCK_INTC);
-		tc956x_chip_clock_disable(chip, CHIP_CLOCK_UART0);
-	}
+	if (td == td->chip->primary)
+		tc956x_stop_chip(td->chip);
 
 	tc956x_chip_put(td);
 }
