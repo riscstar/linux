@@ -122,7 +122,6 @@ enum tc9564_mac_clock_id {
 /**
  * struct tc956x_data - Toshiba-specific platform data
  * @dev:		Device pointer
- * @revid:		Revision ID (as read from the chipcfg registers)
  * @devfn:		PCI device/function id
  * @plat:		Pointer to our stmmac platform data
  * @bridge_config:	Mapped bridge config data (BAR 0)
@@ -143,7 +142,6 @@ enum tc9564_mac_clock_id {
  */
 struct tc956x_data {
 	struct device *dev;
-	u32 revid;
 	unsigned int devfn;
 	struct plat_stmmacenet_data *plat;
 	void __iomem *bridge_config;
@@ -167,6 +165,8 @@ struct tc956x_data {
  * struct tc956x_chip - Common chip support information
  * @pci_bus_num:	PCI bus this chip is on
  * @pci_slot:		PCI slot on its bus this chip fills
+ * @rev_id:		Revision ID
+ * @chip_id:		Chip ID
  * @primary:		Data pointer for the primary eMAC interface
  * @secondary:		Device link between secondary (consumer) and primary
  * @gpio:		Pointer to GPIO information
@@ -185,6 +185,8 @@ struct tc956x_data {
 struct tc956x_chip {
 	u8 pci_bus_num;
 	u8 pci_slot;
+	u8 rev_id;
+	u8 chip_id;
 	struct tc956x_data *primary;
 	struct device_link *secondary;
 
@@ -274,7 +276,8 @@ static const struct regmap_config tc956x_regmap_config = {
 
 /*	Configuration Register Address	*/
 #define NCID_OFFSET		(0x0000) /* TC956X Chip and revision ID */
-#define NCID_REV_ID		GENMASK(7, 0)
+#define NCID_REV_ID_MASK	GENMASK(7, 0)
+#define NCID_CHIP_ID_MASK	GENMASK(15, 8)
 #define NMODESTS_OFFSET		(0x0004) /* TC956X current operation mode */
 #define NMODESTS_MODE2		BIT(10)	/* PCIe lanes: 0:  x4x1x1; 1: x2x2x1 */
 
@@ -621,7 +624,7 @@ static int tc956x_reset_gpio_get(struct tc956x_data *td)
 	if (retries < 0)
 		return PTR_ERR(td->phy_reset);
 
-	/* XXX Can we use a good constant and avoid having to specify this? * */
+	/* XXX Can we use a good constant and avoid having to specify this? */
 	ret = of_property_read_u32(np, "qcom,phy-reset-delay",
 				   &td->phy_reset_delay);
 	if (ret) {
@@ -936,8 +939,8 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 static void tc956x_stop_clocks(struct tc956x_data *td)
 {
 	tc956x_mac_clock_disable(td, MAC_CLOCK_ALL);
-	tc956x_mac_clock_disable(td, MAC_CLOCK_TX);
 	tc956x_mac_clock_disable(td, MAC_CLOCK_RX);
+	tc956x_mac_clock_disable(td, MAC_CLOCK_TX);
 
 	tc956x_mac_clock_disable(td, MAC_CLOCK_125M);
 	tc956x_mac_clock_disable(td, MAC_CLOCK_312_5M);
@@ -964,8 +967,8 @@ static void tc956x_restart_clocks(struct tc956x_data *td)
 	if (td->mac_125_clock)
 		tc956x_mac_clock_enable(td, MAC_CLOCK_125M);
 
-	tc956x_mac_clock_enable(td, MAC_CLOCK_RX);
 	tc956x_mac_clock_enable(td, MAC_CLOCK_TX);
+	tc956x_mac_clock_enable(td, MAC_CLOCK_RX);
 	tc956x_mac_clock_enable(td, MAC_CLOCK_ALL);
 }
 
@@ -1115,19 +1118,22 @@ static void tc956x_dma_init_rx_chan(struct stmmac_priv *priv,
 				    dma_addr_t phy, u32 chan)
 {
 	struct tc956x_data *td = priv->plat->bsp_priv;
-	u32 rxpbl = dma_cfg->rxpbl ?: dma_cfg->pbl;
+	u32 setting;
 	u32 value;
 
+	/* RX programmable burst length */
+	setting = dma_cfg->rxpbl ? : dma_cfg->pbl;
 	value = readl(ioaddr + XGMAC_DMA_CH_RX_CONTROL(chan));
-	value = u32_replace_bits(value, rxpbl, XGMAC_RxPBL);
+	value = u32_replace_bits(value, setting, XGMAC_RxPBL);
 	writel(value, ioaddr + XGMAC_DMA_CH_RX_CONTROL(chan));
 
 	/*
-	 * Reduce the number of outstanding write requests to 3. This is needed
-	 * for XGMAC 3.01a errata.
+	 * Reduce the number of outstanding write requests to 3.  Needed
+	 * for XGMAC 3.01a errata (value 0 means 4 outstanding writes).
 	 */
+	setting = td->chip->rev_id == 1 ? 3 : 0;
 	value = readl(ioaddr + XGMAC_DMA_CH_RX_CONTROL2(chan));
-	value = u32_replace_bits(value, td->revid == 1 ? 3 : 0, XGMAC_OWRQ);
+	value = u32_replace_bits(value, setting, XGMAC_OWRQ);
 	writel(value, ioaddr + XGMAC_DMA_CH_RX_CONTROL2(chan));
 
 	writel(upper_32_bits(phy) + upper_32_bits(TC956X_AXI4_SLV00_SRC_ADDR),
@@ -1504,6 +1510,7 @@ static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 	struct device *dev = td->dev;
 	struct tc956x_chip *chip;
 	struct regmap *regmap;
+	u32 val;
 	int ret;
 
 	/* Use the existing chip structure if it's already been created */
@@ -1532,6 +1539,12 @@ static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 	chip->pci_bus_num = pci_bus_num;
 	chip->pci_slot = pci_slot;
 	chip->primary = td;
+
+	/* Get the chip and revision IDs */
+	val = readl(td->sfr + NCID_OFFSET);
+	chip->rev_id = u32_get_bits(val, NCID_REV_ID_MASK);
+	chip->chip_id = u32_get_bits(val, NCID_CHIP_ID_MASK);
+	dev_dbg(dev, "NCID Register value: %x\n", val);
 
 	regmap = devm_regmap_init_mmio(td->dev, td->sfr,
 				       &tc956x_reset_clock_regmap_config);
@@ -1595,7 +1608,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	struct irq_domain *irq_domain;
 	struct tc956x_data *td;
 	/* use signal from EMSPHY */
-	u32 pfn, val;
+	u32 pfn;
 	int ret;
 
 	td = tc956x_devm_data_create(pdev);
@@ -1635,12 +1648,6 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	/* NCLKCTRL0_OFFSET or NCLKCTRL1_OFFSET, relative to regmap */
 	td->reset_offset = td->emac0 ? RSTCTRL0_OFFSET : RSTCTRL1_OFFSET;
 	td->clock_offset = td->emac0 ? CLKCTRL0_OFFSET : CLKCTRL1_OFFSET;
-
-	// NCID_OFFSET gives the revision ID (and early revisions are limited
-	// to 2.5G)
-	val = readl(td->sfr + NCID_OFFSET);
-	dev_dbg(dev, "NCID Register value: %x\n", val);
-	td->revid = FIELD_GET(NCID_REV_ID, val);
 
 	// TODO: this needs to come from devicetree
 	td->plat->phy_interface = td->emac0 ? PHY_INTERFACE_MODE_10GBASER :
