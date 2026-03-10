@@ -1597,17 +1597,7 @@ static void tc956x_chip_put(struct tc956x_data *td)
 	kfree(chip);
 }
 
-/**
- * tc956x_pci_probe() - PCI driver probe callback
- * @pdev:	PCI device pointer
- * @id:		Pointer to the matching PCI device ID table entry
- *
- * Set up a PCI device whose VID/PID match what we support.  This includes
- * allocating a driver private structure, requesting memory regions,
- * setting up interrupt handling, and so on.
- */
-static int tc956x_pci_probe(struct pci_dev *pdev,
-			    const struct pci_device_id *id)
+static int tc956x_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
 	struct stmmac_resources res = { };
 	struct device *dev = &pdev->dev;
@@ -1754,7 +1744,7 @@ err_clear_master:
  * Reverse operations performed at probe time, releasing resources
  * and returning things to original state.
  */
-static void tc956x_pci_remove(struct pci_dev *pdev)
+static void tc956x_remove(struct pci_dev *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct net_device *ndev = dev_get_drvdata(dev);
@@ -1798,8 +1788,8 @@ MODULE_DEVICE_TABLE(pci, tc956x_id_table);
 static struct pci_driver tc956x_pci_driver = {
 	.name		= DRIVER_NAME,
 	.id_table	= tc956x_id_table,
-	.probe		= tc956x_pci_probe,
-	.remove		= tc956x_pci_remove,
+	.probe		= tc956x_probe,
+	.remove		= tc956x_remove,
 	.driver		= {
 		.name	= DRIVER_NAME,
 		.owner	= THIS_MODULE,
