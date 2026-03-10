@@ -1439,7 +1439,6 @@ static int tc956x_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	struct device *dev = &pdev->dev;
 	struct irq_domain *irq_domain;
 	struct tc956x_data *td;
-	/* use signal from EMSPHY */
 	u32 pci_fn;
 	int ret;
 
