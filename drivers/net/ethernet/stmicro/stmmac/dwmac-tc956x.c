@@ -1446,9 +1446,7 @@ static int tc956x_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	td = tc956x_devm_data_create(pdev);
 	if (IS_ERR_OR_NULL(td))
 		return dev_err_probe(dev, td ? PTR_ERR(td) : -ENOMEM,
-				     "cannot create data");
-
-	pci_set_master(pdev);
+				     "cannot create data\n");
 
 	/*
 	 * We must hold the chips lock until we have decided whether or not we
@@ -1459,11 +1457,9 @@ static int tc956x_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	guard(mutex)(&tc956x_chips_lock);
 
 	td->chip = tc956x_chip_get(td);
-	if (IS_ERR_OR_NULL(td->chip)) {
-		ret = dev_err_probe(dev, td->chip ? PTR_ERR(td->chip) : -ENOMEM,
-				    "cannot get chip\n");
-		goto err_clear_master;
-	}
+	if (IS_ERR_OR_NULL(td->chip))
+		return dev_err_probe(dev, td->chip ? PTR_ERR(td->chip) : -ENOMEM,
+				     "cannot get chip\n");
 
 #if IS_ENABLED(CONFIG_TRACE_MMIO_ACCESS)
 	/*
@@ -1481,7 +1477,7 @@ static int tc956x_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	pci_fn = PCI_FUNC(pdev->devfn);
 	if (WARN_ON(pci_fn > 1)) {
 		ret = -EINVAL;
-		goto err_chip_put;
+		goto err;
 	}
 	td->emac0 = pci_fn == 0;
 
@@ -1491,7 +1487,9 @@ static int tc956x_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	ret = tc956x_xgmac3_default_data(pdev, td->plat);
 	if (ret)
-		goto err_chip_put;
+		goto err;
+
+	pci_set_master(pdev);
 
 	/*
 	 * Enable MSI and Allocate Vectors. Despite the spelling (no pcim) the
@@ -1502,7 +1500,7 @@ static int tc956x_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	if (ret < TC956X_TOT_MSI_VEC) {
 		dev_err(dev, "%s:Enable MSI error\n", DRIVER_NAME);
-		goto err_out_msi_failed;
+		goto err;
 	}
 
 	dev_dbg(dev, "%s : Allocated MSI Vectors : %d", __func__, ret);
@@ -1513,7 +1511,7 @@ static int tc956x_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	irq_domain = devm_tc956x_msigen_register(pdev, td);
 	if (IS_ERR_OR_NULL(irq_domain)) {
 		ret = PTR_ERR(irq_domain);
-		goto err_out_msi_failed;
+		goto err;
 	}
 
 	res.addr = XGMAC_BASE(td);
@@ -1536,34 +1534,31 @@ static int tc956x_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	ret = tc956x_platform_probe(td, &res);
 	if (ret) {
 		dev_err(dev, "Platform (DT) code failed\n");
-		goto err_platform_probe;
+		goto err;
 	}
 
 	ret = tc956x_chipcfg_mac_init(td);
 	if (ret < 0)
-		goto err_platform_probe;
+		goto err;
 
 	tc956x_pma_init(td);
-
 	tc956x_mac_reset_deassert(td, MAC_RESET_XPCS);
 
 	ret = stmmac_dvr_probe(dev, td->plat, &res);
 	if (ret) {
-		tc956x_stop_mac(td);
-
-		if (ret != -ENODEV)
-			goto err_dvr_probe;
+		if (ret != -ENODEV) {
+			goto err;
+		} else {
+			tc956x_stop_mac(td);
+		}
 	}
 
 	return 0;
 
-err_dvr_probe:
+err:
+	tc956x_stop_mac(td);
 	(void) tc956x_phy_power_off(td);
-err_platform_probe:
-err_out_msi_failed:
-err_chip_put:
 	tc956x_chip_put(td);
-err_clear_master:
 
 	return ret;
 }
