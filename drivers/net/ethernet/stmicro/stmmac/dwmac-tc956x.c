@@ -647,50 +647,11 @@ static int tc956x_platform_remove(struct tc956x_data *td)
 
 	ret = tc956x_phy_power_off(td);
 	if (ret)
-		dev_err(td->dev, "Failed to power off PHY with error %d\n", ret);
+		dev_warn(td->dev, "Failed to power off PHY with error %d\n", ret);
 
 	devm_regulator_put(td->phy_supply);
 
 	devm_pinctrl_put(td->pinctrl);
-
-	return ret;
-}
-
-static int tc956x_platform_suspend(struct stmmac_priv *priv)
-{
-	struct tc956x_data *td = priv->plat->bsp_priv;
-	int ret = 0;
-
-	if (priv->wolopts) {
-		ret = enable_irq_wake(priv->wol_irq);
-		if (unlikely(ret))
-			dev_err(priv->device, "Failed to set WOL IRQ %d as wake up capable with error %d\n",
-				priv->wol_irq, ret);
-	} else {
-		ret = tc956x_phy_power_off(td);
-		if (ret)
-			dev_err(priv->device, "Failed to power off PHY with error %d\n", ret);
-	}
-
-	return ret;
-}
-
-static int tc956x_platform_resume(struct stmmac_priv *priv)
-{
-	struct tc956x_data *td = priv->plat->bsp_priv;
-	int ret = 0;
-
-
-	if (priv->wolopts) {
-		ret = disable_irq_wake(priv->wol_irq);
-		if (unlikely(ret))
-			dev_err(priv->device, "Failed to set WOL IRQ %d as a wake-disabled irq with error %d\n",
-				priv->wol_irq, ret);
-	} else {
-		ret = tc956x_phy_power_on(td);
-		if (ret)
-			dev_err(priv->device, "Failed to power on the PHY with error %d\n", ret);
-	}
 
 	return ret;
 }
@@ -1208,14 +1169,18 @@ static int tc956x_suspend(struct device *dev, void *bsp_priv)
 {
 	struct net_device *ndev = dev_get_drvdata(dev);
 	struct stmmac_priv *priv = netdev_priv(ndev);
-	struct pci_dev *pdev = to_pci_dev(dev);
 	struct tc956x_data *td = bsp_priv;
 	int ret;
 
-	ret = tc956x_platform_suspend(priv);
-	if (ret) {
-		dev_err(dev, "%s: error in calling tc956x_platform_suspend", pci_name(pdev));
-		return ret;
+	if (priv->wolopts) {
+		ret = enable_irq_wake(priv->wol_irq);
+		if (unlikely(ret))
+			dev_warn(priv->device, "Failed to set WOL IRQ %d as wake up capable with error %d\n",
+				priv->wol_irq, ret);
+	} else {
+		ret = tc956x_phy_power_off(td);
+		if (ret)
+			dev_warn(priv->device, "Failed to power off PHY with error %d\n", ret);
 	}
 
 	tc956x_stop_mac(td);
@@ -1225,7 +1190,6 @@ static int tc956x_suspend(struct device *dev, void *bsp_priv)
 
 static int tc956x_resume(struct device *dev, void *bsp_priv)
 {
-	struct pci_dev *pdev = to_pci_dev(dev);
 	struct net_device *ndev = dev_get_drvdata(dev);
 	struct stmmac_priv *priv = netdev_priv(ndev);
 	struct tc956x_data *td = priv->plat->bsp_priv;
@@ -1234,14 +1198,18 @@ static int tc956x_resume(struct device *dev, void *bsp_priv)
 	ret = stmmac_pci_plat_resume(dev, bsp_priv);
 	if (ret)
 		return ret;
-	}
 
-	ret = tc956x_platform_resume(priv);
-	if (ret) {
-		dev_err(dev, "%s: error in calling tc956x_platform_resume", pci_name(pdev));
-		pci_disable_device(pdev);
-
-		return ret;
+	if (priv->wolopts) {
+		ret = disable_irq_wake(priv->wol_irq);
+		if (ret)
+			dev_warn(priv->device, "Failed to set WOL IRQ %d as a wake-disabled irq with error %d\n",
+				priv->wol_irq, ret);
+	} else {
+		ret = tc956x_phy_power_on(td);
+		if (ret) {
+			/* Let's hope this error is symmetrical with a failure to turn the PHY off! */
+			dev_warn(priv->device, "Failed to power on the PHY with error %d\n", ret);
+		}
 	}
 
 	/* Configure TA map registers when the primary MAC resumes */
