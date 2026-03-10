@@ -90,13 +90,13 @@ enum tc9564_mac_reset_id {
 	MAC_RESET_XPCS		= 31,
 };
 
-/* XXX MCU, SRAM, PCIE, and I2C are always enabled/disabled together */
-/* XXX MSIGEN and UART0 are always enabled/disabled together */
+/* NOTE:  the PCIE and I2C clocks (bits 9 and 12) should *not* be managed by
+ * this driver.  They are needed by the PCIe driver and its power control
+ * driver, and should only be enabled or disabled (if required) there.
+ */
 enum tc9564_chip_clock_id {
 	CHIP_CLOCK_MCU		= 0,
 	CHIP_CLOCK_SRAM		= 13,
-	CHIP_CLOCK_PCIE		= 9,
-	CHIP_CLOCK_I2C		= 12,
 	CHIP_CLOCK_MSIGEN	= 18,
 	CHIP_CLOCK_INTC		= 4,
 	CHIP_CLOCK_UART0	= 16,
@@ -1797,8 +1797,6 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 
 		tc956x_chip_clock_enable(chip, CHIP_CLOCK_MCU);
 		tc956x_chip_clock_enable(chip, CHIP_CLOCK_SRAM);
-		tc956x_chip_clock_enable(chip, CHIP_CLOCK_PCIE);
-		tc956x_chip_clock_enable(chip, CHIP_CLOCK_I2C);
 
 		tc956x_chip_clock_disable(chip, CHIP_CLOCK_MSIGEN);
 		tc956x_chip_clock_disable(chip, CHIP_CLOCK_INTC);
