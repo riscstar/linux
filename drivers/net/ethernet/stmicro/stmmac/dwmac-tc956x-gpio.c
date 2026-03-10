@@ -67,57 +67,45 @@ static int tc9564_gpio_get_direction(struct gpio_chip *gc, unsigned int offset)
 static int tc9564_gpio_direction_input(struct gpio_chip *gc,
 				       unsigned int offset)
 {
+	u32 reg = offset < 32 ? GPIO_EN0_OFFSET : GPIO_EN1_OFFSET;
 	struct tc9564_gpio *gpio = gpiochip_get_data(gc);
-	u32 reg;
-	u32 val;
-	u32 new;
+	u32 mask = BIT(offset % 32);
 
-	reg = offset < 32 ? GPIO_EN0_OFFSET : GPIO_EN1_OFFSET;
-	regmap_read(gpio->regmap, reg, &val);
-	new = val | BIT(offset % 32);		/* Set line for input */
-	if (new != val)
-		regmap_write(gpio->regmap, reg, val);
-
-	return 0;
+	return regmap_update_bits(gpio->regmap, reg, mask, mask);
 }
 
 static int tc9564_gpio_direction_output(struct gpio_chip *gc,
 					unsigned int offset, int value)
 {
 	struct tc9564_gpio *gpio = gpiochip_get_data(gc);
-	u32 mask = BIT(offset % 32);
-	u32 reg;
-	u32 val;
-	u32 new;
+	u32 vreg;
+	u32 dreg;
+	u32 mask;
 
 	if (test_bit(offset, gpio->input_only))
 		return -EINVAL;
 
-	reg = offset < 32 ? GPIO_OUT0_OFFSET : GPIO_OUT1_OFFSET;
-	regmap_read(gpio->regmap, reg, &val);
-	if (value)
-		new = val | mask;
-	else
-		new = val & ~mask;
-	if (new != val)
-		regmap_write(gpio->regmap, reg, val);
+	if (offset < 32) {
+		vreg = GPIO_OUT0_OFFSET;
+		dreg = GPIO_EN0_OFFSET;
+	} else {
+		vreg = GPIO_OUT1_OFFSET;
+		dreg = GPIO_EN1_OFFSET;
+	}
+	mask = BIT(offset % 32);
 
-	reg = offset < 32 ? GPIO_EN0_OFFSET : GPIO_EN1_OFFSET;
-	regmap_read(gpio->regmap, reg, &val);
-	new = val & ~mask;			/* Set line for output */
-	if (new != val)
-		regmap_write(gpio->regmap, reg, val);
+	/* Set output value first, then direction */
+	regmap_update_bits(gpio->regmap, vreg, mask, value ? mask : 0);
 
-	return 0;
+	return regmap_update_bits(gpio->regmap, dreg, mask, 0);
 }
 
 static int tc9564_gpio_get(struct gpio_chip *gc, unsigned int offset)
 {
+	u32 reg = offset < 32 ? GPIO_IN0_OFFSET : GPIO_IN1_OFFSET;
 	struct tc9564_gpio *gpio = gpiochip_get_data(gc);
-	u32 reg;
 	u32 val;
 
-	reg = offset < 32 ? GPIO_IN0_OFFSET : GPIO_IN1_OFFSET;
 	regmap_read(gpio->regmap, reg, &val);
 
 	return val & BIT(offset % 32) ? 1 : 0;
@@ -125,22 +113,11 @@ static int tc9564_gpio_get(struct gpio_chip *gc, unsigned int offset)
 
 static int tc9564_gpio_set(struct gpio_chip *gc, unsigned int offset, int value)
 {
+	u32 reg = offset < 32 ? GPIO_OUT0_OFFSET : GPIO_OUT1_OFFSET;
 	struct tc9564_gpio *gpio = gpiochip_get_data(gc);
 	u32 mask = BIT(offset % 32);
-	u32 reg;
-	u32 val;
-	u32 new;
 
-	reg = offset < 32 ? GPIO_OUT0_OFFSET : GPIO_OUT1_OFFSET;
-	regmap_read(gpio->regmap, reg, &val);
-	if (value)
-		new = val | mask;
-	else
-		new = val & ~mask;
-	if (new != val)
-		regmap_write(gpio->regmap, reg, val);
-
-	return 0;
+	return regmap_update_bits(gpio->regmap, reg, mask, value ? mask : 0);
 }
 
 static int tc9564_gpio_init_valid_mask(struct gpio_chip *gc,
