@@ -557,6 +557,13 @@ static int tc956x_reset_gpio_get(struct tc956x_data *td)
 	if (!np)
 		return -EINVAL;
 
+	/*
+	 * When we created the chip it registers a GPIO device and that device
+	 * may be used to supply the phy-reset. It may not have finished probing
+	 * by the time we get here and sadly we can't return -EPROBE_DEFER
+	 * (because that would cause the GPIO device to de-register). Thus we
+	 * must wait for a short period before failing.
+	 */
 	do {
 		td->phy_reset = devm_gpiod_get(dev, "phy-reset", GPIOD_OUT_LOW);
 		msleep(10);
