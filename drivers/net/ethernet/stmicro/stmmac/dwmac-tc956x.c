@@ -201,7 +201,7 @@ static const struct regmap_config tc956x_regmap_config = {
 };
 
 /* XXX TC9564? Also, this is a physical function; virtual is 0x0221 */
-#define PCI_DEVICE_ID_TOSHIBA_TC956X		0x0220
+#define PCI_DEVICE_ID_TOSHIBA_TC956X	0x0220
 
 #define AXI4_SLV_TABLE_OFFSET		0x0800
 
@@ -215,25 +215,25 @@ static const struct regmap_config tc956x_regmap_config = {
 #define ATR_SIZE_MASK			GENMASK(6, 1)	/* size 2^(ATR + 1) */
 #define SRC_ADDR_HI_OFFSET		0x04
 #define TRSL_ADDR_LO_OFFSET		0x08
-#define TRSL_ADDR_HI_OFFSET		0x0C
+#define TRSL_ADDR_HI_OFFSET		0x0c
 #define TRSL_PARAM_OFFSET		0x10
 #define TRSL_ID_MASK			GENMASK(3, 0)
 #define TRSL_ID_PCIE_TX_RX		0
 #define TRSF_PARAM_MASK			GENMASK(27, 16)
 #define TRSL_MASK_LO_OFFSET		0x18
-#define TRSL_MASK_HI_OFFSET		0x1C
+#define TRSL_MASK_HI_OFFSET		0x1c
 
 #define TC956X_AXI4_SLV00_ATR_SIZE	36U	/* log2(Addr transl size) */
 #define TC956X_AXI4_SLV00_SRC_ADDR	0x0000001000000000ULL
 #define TC956X_AXI4_SLV00_TRSL_ADDR	0x0000000000000000ULL
 
 /* XXX This is an invalid value; 0x00000017 is the minimum allowed */
-#define TC956X_AXI4_SLV00_SRC_ADDR_LO_VAL_DEFAULT  (0x0000007FU)
+#define TC956X_AXI4_SLV00_SRC_ADDR_LO_VAL_DEFAULT  (0x0000007fU)
 
 #define CM3_TAMAP_COUNT			4
 
 #define TC956X_TOT_CASCADE_DEV	7 /* Maximum number of devices for 2 Level cascade setup */
-#define TC956X_PCI_BD_MASK	0xFFF8
+#define TC956X_PCI_BD_MASK	0xfff8
 
 #define TC956X_TOT_MSI_VEC	1
 
@@ -261,11 +261,11 @@ static const struct regmap_config tc956x_regmap_config = {
 #define TC956X_MSI_VECT_SET0_OFFSET	0x0020
 #define TC956X_MSI_VECT_SET1_OFFSET	0x0024
 #define TC956X_MSI_VECT_SET2_OFFSET	0x0028
-#define TC956X_MSI_VECT_SET3_OFFSET	0x002C
+#define TC956X_MSI_VECT_SET3_OFFSET	0x002c
 #define TC956X_MSI_VECT_SET4_OFFSET	0x0030
 #define TC956X_MSI_VECT_SET5_OFFSET	0x0034
 #define TC956X_MSI_VECT_SET6_OFFSET	0x0038
-#define TC956X_MSI_VECT_SET7_OFFSET	0x003C
+#define TC956X_MSI_VECT_SET7_OFFSET	0x003c
 #define TC956X_SW_MSI_CLR		0x0054
 
 #define TC956X_HWIRQ_LPI		0
@@ -653,37 +653,36 @@ static int tc956x_platform_remove(struct tc956x_data *td)
 		dev_warn(td->dev, "Failed to power off PHY with error %d\n", ret);
 
 	devm_regulator_put(td->phy_supply);
-
 	devm_pinctrl_put(td->pinctrl);
 
 	return ret;
 }
 
-#define XPCS_XGMAC_OFFSET  0x3A00
+#define XPCS_XGMAC_OFFSET  0x3a00
 #define PMA_XGMAC_OFFSET   0x4000
 
 /*PMA registers*/
-#define XGMAC_PMA_GL_PM_CFG0				0x000001B8
-#define XGMAC_PMA_CFG_0_1_R0				0x00001888
-#define XGMAC_PMA_CFG_0_1_R1				0x00001890
-#define XGMAC_PMA_CFG_0_1_R2				0x00001898
-#define XGMAC_PMA_CFG_0_1_R3				0x000018A0
-#define XGMAC_PMA_CFG_0_1_R4				0x000018A8
+#define XGMAC_PMA_GL_PM_CFG0			0x000001b8
+#define XGMAC_PMA_CFG_0_1_R0			0x00001888
+#define XGMAC_PMA_CFG_0_1_R1			0x00001890
+#define XGMAC_PMA_CFG_0_1_R2			0x00001898
+#define XGMAC_PMA_CFG_0_1_R3			0x000018a0
+#define XGMAC_PMA_CFG_0_1_R4			0x000018a8
 
-#define	XGMAC_PMA_HWT_REFCK_EN_R0			0x00001080
-#define	XGMAC_PMA_HWT_REFCK_TERM_EN_R0		0x00001090
-#define XGMAC_PMA_HWT_REFCK_R_EN_R1			0x00001094
-#define XGMAC_PMA_HWT_REFCK_TERM_EN_R1		0x000010A4
-#define XGMAC_PMA_HWT_REFCK_R_EN_R2			0x000010A8
-#define XGMAC_PMA_HWT_REFCK_TERM_EN_R2		0x000010B8
-#define XGMAC_PMA_HWT_REFCK_R_EN_R3			0x000010BC
-#define XGMAC_PMA_HWT_REFCK_TERM_EN_R3		0x000010CC
-#define XGMAC_PMA_HWT_REFCK_R_EN_R4			0x000010D0
-#define XGMAC_PMA_HWT_REFCK_TERM_EN_R4		0x000010E0
+#define XGMAC_PMA_HWT_REFCK_EN_R0		0x00001080
+#define XGMAC_PMA_HWT_REFCK_TERM_EN_R0		0x00001090
+#define XGMAC_PMA_HWT_REFCK_R_EN_R1		0x00001094
+#define XGMAC_PMA_HWT_REFCK_TERM_EN_R1		0x000010a4
+#define XGMAC_PMA_HWT_REFCK_R_EN_R2		0x000010a8
+#define XGMAC_PMA_HWT_REFCK_TERM_EN_R2		0x000010b8
+#define XGMAC_PMA_HWT_REFCK_R_EN_R3		0x000010bc
+#define XGMAC_PMA_HWT_REFCK_TERM_EN_R3		0x000010cc
+#define XGMAC_PMA_HWT_REFCK_R_EN_R4		0x000010d0
+#define XGMAC_PMA_HWT_REFCK_TERM_EN_R4		0x000010e0
 
 /*PMA register values*/
-#define XGMAC_PMA_OFFSET0					0x00000000
-#define XGMAC_PMA_OFFSET1					0x0001EF04
+#define XGMAC_PMA_OFFSET0			0x00000000
+#define XGMAC_PMA_OFFSET1			0x0001ef04
 
 static void tc956x_pma_init(struct tc956x_data *td)
 {
