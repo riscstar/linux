@@ -661,9 +661,6 @@ static int tc956x_platform_remove(struct tc956x_data *td)
 	if (ret)
 		dev_warn(td->dev, "Failed to power off PHY with error %d\n", ret);
 
-	devm_regulator_put(td->phy_supply);
-	devm_pinctrl_put(td->pinctrl);
-
 	return ret;
 }
 
