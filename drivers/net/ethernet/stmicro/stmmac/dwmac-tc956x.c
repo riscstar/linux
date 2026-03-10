@@ -219,15 +219,15 @@ static const struct regmap_config tc956x_regmap_config = {
 		(AXI4_SLV_TABLE_OFFSET + (tid) * AXI4_TABLE_STRIDE)
 
 #define SRC_ADDR_LO_OFFSET		0x00
-#define ATR_IMPL		BIT(0)		/* 1 = enabled */
-#define ATR_SIZE_MASK		GENMASK(6, 1)	/* size 2^(ATR + 1) */
+#define ATR_IMPL			BIT(0)		/* 1 = enabled */
+#define ATR_SIZE_MASK			GENMASK(6, 1)	/* size 2^(ATR + 1) */
 #define SRC_ADDR_HI_OFFSET		0x04
 #define TRSL_ADDR_LO_OFFSET		0x08
 #define TRSL_ADDR_HI_OFFSET		0x0C
 #define TRSL_PARAM_OFFSET		0x10
-#define TRSL_ID_MASK		GENMASK(3, 0)
+#define TRSL_ID_MASK			GENMASK(3, 0)
 #define TRSL_ID_PCIE_TX_RX		0
-#define TRSF_PARAM_MASK		GENMASK(27, 16)
+#define TRSF_PARAM_MASK			GENMASK(27, 16)
 #define TRSL_MASK_LO_OFFSET		0x18
 #define TRSL_MASK_HI_OFFSET		0x1C
 
