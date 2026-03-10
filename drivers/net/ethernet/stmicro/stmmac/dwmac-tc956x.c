@@ -1790,16 +1790,7 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 	tc956x_mac_reset_assert(td, MAC_RESET_PMA);
 	tc956x_mac_reset_assert(td, MAC_RESET_XPCS);
 
-	/*
-	 * XXX We could probably arrange things so this code can reuse the logic
-	 *     in tc956x_stop_clocks()
-	 */
-	tc956x_mac_clock_disable(td, MAC_CLOCK_TX);
-	tc956x_mac_clock_disable(td, MAC_CLOCK_RX);
-	tc956x_mac_clock_disable(td, MAC_CLOCK_ALL);
-
-	tc956x_mac_clock_disable(td, MAC_CLOCK_125M);
-	tc956x_mac_clock_disable(td, MAC_CLOCK_312_5M);
+	tc956x_stop_clocks(td);
 
 	/* Close shared things down if the primary is removed */
 	if (td == td->chip->primary) {
@@ -1825,10 +1816,6 @@ static void tc956x_pci_remove(struct pci_dev *pdev)
 		tc956x_chip_clock_disable(chip, CHIP_CLOCK_MSIGEN);
 		tc956x_chip_clock_disable(chip, CHIP_CLOCK_INTC);
 		tc956x_chip_clock_disable(chip, CHIP_CLOCK_UART0);
-
-		tc956x_mac_clock_disable(td, MAC_CLOCK_PLL);
-		tc956x_mac_clock_disable(td, MAC_CLOCK_SGMII);
-		tc956x_mac_clock_disable(td, MAC_CLOCK_REFCLK);
 	}
 
 	tc956x_chip_put(td);
