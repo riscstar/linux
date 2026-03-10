@@ -1210,17 +1210,6 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 	tc956x_pma_init(td);
 }
 
-/**
- * tc956x_suspend() - Device driver suspend callback
- * @dev:		Device pointer
- * @bsp_priv:		stmmac dsp_priv pointer
- *
- * Perform the activities required to suspend the TC956x platform device.
- * This includes suspending the eMACs (and managing wake-on-LAN state)
- * and suspending the PCIe interfaces.
- *
- * Return:	0 if successful, or an error code if an error occurs
- */
 static int tc956x_suspend(struct device *dev, void *bsp_priv)
 {
 	struct net_device *ndev = dev_get_drvdata(dev);
@@ -1240,17 +1229,6 @@ static int tc956x_suspend(struct device *dev, void *bsp_priv)
 	return stmmac_pci_plat_suspend(dev, bsp_priv);
 }
 
-/**
- * tc956x_resume() - Device driver resume callback
- * @dev:		Device pointer
- * @bsp_priv:		stmmac dsp_priv pointer
- *
- * Perform the activities required to resume the TC956x platform device.
- * This includes resuming the PCIe interfaces, and disabling wake-on-LAN
- * and resuming the eMACs.
- *
- * Return:	0 if successful, or an error code if an error occurs
- */
 static int tc956x_resume(struct device *dev, void *bsp_priv)
 {
 	struct pci_dev *pdev = to_pci_dev(dev);
@@ -1639,13 +1617,6 @@ err_clear_master:
 	return ret;
 }
 
-/**
- * tc956x_pci_remove() - PCI driver remove callback
- * @pdev: Pointer to the pci_dev structure
- *
- * Reverse operations performed at probe time, releasing resources
- * and returning things to original state.
- */
 static void tc956x_remove(struct pci_dev *pdev)
 {
 	struct device *dev = &pdev->dev;
