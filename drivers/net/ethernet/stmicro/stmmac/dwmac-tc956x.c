@@ -55,20 +55,6 @@
  * XXX and reset interfaces.
  */
 
-//
-// (Long term) TODOs
-//
-// * tc956x_qcom.c included a `qcom,link-down-macrst` property to provide
-//   "MAC reset for PHY Clock loss during Link Down". It was removed from
-//   this driver when unused code was deleted. It is an important property?
-// * tc956x_qcom.c also has `qcom,c45_needed` which was removed because there
-//   was nothing in stmmac core to connect it to (FWIW the register logs shows
-//   clause 45 activity on port 1/2.5G)
-// * TC956x has support for faster MDIO bus scanning (by increasing CSR
-//   clock rate). Should we replicate that?
-// * TC956x has support for phy interrupts. Should that be re-enabled?
-//
-
 /* PCI BAR assignments */
 #define PCI_BAR_BRIDGE_CONFIG		0
 #define PCI_BAR_SFR			4
