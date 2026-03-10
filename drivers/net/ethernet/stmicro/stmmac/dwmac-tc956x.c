@@ -108,7 +108,6 @@ enum tc9564_mac_clock_id {
 /**
  * struct tc956x_data - Toshiba-specific platform data
  * @dev:		Device pointer
- * @devfn:		PCI device/function id
  * @plat:		Pointer to our stmmac platform data
  * @bridge_config:	Mapped bridge config data (BAR 0)
  * @sfr:		Mapped SFR region (BAR 4)
@@ -128,7 +127,6 @@ enum tc9564_mac_clock_id {
  */
 struct tc956x_data {
 	struct device *dev;
-	unsigned int devfn;
 	struct plat_stmmacenet_data *plat;
 	void __iomem *bridge_config;
 	void __iomem *sfr;
@@ -1452,7 +1450,6 @@ static struct tc956x_data *tc956x_devm_data_create(struct pci_dev *pdev)
 		return NULL;
 
 	td->dev = dev;
-	td->devfn = pdev->devfn;
 
 	ret = tc956x_platform_of_parse(td);
 	if (ret)
@@ -1510,9 +1507,10 @@ static void tc956x_stop_chip(struct tc956x_chip *chip)
 
 static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 {
-	u8 pci_bus_num = PCI_BUS_NUM(td->devfn);
-	u8 pci_slot = PCI_SLOT(td->devfn);
 	struct device *dev = td->dev;
+	struct pci_dev *pdev = to_pci_dev(dev);
+	u8 pci_bus_num = PCI_BUS_NUM(pdev->devfn);
+	u8 pci_slot = PCI_SLOT(pdev->devfn);
 	struct tc956x_chip *chip;
 	struct regmap *regmap;
 	u32 val;
@@ -1616,7 +1614,7 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 	struct irq_domain *irq_domain;
 	struct tc956x_data *td;
 	/* use signal from EMSPHY */
-	u32 pfn;
+	u32 pci_fn;
 	int ret;
 
 	td = tc956x_devm_data_create(pdev);
@@ -1646,12 +1644,12 @@ static int tc956x_pci_probe(struct pci_dev *pdev,
 #endif
 
 	/* The physical port number matches from the PCI function number */
-	pfn = PCI_FUNC(pdev->devfn);
-	if (WARN_ON(pfn > 1)) {
+	pci_fn = PCI_FUNC(pdev->devfn);
+	if (WARN_ON(pci_fn > 1)) {
 		ret = -EINVAL;
 		goto err_chip_put;
 	}
-	td->emac0 = pfn == 0;
+	td->emac0 = pci_fn == 0;
 
 	/* NCLKCTRL0_OFFSET or NCLKCTRL1_OFFSET, relative to regmap */
 	td->reset_offset = td->emac0 ? RSTCTRL0_OFFSET : RSTCTRL1_OFFSET;
