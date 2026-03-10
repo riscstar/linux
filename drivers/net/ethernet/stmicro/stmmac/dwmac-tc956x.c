@@ -117,7 +117,6 @@ enum tc9564_mac_clock_id {
  * @phy_supply:		PHY supply egulator
  * @phy_reset:		Descriptor for GPIO used for PHY reset
  * @phy_reset_delay:	Delay (milliseconds) after PHY reset
- * @reset_asserted:	Whether reset on this PHY is currently asserted
  * @wol_irq:		Wake-on-LAN IRQ number
  * @chip:		Pointer to the containing chip information
  * @regmap:		Register map for SFR region access
@@ -135,7 +134,6 @@ struct tc956x_data {
 	struct regulator *phy_supply;
 	struct gpio_desc *phy_reset;
 	u32 phy_reset_delay;
-	u32 reset_asserted;
 	int wol_irq;
 	struct tc956x_chip *chip;
 	struct regmap *regmap;
@@ -403,8 +401,6 @@ static int tc956x_assert_phy_reset(struct tc956x_data *td, bool assert)
 	if (ret)
 		return ret;
 
-	td->reset_asserted = assert;
-
 	return 0;
 }
 
@@ -545,22 +541,16 @@ static int tc956x_phy_power_on(struct tc956x_data *td)
 {
 	int ret = 0;
 
-	ret = regulator_enable(td->phy_supply);
-	if (ret) {
-		dev_err(td->dev, "Failed to enable PHY supply with error %d\n", ret);
+	ret = tc956x_assert_phy_reset(td, true);
+	if (ret)
 		return ret;
-	}
 
-	if (td->reset_asserted) {
-		ret = tc956x_assert_phy_reset(td, false);
-		if (ret) {
-			(void)regulator_disable(td->phy_supply);
-			dev_err(td->dev, "failed to deassert PHY reset\n");
-			return ret;
-		}
+	ret = regulator_enable(td->phy_supply);
+	if (ret)
+		dev_warn(td->dev, "Failed to enable PHY supply with error %d\n", ret);
 
-		msleep(td->phy_reset_delay);
-	}
+	(void) tc956x_assert_phy_reset(td, false);
+	fsleep(td->phy_reset_delay);
 
 	return ret;
 }
@@ -569,22 +559,11 @@ static int tc956x_phy_power_off(struct tc956x_data *td)
 {
 	int ret = 0;
 
-	if (!td->reset_asserted) {
-		ret = tc956x_assert_phy_reset(td, true);
-		if (ret) {
-			dev_err(td->dev, "failed to assert PHY reset\n");
-			return ret;
-		}
-	}
+	ret = tc956x_assert_phy_reset(td, true);
+	if (ret)
+		return ret;
 
-	ret = regulator_disable(td->phy_supply);
-	if (ret) {
-		dev_err(td->dev, "Failed to disable PHY supply with error %d\n", ret);
-		(void)tc956x_assert_phy_reset(td, false);
-		/* XXX Any need for the phy_reset_delay here? */
-	}
-
-	return ret;
+	return regulator_disable(td->phy_supply);
 }
 
 static int tc956x_reset_gpio_get(struct tc956x_data *td)
@@ -667,14 +646,6 @@ static int tc956x_platform_probe(struct tc956x_data *td,
 	ret = tc956x_reset_gpio_get(td);
 	if (ret)
 		return ret;
-
-	/* Hold the PHY in reset until we're ready */
-	td->reset_asserted = false;
-	ret = tc956x_assert_phy_reset(td, true);
-	if (ret) {
-		dev_err(td->dev, "failed to assert PHY reset\n");
-		return ret;
-	}
 
 	ret = pinctrl_select_state(td->pinctrl, td->pinctrl_default);
 	if (ret) {
@@ -1326,15 +1297,7 @@ static int tc956x_resume(struct device *dev, void *bsp_priv)
 	int ret;
 
 	ret = stmmac_pci_plat_resume(dev, bsp_priv);
-	if (ret < 0)
-		return ret;
-
-	/* XXX Error handling in this function needs work */
-	ret = tc956x_assert_phy_reset(td, td->reset_asserted);
-	if (ret) {
-		dev_err(dev, "error restoring PHY reset state");
-		pci_disable_device(pdev);
-
+	if (ret)
 		return ret;
 	}
 
