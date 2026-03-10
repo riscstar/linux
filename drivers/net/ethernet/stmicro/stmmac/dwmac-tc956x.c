@@ -123,7 +123,6 @@ enum tc9564_mac_clock_id {
  * @regmap:		Register map for SFR region access
  * @reset_offset:	Offset to reset control register
  * @clock_offset:	Offset to clock control register
- * @mac_125_clock:	Whether the 125 MHz clock is enabled
  */
 struct tc956x_data {
 	struct device *dev;
@@ -142,7 +141,6 @@ struct tc956x_data {
 	struct regmap *regmap;
 	u32 reset_offset;
 	u32 clock_offset;
-	bool mac_125_clock;
 };
 
 /**
@@ -850,6 +848,7 @@ struct {
 static int tc956x_chipcfg_mac_configure(struct tc956x_data *td, int speed)
 {
 	u32 sp_sel = EMAC_SP_SEL_MASK + 1;
+	bool mac_125_clock;
 	u32 nemacxctl_offset;
 	u32 val;
 	int i;
@@ -859,8 +858,7 @@ static int tc956x_chipcfg_mac_configure(struct tc956x_data *td, int speed)
 			    td->plat->phy_interface &&
 		    tc956x_chipcfg_mac_speed[i].speed == speed) {
 			sp_sel = tc956x_chipcfg_mac_speed[i].sp_sel;
-			td->mac_125_clock =
-				tc956x_chipcfg_mac_speed[i].mac_125_clock;
+			mac_125_clock = tc956x_chipcfg_mac_speed[i].mac_125_clock;
 			break;
 		}
 	}
@@ -869,7 +867,7 @@ static int tc956x_chipcfg_mac_configure(struct tc956x_data *td, int speed)
 
 	nemacxctl_offset = td->emac0 ? NEMAC0CTL_OFFSET : NEMAC1CTL_OFFSET;
 
-	if (td->mac_125_clock)
+	if (mac_125_clock)
 		tc956x_mac_clock_enable(td, MAC_CLOCK_125M);
 	else
 		tc956x_mac_clock_disable(td, MAC_CLOCK_125M);
@@ -940,26 +938,6 @@ static void tc956x_stop_mac(struct tc956x_data *td)
 	} else {
 		tc956x_mac_clock_disable(td, MAC_CLOCK_RMII);
 	}
-}
-
-static void tc956x_restart_mac_clocks(struct tc956x_data *td)
-{
-	if (td == td->chip->primary) {
-		tc956x_mac_clock_enable(td, MAC_CLOCK_REFCLK);
-		tc956x_mac_clock_enable(td, MAC_CLOCK_SGMII);
-		tc956x_mac_clock_enable(td, MAC_CLOCK_PLL);
-	} else {
-		tc956x_mac_clock_enable(td, MAC_CLOCK_RMII);
-	}
-
-	if (td->mac_125_clock)
-		tc956x_mac_clock_enable(td, MAC_CLOCK_125M);
-
-	tc956x_mac_clock_enable(td, MAC_CLOCK_TX);
-	tc956x_mac_clock_enable(td, MAC_CLOCK_RX);
-	tc956x_mac_clock_enable(td, MAC_CLOCK_ALL);
-
-	/* XXX Why aren't resets de-asserted here? */
 }
 
 static void tc956x_get_interfaces(struct stmmac_priv *priv, void *bsp_priv,
@@ -1350,8 +1328,6 @@ static int tc956x_resume(struct device *dev, void *bsp_priv)
 	ret = stmmac_pci_plat_resume(dev, bsp_priv);
 	if (ret < 0)
 		return ret;
-
-	tc956x_restart_mac_clocks(td);
 
 	/* XXX Error handling in this function needs work */
 	ret = tc956x_assert_phy_reset(td, td->reset_asserted);
