@@ -713,7 +713,6 @@ static int tc956x_chipcfg_mac_configure(struct tc956x_data *td, int speed)
 		tc956x_mac_clock_enable(td, MAC_CLOCK_125M);
 	else
 		tc956x_mac_clock_disable(td, MAC_CLOCK_125M);
-	tc956x_mac_clock_disable(td, MAC_CLOCK_312_5M);
 
 	val = readl(td->sfr + nemacxctl_offset);
 	val |= EMAC_LPIHWCLKEN;
@@ -734,6 +733,12 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 	tc956x_mac_clock_enable(td, MAC_CLOCK_RX);
 	tc956x_mac_clock_enable(td, MAC_CLOCK_ALL);
 	if (td->emac0) {
+		/* XXX
+		 * eMAC0 will be 10GBASER; eMAC1 will be SGMII + 2500BASEX
+		 * I think these clocks might need to be set for the eMAC1
+		 * interface (but in that case they'd be chip clocks, not
+		 * MAC clocks).
+		 */
 		if (plat->phy_interface == PHY_INTERFACE_MODE_SGMII ||
 		    plat->phy_interface == PHY_INTERFACE_MODE_2500BASEX) {
 			tc956x_mac_clock_disable(td, MAC_CLOCK_PLL);
