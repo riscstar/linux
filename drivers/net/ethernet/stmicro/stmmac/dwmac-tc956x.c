@@ -470,11 +470,7 @@ static struct irq_domain *devm_tc956x_msigen_register(struct pci_dev *pdev,
 
 static int tc956x_phy_power_on(struct tc956x_data *td)
 {
-	int ret = 0;
-
-	ret = gpiod_set_value(td->phy_reset, 0);
-	if (ret)
-		return ret;
+	int ret;
 
 	ret = regulator_enable(td->phy_supply);
 	if (ret)
@@ -505,6 +501,7 @@ static int tc956x_reset_gpio_get(struct tc956x_data *td)
 {
 	struct device *dev = td->dev;
 	struct device_node *np;
+	struct gpio_desc *gpio;
 	int retries = 10;
 	int ret;
 
@@ -519,15 +516,40 @@ static int tc956x_reset_gpio_get(struct tc956x_data *td)
 	 * (because that would cause the GPIO device to de-register). Thus we
 	 * must wait for a short period before failing.
 	 */
+	/* XXX
+	 * This loop might not be required.  Daniel will do some power cycle
+	 * testing overnight with the loop removed, to provide a convincing
+	 * argument for its removal.
+	 */
 	do {
-		td->phy_reset = devm_gpiod_get(dev, "phy-reset", GPIOD_OUT_LOW);
+		gpio = devm_gpiod_get(dev, "phy-reset", GPIOD_OUT_LOW);
 		msleep(10);
-	} while (IS_ERR(td->phy_reset) && retries--);
+	} while (IS_ERR(gpio) && retries--);
 
 	if (retries < 0)
 		return PTR_ERR(td->phy_reset);
+	td->phy_reset = gpio;
 
-	/* XXX Can we use a good constant and avoid having to specify this? */
+	/* XXX
+	 * We can use the Ethernet PHY reset-assert-us and reset-deassert-us
+	 * properties to specify some delays.  In addition, Ayaan's message
+	 * said there were different delays:
+	 *   10Gbps PHY (Marvell)
+	 *     RST_OUT delay1 time:	21 msec		Not sure what this
+	 *     RST_OUT delay2 time:	21 msec		Not sure what this
+	 *     MDIO access wait time:	221 msec
+	 * "Minimum time the user should wait before accessing MDIO"
+	 *
+	 *   2.5Gbps PHY (Qualcomm)
+	 *     Wait time:		10 msec
+	 * "Reset must be asserted for at least 10 ms after all power
+	 * supplies and reference clock becomes stable."  They updated
+	 * the time to 20 msec after they found PHY attach was failing.
+	 *
+	 * Note also that there is a reset-post-delay-us property defined
+	 * in "mdio.yaml" that sounds like it's what should be used for the
+	 * 221 msec delay specified above.
+	 */
 	ret = of_property_read_u32(np, "qcom,phy-reset-delay",
 				   &td->phy_reset_delay);
 	if (ret) {
