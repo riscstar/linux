@@ -1348,6 +1348,18 @@ static struct tc956x_data *tc956x_devm_data_create(struct pci_dev *pdev)
 	}
 	td->sfr = virt;
 
+#if IS_ENABLED(CONFIG_TRACE_MMIO_ACCESS)
+	/*
+	 *  TODO: This is the filtering/tagging support for MMIO tracing.
+	 *
+	 * Eventually it needs to be removed but not yet... it's too useful
+	 * for feature development!
+	 */
+	log_mmio_register_range(td->bridge_config, pci_resource_len(pdev, 0),
+				"bridge_cfg");
+	log_mmio_register_range(td->sfr, pci_resource_len(pdev, 4), "sfr");
+#endif
+
 	td->regmap = devm_regmap_init_mmio(dev, virt, &tc956x_regmap_config);
 	if (IS_ERR(td->regmap)) {
 		dev_err(dev, "failed to initialize regmap\n");
@@ -1494,17 +1506,6 @@ static int tc956x_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		return dev_err_probe(dev, td->chip ? PTR_ERR(td->chip) : -ENOMEM,
 				     "cannot get chip\n");
 
-#if IS_ENABLED(CONFIG_TRACE_MMIO_ACCESS)
-	/*
-	 *  TODO: This is the filtering/tagging support for MMIO tracing.
-	 *
-	 * Eventually it needs to be removed but not yet... it's too useful
-	 * for feature development!
-	 */
-	log_mmio_register_range(td->bridge_config, pci_resource_len(pdev, 0),
-				"bridge_cfg");
-	log_mmio_register_range(td->sfr, pci_resource_len(pdev, 4), "sfr");
-#endif
 
 	/* The physical port number matches from the PCI function number */
 	pci_fn = PCI_FUNC(pdev->devfn);
