@@ -302,13 +302,6 @@ static const struct regmap_config tc956x_regmap_config = {
 #define EMAC_LPIHWCLKEN			BIT(8)	/* 1 = low power mode */
 #define EMAC_INIT_DONE			BIT(21)
 
-/* Pin configuration for PHY resets; eMAC0 uses GPIO00, eMAC1 uses GPIO01 */
-#define NFUNCEN4_OFFSET		0x1528
-#define NFUNCEN4_GPIO_00_MASK	GENMASK(3, 0)
-#define GPIO_00_FUNC		0
-#define NFUNCEN4_GPIO_01_MASK	GENMASK(7, 4)
-#define GPIO_01_FUNC		0
-
 #define RSTCTRL0_OFFSET		0x08	/* Relative to clock/reset regmap */
 #define RSTCTRL1_OFFSET		0x10	/* Relative to clock/reset regmap */
 #define CLKCTRL0_OFFSET		0x04	/* Relative to clock/reset regmap */
@@ -350,32 +343,6 @@ static void __reset_clock_set(struct tc956x_chip *chip, u32 offset,
 	__reset_clock_set((_td)->chip, tc956x_mac_clock_offset(_td), \
 			  (u32)(_id), false)
 
-static void tc956x_reg_update(void __iomem *addr, u32 mask, u32 new)
-{
-	u32 old;
-	u32 val;
-
-	val = readl(addr);
-	old = field_get(mask, val);
-	if (old != new) {
-		val &= ~mask;
-		val |= field_prep(mask, new);
-		writel(val, addr);
-	}
-}
-
-/* XXX This shouldn't be required every time, and should go in the GPIO code */
-static void tc956x_phy_reset_pin_config(struct tc956x_data *td)
-{
-	void __iomem *addr = td->sfr + NFUNCEN4_OFFSET;
-
-	if (td->emac0)
-		tc956x_reg_update(addr, NFUNCEN4_GPIO_00_MASK, GPIO_00_FUNC);
-	else
-		tc956x_reg_update(addr, NFUNCEN4_GPIO_01_MASK, GPIO_01_FUNC);
-
-}
-
 /**
  * tc956x_assert_phy_reset() - Assert or deassert the PHY resetn output
  *  @td: driver private structure
@@ -384,8 +351,6 @@ static void tc956x_phy_reset_pin_config(struct tc956x_data *td)
 static int tc956x_assert_phy_reset(struct tc956x_data *td, bool assert)
 {
 	int ret;
-
-	tc956x_phy_reset_pin_config(td);
 
 	ret = gpiod_set_value(td->phy_reset, assert ? 0 : 1);
 	if (ret)
