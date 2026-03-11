@@ -343,22 +343,6 @@ static void __reset_clock_set(struct tc956x_chip *chip, u32 offset,
 	__reset_clock_set((_td)->chip, tc956x_mac_clock_offset(_td), \
 			  (u32)(_id), false)
 
-/**
- * tc956x_assert_phy_reset() - Assert or deassert the PHY resetn output
- *  @td: driver private structure
- *  @assert: true is assert the reset signal (drive low); false is deassert
- */
-static int tc956x_assert_phy_reset(struct tc956x_data *td, bool assert)
-{
-	int ret;
-
-	ret = gpiod_set_value(td->phy_reset, assert ? 0 : 1);
-	if (ret)
-		return ret;
-
-	return 0;
-}
-
 struct tc956x_msigen_data {
 	void __iomem *regs;
 	int irq;
@@ -488,7 +472,7 @@ static int tc956x_phy_power_on(struct tc956x_data *td)
 {
 	int ret = 0;
 
-	ret = tc956x_assert_phy_reset(td, true);
+	ret = gpiod_set_value(td->phy_reset, 0);
 	if (ret)
 		return ret;
 
@@ -496,7 +480,7 @@ static int tc956x_phy_power_on(struct tc956x_data *td)
 	if (ret)
 		dev_warn(td->dev, "Failed to enable PHY supply with error %d\n", ret);
 
-	(void) tc956x_assert_phy_reset(td, false);
+	(void)gpiod_set_value(td->phy_reset, 1);
 	fsleep(td->phy_reset_delay);
 
 	return ret;
@@ -510,7 +494,7 @@ static int tc956x_phy_power_off(struct tc956x_data *td)
 	if (!td->phy_reset)
 		return 0;
 
-	ret = tc956x_assert_phy_reset(td, true);
+	ret = gpiod_set_value(td->phy_reset, 0);
 	if (ret)
 		return ret;
 
