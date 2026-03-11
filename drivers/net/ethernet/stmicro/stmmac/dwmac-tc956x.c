@@ -642,8 +642,6 @@ static void tc956x_pma_init(struct tc956x_data *td)
 	void __iomem *pmaaddr = XGMAC_BASE(td) + PMA_XGMAC_OFFSET;
 	u32 val;
 
-	tc956x_mac_reset_assert(td, MAC_RESET_PMA);
-
 	/*Power on CML buffer*/
 	val = readl(pmaaddr + XGMAC_PMA_GL_PM_CFG0);
 	val = XGMAC_PMA_OFFSET0;
@@ -731,8 +729,6 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 {
 	struct plat_stmmacenet_data *plat = td->plat;
 	int ret;
-
-	tc956x_mac_reset_assert(td, MAC_RESET_MAC);
 
 	tc956x_mac_clock_enable(td, MAC_CLOCK_TX);
 	tc956x_mac_clock_enable(td, MAC_CLOCK_RX);
@@ -1108,6 +1104,9 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 	WARN(tc956x_chipcfg_mac_configure(td, speed),
 	     "%s@%dMb/s is not supported",
 	     phy_modes(td->plat->phy_interface), speed);
+
+	tc956x_mac_reset_assert(td, MAC_RESET_PMA);
+
 	tc956x_pma_init(td);
 }
 
@@ -1163,6 +1162,7 @@ static int tc956x_xgmac3_resume(struct device *dev, void *bsp_priv)
 	WARN_ON(ret);
 
 	tc956x_pma_init(td);
+
 	tc956x_mac_reset_deassert(td, MAC_RESET_XPCS);
 
 	return 0;
@@ -1524,6 +1524,7 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 		goto err;
 
 	tc956x_pma_init(td);
+
 	tc956x_mac_reset_deassert(td, MAC_RESET_XPCS);
 
 	ret = stmmac_dvr_probe(dev, td->plat, &res);
