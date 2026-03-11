@@ -500,14 +500,9 @@ static int tc956x_phy_power_off(struct tc956x_data *td)
 static int tc956x_reset_gpio_get(struct tc956x_data *td)
 {
 	struct device *dev = td->dev;
-	struct device_node *np;
 	struct gpio_desc *gpio;
 	int retries = 10;
 	int ret;
-
-	np = dev_of_node(dev);
-	if (!np)
-		return -EINVAL;
 
 	/*
 	 * When we created the chip it registers a GPIO device and that device
@@ -550,7 +545,7 @@ static int tc956x_reset_gpio_get(struct tc956x_data *td)
 	 * in "mdio.yaml" that sounds like it's what should be used for the
 	 * 221 msec delay specified above.
 	 */
-	ret = of_property_read_u32(np, "qcom,phy-reset-delay",
+	ret = of_property_read_u32(dev_of_node(dev), "qcom,phy-reset-delay",
 				   &td->phy_reset_delay);
 	if (ret) {
 		dev_err(dev, "failed to get qcom,phy-reset-delay property\n");
@@ -563,14 +558,9 @@ static int tc956x_reset_gpio_get(struct tc956x_data *td)
 static int tc956x_platform_of_parse(struct tc956x_data *td)
 {
 	struct device *dev = td->dev;
-	struct device_node *np;
 	int ret;
 
-	np = dev_of_node(dev);
-	if (!np)
-		return -EINVAL;
-
-	ret = of_irq_get_byname(np, "wake-on-lan");
+	ret = of_irq_get_byname(dev_of_node(dev), "wake-on-lan");
 	if (ret <= 0) {
 		dev_err(dev, "failed to get wake-on-lan property\n");
 		return ret ? : -EINVAL;
@@ -1285,6 +1275,9 @@ static struct tc956x_data *tc956x_devm_data_create(struct pci_dev *pdev)
 	struct tc956x_data *td;
 	void __iomem *virt;
 	int ret;
+
+	if (!dev_of_node(dev))
+		return ERR_PTR(-EINVAL);
 
 	td = devm_kzalloc(dev, sizeof(*td), GFP_KERNEL);
 	if (!td)
