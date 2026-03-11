@@ -10,29 +10,29 @@
 
 #define pr_fmt(fmt) "dwmac-tc956x: " fmt
 
+#include <linux/aer.h>
 #include <linux/auxiliary_bus.h>
-#include <linux/stmmac.h>
 #include <linux/bitops.h>
+#include <linux/cleanup.h>
 #include <linux/clk-provider.h>
-#include <linux/pci.h>
+#include <linux/delay.h>
 #include <linux/dmi.h>
 #include <linux/firmware.h>
-#include <linux/version.h>
-#include <linux/aer.h>
-#include <linux/iopoll.h>
 #include <linux/gpio/consumer.h>
 #include <linux/gpio/driver.h>
 #include <linux/gpio/machine.h>
-#include <linux/pcs/pcs-xpcs.h>
+#include <linux/iopoll.h>
+#include <linux/of_irq.h>
+#include <linux/pci.h>
 #include <linux/pcs/pcs-xpcs-regmap.h>
-#include <linux/pinctrl/consumer.h>
+#include <linux/pcs/pcs-xpcs.h>
 #include <linux/phy.h>
+#include <linux/pinctrl/consumer.h>
 #include <linux/regmap.h>
 #include <linux/regulator/consumer.h>
+#include <linux/stmmac.h>
 #include <linux/types.h>
-#include <linux/of_irq.h>
-#include <linux/delay.h>
-#include <linux/cleanup.h>
+#include <linux/version.h>
 
 #include "common.h"
 #include "dwxgmac2.h"
@@ -59,11 +59,9 @@
  */
 
 /* PCI BAR assignments */
-#define PCI_BAR_BRIDGE_CONFIG		0
-#define PCI_BAR_SFR			4
+#define PCI_BAR_BRIDGE_CONFIG	0
+#define PCI_BAR_SFR		4
 
-/* XXX MCU and MCU1 are always asserted/deasserted together */
-/* XXX INTC and UART0 are always asserted (only) together */
 enum tc9564_chip_reset_id {
 	CHIP_RESET_MCU		= 0,
 	CHIP_RESET_MCU1		= 1,
@@ -72,7 +70,6 @@ enum tc9564_chip_reset_id {
 	CHIP_RESET_UART0	= 16,
 };
 
-/* XXX All three of these are used independently */
 enum tc9564_mac_reset_id {
 	MAC_RESET_MAC		= 7,
 	MAC_RESET_PMA		= 30,
@@ -211,7 +208,7 @@ static const struct regmap_config tc956x_regmap_config = {
 
 /* Each AXI translation entry has has a block of registers this far apart */
 #define AXI4_TABLE_STRIDE		0x20
-#define AXI4_SLV_BASE(tid) \
+#define AXI4_SLV_BASE(tid)						\
 		(AXI4_SLV_TABLE_OFFSET + (tid) * AXI4_TABLE_STRIDE)
 
 #define SRC_ADDR_LO_OFFSET		0x00
@@ -224,35 +221,26 @@ static const struct regmap_config tc956x_regmap_config = {
 #define TRSL_ID_MASK			GENMASK(3, 0)
 #define TRSL_ID_PCIE_TX_RX		0
 #define TRSF_PARAM_MASK			GENMASK(27, 16)
-#define TRSL_MASK_LO_OFFSET		0x18
-#define TRSL_MASK_HI_OFFSET		0x1c
 
 #define TC956X_AXI4_SLV00_ATR_SIZE	36U	/* log2(Addr transl size) */
 #define TC956X_AXI4_SLV00_SRC_ADDR	0x0000001000000000ULL
 #define TC956X_AXI4_SLV00_TRSL_ADDR	0x0000000000000000ULL
 
 /* XXX This is an invalid value; 0x00000017 is the minimum allowed */
-#define TC956X_AXI4_SLV00_SRC_ADDR_LO_VAL_DEFAULT  (0x0000007fU)
+#define TC956X_AXI4_SLV00_SRC_ADDR_LO_VAL_DEFAULT  0x0000007fU
 
 #define CM3_TAMAP_COUNT			4
 
-#define TC956X_TOT_CASCADE_DEV	7 /* Maximum number of devices for 2 Level cascade setup */
-#define TC956X_PCI_BD_MASK	0xfff8
-
-#define TC956X_TOT_MSI_VEC	1
-
-#define TC956X_DA_MAP		0xF
+#define TC956X_TOT_MSI_VEC		1
 
 #define XGMAC_BASE(td)	((td)->sfr + ((td)->emac0 ? 0x40000 : 0x48000))
 
-/*	Configuration Register Address	*/
-#define NCID_OFFSET		(0x0000) /* TC956X Chip and revision ID */
+/* Configuration Register Address */
+#define NCID_OFFSET		0x0000	/* TC956X Chip and revision ID */
 #define NCID_REV_ID_MASK	GENMASK(7, 0)
 #define NCID_CHIP_ID_MASK	GENMASK(15, 8)
-#define NMODESTS_OFFSET		(0x0004) /* TC956X current operation mode */
+#define NMODESTS_OFFSET		0x0004	/* TC956X current operation mode */
 #define NMODESTS_MODE2		BIT(10)	/* PCIe lanes: 0:  x4x1x1; 1: x2x2x1 */
-
-#define NMISCCTL_OFFSET		(0x1800)
 
 /* MSIGEN Registers */
 
@@ -302,10 +290,11 @@ static const struct regmap_config tc956x_regmap_config = {
 #define EMAC_LPIHWCLKEN			BIT(8)	/* 1 = low power mode */
 #define EMAC_INIT_DONE			BIT(21)
 
-#define RSTCTRL0_OFFSET		0x08	/* Relative to clock/reset regmap */
-#define RSTCTRL1_OFFSET		0x10	/* Relative to clock/reset regmap */
-#define CLKCTRL0_OFFSET		0x04	/* Relative to clock/reset regmap */
-#define CLKCTRL1_OFFSET		0x0c	/* Relative to clock/reset regmap */
+/* The next four are relative to the base of the clock/reset regmap */
+#define RSTCTRL0_OFFSET			0x08
+#define RSTCTRL1_OFFSET			0x10
+#define CLKCTRL0_OFFSET			0x04
+#define CLKCTRL1_OFFSET			0x0c
 
 static void __reset_clock_set(struct tc956x_chip *chip, u32 offset,
 			      u32 bit, bool set)
@@ -317,30 +306,32 @@ static void __reset_clock_set(struct tc956x_chip *chip, u32 offset,
 				 set ? mask : 0);
 }
 
-#define tc956x_chip_reset_assert(_chip, _id) \
+#define tc956x_chip_reset_assert(_chip, _id)				\
 	__reset_clock_set((_chip), RSTCTRL0_OFFSET, (u32)(_id), true)
-#define tc956x_chip_reset_deassert(_chip, _id) \
+#define tc956x_chip_reset_deassert(_chip, _id)				\
 	__reset_clock_set((_chip), RSTCTRL0_OFFSET, (u32)(_id), false)
 
-#define tc956x_mac_reset_offset(_td) \
+#define tc956x_mac_reset_offset(_td)					\
 	((_td)->emac0 ? RSTCTRL0_OFFSET : RSTCTRL1_OFFSET)
-#define tc956x_mac_reset_assert(_td, _id) \
-	__reset_clock_set((_td)->chip, tc956x_mac_reset_offset(_td), (u32)(_id), true)
-#define tc956x_mac_reset_deassert(_td, _id) \
-	__reset_clock_set((_td)->chip, tc956x_mac_reset_offset(_td), (u32)(_id), false)
+#define tc956x_mac_reset_assert(_td, _id)				\
+	__reset_clock_set((_td)->chip, tc956x_mac_reset_offset(_td),	\
+			  (u32)(_id), true)
+#define tc956x_mac_reset_deassert(_td, _id)				\
+	__reset_clock_set((_td)->chip, tc956x_mac_reset_offset(_td),	\
+			  (u32)(_id), false)
 
-#define tc956x_chip_clock_enable(_chip, _id) \
+#define tc956x_chip_clock_enable(_chip, _id)				\
 	__reset_clock_set((_chip), CLKCTRL0_OFFSET, (u32)(_id), true)
-#define tc956x_chip_clock_disable(_chip, _id) \
+#define tc956x_chip_clock_disable(_chip, _id)				\
 	__reset_clock_set((_chip), CLKCTRL0_OFFSET, (u32)(_id), false)
 
-#define tc956x_mac_clock_offset(_td) \
+#define tc956x_mac_clock_offset(_td)					\
 	((_td)->emac0 ? CLKCTRL0_OFFSET : CLKCTRL1_OFFSET)
-#define tc956x_mac_clock_enable(_td, _id)                            \
-	__reset_clock_set((_td)->chip, tc956x_mac_clock_offset(_td), \
+#define tc956x_mac_clock_enable(_td, _id)				\
+	__reset_clock_set((_td)->chip, tc956x_mac_clock_offset(_td),	\
 			  (u32)(_id), true)
-#define tc956x_mac_clock_disable(_td, _id)                           \
-	__reset_clock_set((_td)->chip, tc956x_mac_clock_offset(_td), \
+#define tc956x_mac_clock_disable(_td, _id)				\
+	__reset_clock_set((_td)->chip, tc956x_mac_clock_offset(_td),	\
 			  (u32)(_id), false)
 
 struct tc956x_msigen_data {
@@ -749,7 +740,6 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 	if (td->emac0) {
 		if (plat->phy_interface == PHY_INTERFACE_MODE_SGMII ||
 		    plat->phy_interface == PHY_INTERFACE_MODE_2500BASEX) {
-			/* XXX These are always re-enabled during resume */
 			tc956x_mac_clock_disable(td, MAC_CLOCK_PLL);
 			tc956x_mac_clock_disable(td, MAC_CLOCK_SGMII);
 			tc956x_mac_clock_disable(td, MAC_CLOCK_REFCLK);
@@ -811,6 +801,7 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 				struct plat_stmmacenet_data *plat)
 {
 	struct tc956x_data *td = plat->bsp_priv;
+	u32 i;
 
 	/* Set common default data first */
 	plat->core_type = DWMAC_CORE_XGMAC;
@@ -856,9 +847,8 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 	plat->rx_queues_to_use = 4;
 	plat->rx_sched_algorithm = MTL_RX_ALGORITHM_SP;
 
-	for (int i = 0; i < plat->rx_queues_to_use; i++) {
+	for (i = 0; i < plat->rx_queues_to_use; i++)
 		plat->rx_queues_cfg[i].mode_to_use = MTL_QUEUE_DCB;
-	}
 
 	/*
 	 * TX956x has 8 TX queues. However failures are observed (DHCP does not
@@ -867,11 +857,11 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 	plat->tx_queues_to_use = 3;
 	plat->tx_sched_algorithm = MTL_TX_ALGORITHM_WRR;
 
-	for (int i = 0; i < plat->tx_queues_to_use; i++) {
+	for (i = 0; i < plat->tx_queues_to_use; i++) {
 		plat->tx_queues_cfg[i].weight = 12;
 		plat->tx_queues_cfg[i].mode_to_use = MTL_QUEUE_DCB;
 
-		/* Tx Queues 0 - 4 doesn't support TBS on TC956x */
+		/* Tx Queues 0 - 4 don't support TBS on TC956x */
 		if (i >= 5)
 			plat->tx_queues_cfg[i].tbs_en = true;
 	}
@@ -902,7 +892,7 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 #define XGMAC_DSPW			BIT(8);
 #define XGMAC_DMA_MODE_INTM		GENMASK(13, 12)
 
-#define XGMAC_DMA_CH_RX_CONTROL2(x) 	(0x00003134 + (0x80 * (x)))
+#define XGMAC_DMA_CH_RX_CONTROL2(_x)	(0x00003134 + (0x80 * (_x)))
 #define XGMAC_OWRQ			GENMASK(25, 24)
 
 static void tc956x_dma_init(void __iomem *ioaddr,
@@ -974,7 +964,7 @@ static void tc956x_dma_init_tx_chan(struct stmmac_priv *priv,
 	value = u32_replace_bits(value, txpbl, XGMAC_TxPBL);
 	writel(value, ioaddr + XGMAC_DMA_CH_TX_CONTROL(chan));
 
-	writel(upper_32_bits(phy) + upper_32_bits(TC956X_AXI4_SLV00_SRC_ADDR),
+	writel(upper_32_bits(phy) | upper_32_bits(TC956X_AXI4_SLV00_SRC_ADDR),
 	       ioaddr + XGMAC_DMA_CH_TxDESC_HADDR(chan));
 	writel(lower_32_bits(phy), ioaddr + XGMAC_DMA_CH_TxDESC_LADDR(chan));
 }
@@ -982,14 +972,14 @@ static void tc956x_dma_init_tx_chan(struct stmmac_priv *priv,
 static void tc956x_desc_set_addr(struct dma_desc *p, dma_addr_t addr)
 {
 	p->des0 = cpu_to_le32(lower_32_bits(addr));
-	p->des1 = cpu_to_le32(upper_32_bits(addr) +
+	p->des1 = cpu_to_le32(upper_32_bits(addr) |
 			      upper_32_bits(TC956X_AXI4_SLV00_SRC_ADDR));
 }
 
 static void tc956x_desc_set_sec_addr(struct dma_desc *p, dma_addr_t addr, bool is_valid)
 {
 	p->des2 = cpu_to_le32(lower_32_bits(addr));
-	p->des3 = cpu_to_le32(upper_32_bits(addr) +
+	p->des3 = cpu_to_le32(upper_32_bits(addr) |
 			      upper_32_bits(TC956X_AXI4_SLV00_SRC_ADDR));
 }
 
@@ -1051,8 +1041,8 @@ static void tc956x_config_tamap(struct tc956x_data *td)
 	}
 
 	/* AXI4 Slave 0 - Table 0 Entry */
-	/* EDMA address region 0x10 0000 0000 - 0x1F FFFF FFFF is
-	 * translated to 0x0 0000 0000 - 0xF FFFF FFFF
+	/* EDMA address region 0x10 0000 0000 - 0x1f ffff ffff is
+	 * translated to 0x0 0000 0000 - 0xf ffff ffff
 	 */
 	BUILD_BUG_ON(TC956X_AXI4_SLV00_SRC_ADDR & ATR_IMPL);
 	BUILD_BUG_ON(!!u32_get_bits(lower_32_bits(TC956X_AXI4_SLV00_SRC_ADDR),
@@ -1440,6 +1430,7 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 	struct irq_domain *irq_domain;
 	u32 pci_fn;
 	int ret;
+	u32 i;
 
 	ret = tc956x_platform_of_parse(td);
 	if (ret)
@@ -1505,9 +1496,9 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 	res.addr = XGMAC_BASE(td);
 	/* Problems creating mappings will be reported by stmmac_dvr_probe */
 	res.irq = irq_create_mapping(irq_domain, TC956X_HWIRQ_EVENT);
-	for (int i=0; i<MTL_MAX_TX_QUEUES; i++)
+	for (i = 0; i < MTL_MAX_TX_QUEUES; i++)
 		res.tx_irq[i] = irq_create_mapping(irq_domain, TC956X_HWIRQ_TX0 + i);
-	for (int i=0; i<MTL_MAX_RX_QUEUES; i++)
+	for (i = 0; i < MTL_MAX_RX_QUEUES; i++)
 		res.rx_irq[i] = irq_create_mapping(irq_domain, TC956X_HWIRQ_RX0 + i);
 
 	/*
@@ -1542,7 +1533,7 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 
 err:
 	tc956x_stop_mac(td);
-	(void) tc956x_phy_power_off(td);
+	(void)tc956x_phy_power_off(td);
 	tc956x_chip_put(td);
 
 	return ret;
