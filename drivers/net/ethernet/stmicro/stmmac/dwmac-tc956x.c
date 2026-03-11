@@ -114,12 +114,11 @@ enum tc9564_mac_clock_id {
  * @emac0:		Which eMAC port this is (true: port 0; false: port 1)
  * @pinctrl:		Pin control structure
  * @pinctrl_default:	Pin control default value
- * @phy_supply:		PHY supply egulator
+ * @phy_supply:		PHY supply regulator
  * @phy_reset:		Descriptor for GPIO used for PHY reset
  * @phy_reset_delay:	Delay (milliseconds) after PHY reset
  * @wol_irq:		Wake-on-LAN IRQ number
  * @chip:		Pointer to the containing chip information
- * @regmap:		Register map for SFR region access
  */
 struct tc956x_data {
 	struct device *dev;
@@ -134,7 +133,6 @@ struct tc956x_data {
 	u32 phy_reset_delay;
 	int wol_irq;
 	struct tc956x_chip *chip;
-	struct regmap *regmap;
 };
 
 /**
@@ -190,15 +188,6 @@ static const struct regmap_config tc956x_reset_clock_regmap_config = {
 	.reg_base	= 0x1000,	/* Register NCTLSTS */
 	.val_bits	= 32,
 	.max_register	= 0x1010,	/* Register NRSTCTRL1 */
-};
-
-static const struct regmap_config tc956x_regmap_config = {
-	.name		= "tc956x",
-	.reg_bits	= 32,
-	.reg_stride	= 4,
-	.reg_base	= 0,
-	.val_bits	= 32,
-	/* .max_register	= xxx, */
 };
 
 /* XXX TC9564? Also, this is a physical function; virtual is 0x0221 */
@@ -1312,12 +1301,6 @@ static struct tc956x_data *tc956x_devm_data_create(struct pci_dev *pdev)
 				"bridge_cfg");
 	log_mmio_register_range(td->sfr, pci_resource_len(pdev, 4), "sfr");
 #endif
-
-	td->regmap = devm_regmap_init_mmio(dev, virt, &tc956x_regmap_config);
-	if (IS_ERR(td->regmap)) {
-		dev_err(dev, "failed to initialize regmap\n");
-		return ERR_CAST(td->regmap);
-	}
 
 	return td;
 }
