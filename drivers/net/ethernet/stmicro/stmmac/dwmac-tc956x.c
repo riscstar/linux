@@ -1321,14 +1321,6 @@ static struct tc956x_data *tc956x_devm_data_create(struct pci_dev *pdev)
 
 	td->dev = dev;
 
-	ret = tc956x_platform_of_parse(td);
-	if (ret)
-		return ERR_PTR(ret);
-
-	td->plat = tc956x_plat_dat_alloc(td, pdev);
-	if (!td->plat)
-		return NULL;
-
 	ret = pcim_enable_device(pdev);
 	if (ret) {
 		dev_err(dev, "%s: ERROR: failed to enable device\n", __func__);
@@ -1493,6 +1485,14 @@ static int tc956x_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	ret = tc956x_devm_gpio_device_add(td);
 	if (ret)
 		return dev_err_probe(td->dev, ret, "GPIO add failed\n");
+
+	ret = tc956x_platform_of_parse(td);
+	if (ret)
+		return ret;
+
+	td->plat = tc956x_plat_dat_alloc(td, pdev);
+	if (!td->plat)
+		return -ENOMEM;
 
 	/*
 	 * We must hold the chips lock until we have decided whether or not we
