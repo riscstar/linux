@@ -1460,6 +1460,9 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 	}
 	td->emac0 = pci_fn == 0;
 
+	/* Put the MAC in a known initial state */
+	tc956x_stop_mac(td);
+
 	// TODO: this needs to come from devicetree
 	td->plat->phy_interface = td->emac0 ? PHY_INTERFACE_MODE_10GBASER :
 					      PHY_INTERFACE_MODE_SGMII;
