@@ -1271,7 +1271,11 @@ static int tc956x_devm_gpio_device_add(struct tc956x_data *td)
 		return ret;
 	}
 
-	return devm_add_action_or_reset(dev, tc956x_adev_remove, adev);
+	ret = devm_add_action_or_reset(dev, tc956x_adev_remove, adev);
+	if (ret)
+		return ret;
+
+	return 1;
 }
 
 static struct plat_stmmacenet_data *
@@ -1468,23 +1472,14 @@ static void tc956x_chip_put(struct tc956x_data *td)
 	chip->pci_bus_num = 0;
 }
 
-static int tc956x_probe(struct pci_dev *pdev, const struct pci_device_id *id)
+static int tc956x_xgmac3_probe(struct tc956x_data *td)
 {
+	struct device *dev = td->dev;
+	struct pci_dev *pdev = to_pci_dev(dev);
 	struct stmmac_resources res = { };
-	struct device *dev = &pdev->dev;
 	struct irq_domain *irq_domain;
-	struct tc956x_data *td;
 	u32 pci_fn;
 	int ret;
-
-	td = tc956x_devm_data_create(pdev);
-	if (IS_ERR_OR_NULL(td))
-		return dev_err_probe(dev, td ? PTR_ERR(td) : -ENOMEM,
-				     "cannot create data\n");
-
-	ret = tc956x_devm_gpio_device_add(td);
-	if (ret)
-		return dev_err_probe(td->dev, ret, "GPIO add failed\n");
 
 	ret = tc956x_platform_of_parse(td);
 	if (ret)
@@ -1594,6 +1589,35 @@ err:
 	tc956x_stop_mac(td);
 	(void) tc956x_phy_power_off(td);
 	tc956x_chip_put(td);
+
+	return ret;
+}
+
+static int tc956x_probe(struct pci_dev *pdev, const struct pci_device_id *id)
+{
+	int has_gpio_controller;
+	struct tc956x_data *td;
+	int ret;
+
+	td = tc956x_devm_data_create(pdev);
+	if (IS_ERR_OR_NULL(td))
+		return dev_err_probe(td->dev, td ? PTR_ERR(td) : -ENOMEM,
+				     "cannot create data\n");
+
+	has_gpio_controller = tc956x_devm_gpio_device_add(td);
+	if (has_gpio_controller < 0)
+		return dev_err_probe(td->dev, has_gpio_controller, "GPIO add failed\n");
+
+	ret = tc956x_xgmac3_probe(td);
+	if (ret)
+		dev_warn(td->dev, "Cannot initialize xgmac3 (%pe)\n", ERR_PTR(ret));
+
+	/*
+	 * If we created a GPIO controller then the probe has succeeded even if
+	 * we cannot initialize the eMAC.
+	 */
+	if (has_gpio_controller)
+		return 0;
 
 	return ret;
 }
