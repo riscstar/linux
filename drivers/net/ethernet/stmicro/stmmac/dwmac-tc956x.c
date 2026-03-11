@@ -1235,14 +1235,16 @@ static void tc956x_adev_remove(void *data)
 }
 
 /* The embedded GPIO controller has an auxiliary device driver */
-static int tc956x_devm_gpio_device_add(struct tc956x_chip *chip)
+static int tc956x_devm_gpio_device_add(struct tc956x_data *td)
 {
-	struct tc956x_data *td = chip->primary;
 	struct auxiliary_device *adev;
 	struct device *dev = td->dev;
 	void __iomem *regs = td->sfr;
 	struct regmap *regmap;
 	int ret;
+
+	if (!device_property_present(dev, "gpio-controller"))
+		return 0;
 
 	adev = devm_kzalloc(dev, sizeof(*adev), GFP_KERNEL);
 	if (!adev)
@@ -1394,7 +1396,6 @@ static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 	struct tc956x_chip *chip;
 	struct regmap *regmap;
 	u32 val;
-	int ret;
 
 	/* Use the existing chip structure if it's already been created */
 	list_for_each_entry(chip, &tc956x_chips, links) {
@@ -1437,10 +1438,6 @@ static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 
 	/* Put chip resets and clocks into a known initial state */
 	tc956x_stop_chip(chip);
-
-	ret = tc956x_devm_gpio_device_add(chip);
-	if (ret)
-		return dev_err_ptr_probe(td->dev, ret, "GPIO add failed\n");
 
 	tc956x_config_tamap(td);
 	tc956x_chip_clock_enable(chip, CHIP_CLOCK_MSIGEN);
@@ -1492,6 +1489,10 @@ static int tc956x_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (IS_ERR_OR_NULL(td))
 		return dev_err_probe(dev, td ? PTR_ERR(td) : -ENOMEM,
 				     "cannot create data\n");
+
+	ret = tc956x_devm_gpio_device_add(td);
+	if (ret)
+		return dev_err_probe(td->dev, ret, "GPIO add failed\n");
 
 	/*
 	 * We must hold the chips lock until we have decided whether or not we
