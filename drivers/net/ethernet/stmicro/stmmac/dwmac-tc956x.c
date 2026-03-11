@@ -243,14 +243,13 @@ struct tc956x_data {
 
 /**
  * struct tc956x_chip - Common chip support information
+ * @reset_clock_regmap:	Register map used for clocks and resets
+ * @primary:		Data pointer for the primary eMAC interface
+ * @secondary:		Device link between secondary (consumer) and primary
  * @pci_bus_num:	PCI bus this chip is on
  * @pci_slot:		PCI slot on its bus this chip fills
  * @rev_id:		Revision ID
  * @chip_id:		Chip ID
- * @primary:		Data pointer for the primary eMAC interface
- * @secondary:		Device link between secondary (consumer) and primary
- * @gpio:		Pointer to GPIO information
- * @reset_clock_regmap:	Register map used for clocks and resets
  * @links:		Links in the list of all chips
  *
  * A single tc956x_chip structure represents the chip as a whole,
@@ -263,16 +262,18 @@ struct tc956x_data {
  * (and unmapped) unless the secondary interface is not in use.
  */
 struct tc956x_chip {
+	struct regmap *reset_clock_regmap;
+
+	struct tc956x_data *primary;
+
+	struct device_link *secondary;
+
 	u8 pci_bus_num;
 	u8 pci_slot;
 	u8 rev_id;
 	u8 chip_id;
-	struct tc956x_data *primary;
-	struct device_link *secondary;
 
-	struct regmap *reset_clock_regmap;
-
-	struct list_head links;
+	struct list_head links;		/* Protected by tc956x_chips_lock */
 };
 
 static LIST_HEAD(tc956x_chips);		/* List of TC956x chips */
