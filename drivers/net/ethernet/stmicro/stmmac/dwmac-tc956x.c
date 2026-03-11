@@ -1160,7 +1160,7 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 	tc956x_pma_init(td);
 }
 
-static int tc956x_suspend(struct device *dev, void *bsp_priv)
+static int tc956x_xgmac3_suspend(struct device *dev, void *bsp_priv)
 {
 	struct net_device *ndev = dev_get_drvdata(dev);
 	struct stmmac_priv *priv = netdev_priv(ndev);
@@ -1183,16 +1183,12 @@ static int tc956x_suspend(struct device *dev, void *bsp_priv)
 	return stmmac_pci_plat_suspend(dev, bsp_priv);
 }
 
-static int tc956x_resume(struct device *dev, void *bsp_priv)
+static int tc956x_xgmac3_resume(struct device *dev, void *bsp_priv)
 {
 	struct net_device *ndev = dev_get_drvdata(dev);
 	struct stmmac_priv *priv = netdev_priv(ndev);
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	int ret;
-
-	ret = stmmac_pci_plat_resume(dev, bsp_priv);
-	if (ret)
-		return ret;
 
 	if (priv->wolopts) {
 		ret = disable_irq_wake(priv->wol_irq);
@@ -1295,8 +1291,8 @@ tc956x_plat_dat_alloc(struct tc956x_data *td, struct pci_dev *pdev)
 	plat->fix_mac_speed = tc956x_fix_mac_speed;
 	plat->pcs_init = tc956x_pcs_init;
 	plat->select_pcs = tc956x_select_pcs;
-	plat->suspend = tc956x_suspend;
-	plat->resume = tc956x_resume;
+	plat->suspend = tc956x_xgmac3_suspend;
+	plat->resume = tc956x_xgmac3_resume;
 
 	/* XXX We don't initialize this; what is required? */
 	plat->mdio_bus_data = devm_kzalloc(dev, sizeof(*plat->mdio_bus_data),
@@ -1576,11 +1572,9 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 
 	ret = stmmac_dvr_probe(dev, td->plat, &res);
 	if (ret) {
-		if (ret != -ENODEV) {
-			goto err;
-		} else {
-			tc956x_stop_mac(td);
-		}
+		dev_set_drvdata(dev, NULL);
+		tc956x_stop_mac(td);
+		return ret;
 	}
 
 	return 0;
@@ -1591,6 +1585,18 @@ err:
 	tc956x_chip_put(td);
 
 	return ret;
+}
+
+static void tc956x_xgmac3_remove(struct tc956x_data *td)
+{
+	stmmac_dvr_remove(td->dev);
+	(void)tc956x_phy_power_off(td);
+	tc956x_stop_mac(td);
+
+	scoped_guard(mutex, &tc956x_chips_lock)
+	{
+		tc956x_chip_put(td);
+	}
 }
 
 static int tc956x_probe(struct pci_dev *pdev, const struct pci_device_id *id)
@@ -1610,38 +1616,27 @@ static int tc956x_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	ret = tc956x_xgmac3_probe(td);
 	if (ret)
-		dev_warn(td->dev, "Cannot initialize xgmac3 (%pe)\n", ERR_PTR(ret));
+		dev_warn(td->dev, "Cannot initialize xgmac3 (%pe)%s\n",
+			 ERR_PTR(ret),
+			 has_gpio_controller ? " but GPIO will be kept" : "");
 
 	/*
 	 * If we created a GPIO controller then the probe has succeeded even if
 	 * we cannot initialize the eMAC.
 	 */
-	if (has_gpio_controller)
-		return 0;
-
-	return ret;
+	return has_gpio_controller ? 0 : ret;
 }
 
 static void tc956x_remove(struct pci_dev *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct net_device *ndev = dev_get_drvdata(dev);
-	struct stmmac_priv *priv = netdev_priv(ndev);
-	struct tc956x_data *td = priv->plat->bsp_priv;
 
-	/* phy_addr == -1 indicates that PHY was not found and
-	 * device is registered as only PCIe device. So skip any
-	 * ethernet device related uninitialization
-	 */
-	if (priv->dma_cap.sma_mdio != 1 ||
-            priv->plat->phy_addr != 1) {
-		stmmac_dvr_remove(dev);
-		(void) tc956x_phy_power_off(td);
-		tc956x_stop_mac(td);
-	}
+	if (ndev) {
+		struct stmmac_priv *priv = netdev_priv(ndev);
+		struct tc956x_data *td = priv->plat->bsp_priv;
 
-	scoped_guard(mutex, &tc956x_chips_lock) {
-		tc956x_chip_put(td);
+		tc956x_xgmac3_remove(td);
 	}
 }
 
@@ -1656,6 +1651,42 @@ static const struct pci_device_id tc956x_id_table[] = {
 MODULE_DEVICE_TABLE(pci, tc956x_id_table);
 #endif
 
+/**
+ * tc956x_suspend - suspend callback
+ * @dev: device pointer
+ * Description: Most of the TC956x MAC suspend is handled from via stmmac
+ * callbacks (tc956x_xgmac3_suspend). This "outer" suspend function simply helps
+ * us cope when a PCI device provides a GPIO controller but the MAC is inactive.
+ */
+static int tc956x_suspend(struct device *dev)
+{
+	int ret;
+
+	/* If we are a GPIO-only device then there will be no device data */
+	if (dev_get_drvdata(dev)) {
+		ret = stmmac_suspend(dev);
+		if (ret)
+			return ret;
+	}
+
+	return stmmac_pci_plat_suspend(dev, NULL);
+}
+
+static int tc956x_resume(struct device *dev)
+{
+	int ret = stmmac_pci_plat_resume(dev, NULL);
+	if (ret)
+		return ret;
+
+	/* If we are a GPIO-only device then there will be no device data */
+	if (dev_get_drvdata(dev))
+		return stmmac_resume(dev);
+
+	return 0;
+}
+
+static SIMPLE_DEV_PM_OPS(tc956x_pm_ops, tc956x_suspend, tc956x_resume);
+
 static struct pci_driver tc956x_pci_driver = {
 	.name		= DRIVER_NAME,
 	.id_table	= tc956x_id_table,
@@ -1664,7 +1695,7 @@ static struct pci_driver tc956x_pci_driver = {
 	.driver		= {
 		.name	= DRIVER_NAME,
 		.owner	= THIS_MODULE,
-		.pm     = &stmmac_simple_pm_ops,
+		.pm     = &tc956x_pm_ops,
 	},
 };
 
