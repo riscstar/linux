@@ -1573,8 +1573,7 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 	ret = stmmac_dvr_probe(dev, td->plat, &res);
 	if (ret) {
 		dev_set_drvdata(dev, NULL);
-		tc956x_stop_mac(td);
-		return ret;
+		goto err;
 	}
 
 	return 0;
