@@ -1288,7 +1288,7 @@ static struct tc956x_data *tc956x_devm_data_create(struct pci_dev *pdev)
 
 	td = devm_kzalloc(dev, sizeof(*td), GFP_KERNEL);
 	if (!td)
-		return NULL;
+		return ERR_PTR(-ENOMEM);
 
 	td->dev = dev;
 
@@ -1381,7 +1381,7 @@ static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 	/* We're operating on the primary MAC, and need a new chip structure */
 	chip = devm_kzalloc(dev, sizeof(*chip), GFP_KERNEL);
 	if (!chip)
-		return NULL;
+		return ERR_PTR(-ENOMEM);
 
 	chip->pci_bus_num = pci_bus_num;
 	chip->pci_slot = pci_slot;
@@ -1465,10 +1465,8 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 	guard(mutex)(&tc956x_chips_lock);
 
 	td->chip = tc956x_chip_get(td);
-	if (IS_ERR_OR_NULL(td->chip))
-		return dev_err_probe(dev, td->chip ? PTR_ERR(td->chip) : -ENOMEM,
-				     "cannot get chip\n");
-
+	if (IS_ERR(td->chip))
+		return dev_err_probe(dev, PTR_ERR(td->chip), "cannot get chip\n");
 
 	/* The physical port number matches from the PCI function number */
 	pci_fn = PCI_FUNC(pdev->devfn);
@@ -1506,7 +1504,7 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 	pci_write_config_dword(pdev, pdev->msi_cap + PCI_MSI_MASK_64, 0);
 
 	irq_domain = devm_tc956x_msigen_register(pdev, td);
-	if (IS_ERR_OR_NULL(irq_domain)) {
+	if (IS_ERR(irq_domain)) {
 		ret = PTR_ERR(irq_domain);
 		goto err;
 	}
@@ -1576,8 +1574,8 @@ static int tc956x_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	int ret;
 
 	td = tc956x_devm_data_create(pdev);
-	if (IS_ERR_OR_NULL(td))
-		return dev_err_probe(td->dev, td ? PTR_ERR(td) : -ENOMEM,
+	if (IS_ERR(td))
+		return dev_err_probe(td->dev, PTR_ERR(td),
 				     "cannot create data\n");
 
 	has_gpio_controller = tc956x_devm_gpio_device_add(td);
