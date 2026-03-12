@@ -50,8 +50,8 @@
  * XXX
  * XXX That *might* also be related to the value recorded as the
  * XXX base of the translated space:
- * XXX	TC956X_AXI4_SLV00_SRC_ADDR_HI_VAL  0x00000010U
- * XXX	TC956X_AXI4_SLV00_SRC_ADDR_LO_VAL  0x00000000U
+ * XXX	TC956X_AXI4_SLV00_SRC_ADDR_HI_VAL  0x00000010
+ * XXX	TC956X_AXI4_SLV00_SRC_ADDR_LO_VAL  0x00000000
  * XXX
  * XXX Start working on isolating the clocks and resets (and GPIOs and
  * XXX pinctrl), possibly implementing them using the proper common clock
@@ -211,12 +211,11 @@ static const struct regmap_config tc956x_reset_clock_regmap_config = {
 #define TRSL_ID_PCIE_TX_RX		0
 #define TRSF_PARAM_MASK			GENMASK(27, 16)
 
-#define TC956X_AXI4_SLV00_ATR_SIZE	36U	/* log2(Addr transl size) */
+/* Address translation space size */
+#define SLV00_ATR_SIZE_DEFAULT		63	/* 2^64 (16 exabytes) */
+#define TC956X_AXI4_SLV00_ATR_SIZE	35	/* 2^36 (64 gigabytes) */
 #define TC956X_AXI4_SLV00_SRC_ADDR	0x0000001000000000ULL
 #define TC956X_AXI4_SLV00_TRSL_ADDR	0x0000000000000000ULL
-
-/* XXX This is an invalid value; 0x00000017 is the minimum allowed */
-#define TC956X_AXI4_SLV00_SRC_ADDR_LO_VAL_DEFAULT  0x0000007fU
 
 #define CM3_TAMAP_COUNT			4
 
@@ -1020,9 +1019,11 @@ static void tc956x_config_tamap(struct tc956x_data *td)
 	base = td->bridge_config + AXI4_SLV_BASE(td->emac0 ? 0 : 1);
 
 	/* Set all entries to default values */
+	BUILD_BUG_ON(SLV00_ATR_SIZE_DEFAULT < 11);
+	val = u32_encode_bits(SLV00_ATR_SIZE_DEFAULT, ATR_SIZE_MASK);
+	val |= ATR_IMPL;
 	for (i = 0; i < CM3_TAMAP_COUNT; i++) {
-		writel(TC956X_AXI4_SLV00_SRC_ADDR_LO_VAL_DEFAULT,
-		       base + SRC_ADDR_LO_OFFSET);
+		writel(val, base + SRC_ADDR_LO_OFFSET);
 		writel(0x0, base + SRC_ADDR_HI_OFFSET);
 		writel(0x0, base + TRSL_ADDR_LO_OFFSET);
 		writel(0x0, base + TRSL_ADDR_HI_OFFSET);
@@ -1037,7 +1038,7 @@ static void tc956x_config_tamap(struct tc956x_data *td)
 	BUILD_BUG_ON(TC956X_AXI4_SLV00_SRC_ADDR & ATR_IMPL);
 	BUILD_BUG_ON(!!u32_get_bits(lower_32_bits(TC956X_AXI4_SLV00_SRC_ADDR),
 						  ATR_SIZE_MASK));
-	BUILD_BUG_ON(TC956X_AXI4_SLV00_ATR_SIZE < 12);
+	BUILD_BUG_ON(TC956X_AXI4_SLV00_ATR_SIZE < 11);
 
 	base = td->bridge_config + AXI4_SLV_BASE(0);
 
