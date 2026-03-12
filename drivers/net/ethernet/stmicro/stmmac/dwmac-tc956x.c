@@ -699,10 +699,8 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 	/* Set the speed related registers */
 	ret = tc956x_chipcfg_mac_configure(td, plat->max_speed);
 	if (ret)
-		return dev_err_probe(td->dev, ret,
-				     "Cannot configure %s@%dMb/s\n",
-				     phy_modes(plat->phy_interface),
-				     plat->max_speed);
+		return dev_err(td->dev, "Cannot configure %s@%dMb/s\n",
+			       phy_modes(plat->phy_interface), plat->max_speed);
 
 	tc956x_mac_reset_deassert(td, MAC_RESET_MAC);
 
