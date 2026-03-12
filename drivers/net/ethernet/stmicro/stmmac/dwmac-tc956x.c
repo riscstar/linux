@@ -676,23 +676,31 @@ struct {
 	{ PHY_INTERFACE_MODE_SGMII, SPEED_10, SP_SEL_SGMII_10M, },
 };
 
-static int tc956x_chipcfg_mac_configure(struct tc956x_data *td, int speed)
+static int tc956x_mac_speed_select(struct tc956x_data *td, int speed)
 {
-	u32 sp_sel = EMAC_SP_SEL_MASK + 1;
-	void __iomem *emac_ctl_reg;
-	u32 val;
+	phy_interface_t phy_interface = td->plat->phy_interface;
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(tc956x_chipcfg_mac_speed); i++) {
-		if (tc956x_chipcfg_mac_speed[i].phy_interface ==
-			    td->plat->phy_interface &&
-		    tc956x_chipcfg_mac_speed[i].speed == speed) {
-			sp_sel = tc956x_chipcfg_mac_speed[i].sp_sel;
-			break;
-		}
+		if (tc956x_chipcfg_mac_speed[i].speed != speed)
+			continue;
+
+		if (tc956x_chipcfg_mac_speed[i].phy_interface == phy_interface)
+			return tc956x_chipcfg_mac_speed[i].sp_sel;
 	}
-	if (sp_sel & ~EMAC_SP_SEL_MASK)
-		return -ENOTSUPP;
+
+	return -ENOTSUPP;
+}
+
+static int tc956x_chipcfg_mac_configure(struct tc956x_data *td, int speed)
+{
+	void __iomem *emac_ctl_reg;
+	int sp_sel;
+	u32 val;
+
+	sp_sel = tc956x_mac_speed_select(td, speed);
+	if (sp_sel < 0)
+		return sp_sel;
 
 	/* Speeds up to 1Gbps require the 125 MHz clock to be enabled */
 	if (speed < SPEED_2500)
