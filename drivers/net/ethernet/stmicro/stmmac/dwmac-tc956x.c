@@ -540,12 +540,10 @@ static int tc956x_reset_gpio_get(struct tc956x_data *td)
 	 */
 	ret = of_property_read_u32(dev_of_node(dev), "qcom,phy-reset-delay",
 				   &td->phy_reset_delay);
-	if (ret) {
+	if (ret)
 		dev_err(dev, "failed to get qcom,phy-reset-delay property\n");
-		return ret;
-	}
 
-	return 0;
+	return ret;
 }
 
 static int tc956x_platform_of_parse(struct tc956x_data *td)
@@ -566,6 +564,19 @@ static int tc956x_platform_of_parse(struct tc956x_data *td)
 		return PTR_ERR(td->phy_supply);
 	}
 
+	return 0;
+}
+
+static int tc956x_platform_probe(struct tc956x_data *td,
+				 struct stmmac_resources *res)
+{
+	struct device *dev = td->dev;
+	int ret = 0;
+
+	ret = tc956x_reset_gpio_get(td);
+	if (ret)
+		return ret;
+
 	/* XXX Have to chase down why the following is necessary... */
 	td->pinctrl = devm_pinctrl_get(dev);
 	if (IS_ERR(td->pinctrl)) {
@@ -580,27 +591,15 @@ static int tc956x_platform_of_parse(struct tc956x_data *td)
 		return PTR_ERR(td->pinctrl_default);
 	}
 
-	return 0;
-}
-
-static int tc956x_platform_probe(struct tc956x_data *td,
-				 struct stmmac_resources *res)
-{
-	int ret = 0;
-
-	ret = tc956x_reset_gpio_get(td);
-	if (ret)
-		return ret;
-
 	ret = pinctrl_select_state(td->pinctrl, td->pinctrl_default);
 	if (ret) {
-		dev_err(td->dev, "Failed to select the 'default' pincrl state\n");
+		dev_err(dev, "Failed to select the 'default' pincrl state\n");
 		goto err_pinctrl_select_state;
 	}
 
 	ret = tc956x_phy_power_on(td);
 	if (ret) {
-		dev_err(td->dev, "Failed to power on PHY with error %d\n", ret);
+		dev_err(dev, "Failed to power on PHY with error %d\n", ret);
 		goto err_power_on;
 	}
 
