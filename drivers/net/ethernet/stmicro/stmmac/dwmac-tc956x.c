@@ -96,34 +96,26 @@
 #define NCID_CHIP_ID_MASK		GENMASK(15, 8)
 
 /* MSIGEN Registers */
-
 #define TC956X_MSIGEN_BASE(pf_id)	(0x00f000 + (pf_id) * 0x0100)
-
 #define MSI_OUT_EN_OFFSET		0x0000
 #define MSI_MASK_SET_OFFSET		0x0008
 #define MSI_MASK_CLR_OFFSET		0x000c
 #define MSI_INT_STS_OFFSET		0x0010
-#define MSI_VECT_SET0_OFFSET		0x0020
-#define MSI_VECT_SET1_OFFSET		0x0024
-#define MSI_VECT_SET2_OFFSET		0x0028
-#define MSI_VECT_SET3_OFFSET		0x002c
-#define MSI_VECT_SET4_OFFSET		0x0030
-#define MSI_VECT_SET5_OFFSET		0x0034
-#define MSI_VECT_SET6_OFFSET		0x0038
-#define MSI_VECT_SET7_OFFSET		0x003c
+#define MSI_VECT_SET_OFFSET(x)		(0x0020 + (x) * 4)
 #define SW_MSI_CLR			0x0054
 
-#define HWIRQ_LPI			0
-#define HWIRQ_PMT			1
-#define HWIRQ_EVENT			2
-#define HWIRQ_TX0			3
-#define HWIRQ_RX0			11
-#define HWIRQ_XPCS			19
-#define HWIRQ_ETH			20 /* PHY interrupt */
-#define HWIRQ_PFMAILBOX			21
-#define HWIRQ_MSIREQ_PLS		24
-
-#define TC956X_NR_HWIRQ			25
+enum tc956x_msigen_hwirq {
+	HWIRQ_LPI		= 0,
+	HWIRQ_PMT		= 1,
+	HWIRQ_EVENT		= 2,
+	HWIRQ_TX0 = 3,
+	HWIRQ_RX0 = 11,
+	HWIRQ_XPCS = 19,
+	HWIRQ_ETH = 20, /* PHY interrupt */
+	HWIRQ_PFMAILBOX = 21,
+	HWIRQ_MSIREQ_PLS = 24
+}
+#define TC956X_NR_HWIRQ 25
 
 /* EMAC control registers for ports 0 and 1 (both have same format) */
 #define NEMAC0CTL_OFFSET		0x1070
@@ -393,14 +385,14 @@ static int tc956x_msigen_chip_init(struct irq_chip_generic *gc)
 	irq_reg_writel(gc, BIT(0), MSI_MASK_CLR_OFFSET);
 
 	/* Assign everything to vector #0 */
-	irq_reg_writel(gc, 0, MSI_VECT_SET0_OFFSET);
-	irq_reg_writel(gc, 0, MSI_VECT_SET1_OFFSET);
-	irq_reg_writel(gc, 0, MSI_VECT_SET2_OFFSET);
-	irq_reg_writel(gc, 0, MSI_VECT_SET3_OFFSET);
-	irq_reg_writel(gc, 0, MSI_VECT_SET4_OFFSET);
-	irq_reg_writel(gc, 0, MSI_VECT_SET5_OFFSET);
-	irq_reg_writel(gc, 0, MSI_VECT_SET6_OFFSET);
-	irq_reg_writel(gc, 0, MSI_VECT_SET7_OFFSET);
+	irq_reg_writel(gc, 0, MSI_VECT_SET_OFFSET(0));
+	irq_reg_writel(gc, 0, MSI_VECT_SET_OFFSET(1));
+	irq_reg_writel(gc, 0, MSI_VECT_SET_OFFSET(2));
+	irq_reg_writel(gc, 0, MSI_VECT_SET_OFFSET(3));
+	irq_reg_writel(gc, 0, MSI_VECT_SET_OFFSET(4));
+	irq_reg_writel(gc, 0, MSI_VECT_SET_OFFSET(5));
+	irq_reg_writel(gc, 0, MSI_VECT_SET_OFFSET(6));
+	irq_reg_writel(gc, 0, MSI_VECT_SET_OFFSET(7));
 
 	return 0;
 }
