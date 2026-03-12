@@ -86,8 +86,6 @@
 
 #define CM3_TAMAP_COUNT			4
 
-#define TC956X_TOT_MSI_VEC		1
-
 #define XGMAC_BASE(td)	((td)->sfr + ((td)->emac0 ? 0x40000 : 0x48000))
 
 /* Configuration Register Address */
@@ -1452,10 +1450,9 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 	 * Enable MSI and Allocate Vectors. Despite the spelling (no pcim) the
 	 * free will be handled by devres due to the prior pcim_enable_device()
 	 */
-	ret = pci_alloc_irq_vectors(pdev, TC956X_TOT_MSI_VEC,
-				TC956X_TOT_MSI_VEC, PCI_IRQ_MSI);
+	ret = pci_alloc_irq_vectors(pdev, 1, 1, PCI_IRQ_MSI);
 
-	if (ret < TC956X_TOT_MSI_VEC) {
+	if (ret < 1) {
 		dev_err(dev, "%s:Enable MSI error\n", DRIVER_NAME);
 		goto err;
 	}
