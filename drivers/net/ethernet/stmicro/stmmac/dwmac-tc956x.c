@@ -639,6 +639,8 @@ static int tc956x_mac_speed_select(struct tc956x_data *td, int speed)
 		if (tc956x_chipcfg_mac_speed[i].phy_interface == phy_interface)
 			return tc956x_chipcfg_mac_speed[i].sp_sel;
 	}
+	dev_warn(td->dev, "%s/%d unsupported\n",
+		 phy_modes(phy_interface), speed);
 
 	return -ENOTSUPP;
 }
@@ -699,8 +701,7 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 	/* Set the speed related registers */
 	ret = tc956x_chipcfg_mac_configure(td, plat->max_speed);
 	if (ret)
-		return dev_err(td->dev, "Cannot configure %s@%dMb/s\n",
-			       phy_modes(plat->phy_interface), plat->max_speed);
+		return ret;
 
 	tc956x_mac_reset_deassert(td, MAC_RESET_MAC);
 
@@ -1055,10 +1056,7 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 	struct tc956x_data *td = bsp_priv;
 
 	/* XXX Are we certain we need to provide this callback? */
-	WARN(tc956x_chipcfg_mac_configure(td, speed),
-	     "%s@%dMb/s is not supported",
-	     phy_modes(td->plat->phy_interface), speed);
-
+	(void)tc956x_chipcfg_mac_configure(td, speed);
 	tc956x_pma_init(td);
 }
 
