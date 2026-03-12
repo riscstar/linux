@@ -1054,6 +1054,7 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 {
 	struct tc956x_data *td = bsp_priv;
 
+	/* XXX Are we certain we need to provide this callback? */
 	WARN(tc956x_chipcfg_mac_configure(td, speed),
 	     "%s@%dMb/s is not supported",
 	     phy_modes(td->plat->phy_interface), speed);
@@ -1109,6 +1110,7 @@ static int tc956x_xgmac3_resume(struct device *dev, void *bsp_priv)
 		tc956x_config_tamap(td);
 
 	/* Configure EMAC Port */
+	/* XXX Can we guarantee phy_interface and max_speed won't change? */
 	ret = tc956x_chipcfg_mac_init(td);
 	WARN_ON(ret);
 
@@ -1480,9 +1482,8 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 	if (td == td->chip->primary)
 		tc956x_config_tamap(td);
 
-	ret = tc956x_chipcfg_mac_init(td);
-	if (ret < 0)
-		goto err;
+	/* Won't fail; we know the phy_interface and max_speed are valid */
+	(void)tc956x_chipcfg_mac_init(td);
 
 	tc956x_pma_init(td);
 	tc956x_mac_reset_deassert(td, MAC_RESET_XPCS);
