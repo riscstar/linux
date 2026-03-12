@@ -1106,7 +1106,7 @@ static int tc956x_xgmac3_resume(struct device *dev, void *bsp_priv)
 		}
 	}
 
-	/* Configure TA map registers when the primary MAC resumes */
+	/* Configure TA map registers when the primary MAC activates */
 	if (td == td->chip->primary)
 		tc956x_config_tamap(td);
 
@@ -1115,7 +1115,6 @@ static int tc956x_xgmac3_resume(struct device *dev, void *bsp_priv)
 	WARN_ON(ret);
 
 	tc956x_pma_init(td);
-
 	tc956x_mac_reset_deassert(td, MAC_RESET_XPCS);
 
 	return 0;
@@ -1332,7 +1331,6 @@ static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 	/* Put chip resets and clocks into a known initial state */
 	tc956x_stop_chip(chip);
 
-	tc956x_config_tamap(td);
 	tc956x_chip_clock_enable(chip, CHIP_CLOCK_MSIGEN);
 	tc956x_chip_reset_deassert(chip, CHIP_RESET_MSIGEN);
 
@@ -1480,6 +1478,9 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 		dev_err(dev, "error %d powering on PHY\n", ret);
 		goto err;
 	}
+
+	if (td == td->chip->primary)
+		tc956x_config_tamap(td);
 
 	ret = tc956x_chipcfg_mac_init(td);
 	if (ret < 0)
