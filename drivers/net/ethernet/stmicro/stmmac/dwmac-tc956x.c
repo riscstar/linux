@@ -736,6 +736,10 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 	struct plat_stmmacenet_data *plat = td->plat;
 	int ret;
 
+	/* Configure TA map registers whenever the primary MAC is initialized */
+	if (td == td->chip->primary)
+		tc956x_config_tamap(td);
+
 	tc956x_mac_clock_enable(td, MAC_CLOCK_TX);
 	tc956x_mac_clock_enable(td, MAC_CLOCK_RX);
 	tc956x_mac_clock_enable(td, MAC_CLOCK_ALL);
@@ -762,6 +766,10 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 		return ret;
 
 	tc956x_mac_reset_deassert(td, MAC_RESET_MAC);
+
+	tc956x_pma_init(td);
+
+	tc956x_mac_reset_deassert(td, MAC_RESET_XPCS);
 
 	return 0;
 }
@@ -1103,19 +1111,7 @@ static int tc956x_xgmac3_resume(struct device *dev, void *bsp_priv)
 		}
 	}
 
-	/* Configure TA map registers when the primary MAC activates */
-	if (td == td->chip->primary)
-		tc956x_config_tamap(td);
-
-	/* Configure EMAC Port */
-	/* XXX Can we guarantee phy_interface and max_speed won't change? */
-	ret = tc956x_chipcfg_mac_init(td);
-	WARN_ON(ret);
-
-	tc956x_pma_init(td);
-	tc956x_mac_reset_deassert(td, MAC_RESET_XPCS);
-
-	return 0;
+	return tc956x_chipcfg_mac_init(td);
 }
 
 static void tc956x_adev_release(struct device *dev)
@@ -1477,14 +1473,8 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 		goto err;
 	}
 
-	if (td == td->chip->primary)
-		tc956x_config_tamap(td);
-
 	/* Won't fail; we know the phy_interface and max_speed are valid */
 	(void)tc956x_chipcfg_mac_init(td);
-
-	tc956x_pma_init(td);
-	tc956x_mac_reset_deassert(td, MAC_RESET_XPCS);
 
 	ret = stmmac_dvr_probe(dev, td->plat, &res);
 	if (ret) {
