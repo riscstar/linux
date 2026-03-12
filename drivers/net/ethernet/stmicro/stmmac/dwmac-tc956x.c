@@ -219,39 +219,37 @@ static const struct regmap_config tc956x_reset_clock_regmap_config = {
 #define XGMAC_BASE(td)	((td)->sfr + ((td)->emac0 ? 0x40000 : 0x48000))
 
 /* Configuration Register Address */
-#define NCID_OFFSET		0x0000	/* TC956X Chip and revision ID */
-#define NCID_REV_ID_MASK	GENMASK(7, 0)
-#define NCID_CHIP_ID_MASK	GENMASK(15, 8)
-#define NMODESTS_OFFSET		0x0004	/* TC956X current operation mode */
-#define NMODESTS_MODE2		BIT(10)	/* PCIe lanes: 0:  x4x1x1; 1: x2x2x1 */
+#define NCID_OFFSET			0x0000
+#define NCID_REV_ID_MASK		GENMASK(7, 0)
+#define NCID_CHIP_ID_MASK		GENMASK(15, 8)
 
 /* MSIGEN Registers */
 
 #define TC956X_MSIGEN_BASE(pf_id)	(0x00f000 + (pf_id) * 0x0100)
 
-#define TC956X_MSI_OUT_EN_OFFSET	0x0000
-#define TC956X_MSI_MASK_SET_OFFSET	0x0008
-#define TC956X_MSI_MASK_CLR_OFFSET	0x000c
-#define TC956X_MSI_INT_STS_OFFSET	0x0010
-#define TC956X_MSI_VECT_SET0_OFFSET	0x0020
-#define TC956X_MSI_VECT_SET1_OFFSET	0x0024
-#define TC956X_MSI_VECT_SET2_OFFSET	0x0028
-#define TC956X_MSI_VECT_SET3_OFFSET	0x002c
-#define TC956X_MSI_VECT_SET4_OFFSET	0x0030
-#define TC956X_MSI_VECT_SET5_OFFSET	0x0034
-#define TC956X_MSI_VECT_SET6_OFFSET	0x0038
-#define TC956X_MSI_VECT_SET7_OFFSET	0x003c
-#define TC956X_SW_MSI_CLR		0x0054
+#define MSI_OUT_EN_OFFSET		0x0000
+#define MSI_MASK_SET_OFFSET		0x0008
+#define MSI_MASK_CLR_OFFSET		0x000c
+#define MSI_INT_STS_OFFSET		0x0010
+#define MSI_VECT_SET0_OFFSET		0x0020
+#define MSI_VECT_SET1_OFFSET		0x0024
+#define MSI_VECT_SET2_OFFSET		0x0028
+#define MSI_VECT_SET3_OFFSET		0x002c
+#define MSI_VECT_SET4_OFFSET		0x0030
+#define MSI_VECT_SET5_OFFSET		0x0034
+#define MSI_VECT_SET6_OFFSET		0x0038
+#define MSI_VECT_SET7_OFFSET		0x003c
+#define SW_MSI_CLR			0x0054
 
-#define TC956X_HWIRQ_LPI		0
-#define TC956X_HWIRQ_PMT		1
-#define TC956X_HWIRQ_EVENT		2
-#define TC956X_HWIRQ_TX0		3
-#define TC956X_HWIRQ_RX0		11
-#define TC956X_HWIRQ_XPCS		19
-#define TC956X_HWIRQ_ETH		20 /* PHY interrupt */
-#define TC956X_HWIRQ_PFMAILBOX		21
-#define TC956X_HWIRQ_MSIREQ_PLS		24
+#define HWIRQ_LPI			0
+#define HWIRQ_PMT			1
+#define HWIRQ_EVENT			2
+#define HWIRQ_TX0			3
+#define HWIRQ_RX0			11
+#define HWIRQ_XPCS			19
+#define HWIRQ_ETH			20 /* PHY interrupt */
+#define HWIRQ_PFMAILBOX			21
+#define HWIRQ_MSIREQ_PLS		24
 
 #define TC956X_NR_HWIRQ			25
 
@@ -332,7 +330,7 @@ static void tc956x_msigen_irq_handler(struct irq_desc *desc)
 
 	chained_irq_enter(chip, desc);
 
-	sts = irq_reg_readl(gc, TC956X_MSI_INT_STS_OFFSET);
+	sts = irq_reg_readl(gc, MSI_INT_STS_OFFSET);
 	if (sts)
 		for_each_set_bit(hwirq, &sts, 32)
 			generic_handle_domain_irq(d, hwirq);
@@ -342,7 +340,7 @@ static void tc956x_msigen_irq_handler(struct irq_desc *desc)
 	 * If any interrupts are still asserted then clearing this flag will
 	 * cause the (edge-triggered) MSI to be regenerated.
 	 */
-	irq_reg_writel(gc, 1, TC956X_MSI_MASK_CLR_OFFSET);
+	irq_reg_writel(gc, 1, MSI_MASK_CLR_OFFSET);
 
 	chained_irq_exit(chip, desc);
 }
@@ -352,38 +350,38 @@ static int tc956x_msigen_chip_init(struct irq_chip_generic *gc)
 	struct tc956x_msigen_data *tc956x_msigen = gc->domain->host_data;
 
 	gc->reg_base = tc956x_msigen->regs;
-	gc->chip_types[0].regs.mask = TC956X_MSI_OUT_EN_OFFSET;
+	gc->chip_types[0].regs.mask = MSI_OUT_EN_OFFSET;
 	gc->chip_types[0].chip.irq_mask = irq_gc_mask_clr_bit;
 	gc->chip_types[0].chip.irq_unmask = irq_gc_mask_set_bit;
 
 	/* Ensure no interrupts are raised */
-	irq_reg_writel(gc, 0, TC956X_MSI_OUT_EN_OFFSET);
-	irq_reg_writel(gc, 1, TC956X_SW_MSI_CLR);
+	irq_reg_writel(gc, 0, MSI_OUT_EN_OFFSET);
+	irq_reg_writel(gc, 1, SW_MSI_CLR);
 
 	/*
 	 * Enable only those MSI vectors that are routed by the VECT_SETx
 	 * settings below (currently only vector #0 is used).
 	 */
-	irq_reg_writel(gc, ~0, TC956X_MSI_MASK_SET_OFFSET);
-	irq_reg_writel(gc, BIT(0), TC956X_MSI_MASK_CLR_OFFSET);
+	irq_reg_writel(gc, ~0, MSI_MASK_SET_OFFSET);
+	irq_reg_writel(gc, BIT(0), MSI_MASK_CLR_OFFSET);
 
 	/* Assign everything to vector #0 */
-	irq_reg_writel(gc, 0, TC956X_MSI_VECT_SET0_OFFSET);
-	irq_reg_writel(gc, 0, TC956X_MSI_VECT_SET1_OFFSET);
-	irq_reg_writel(gc, 0, TC956X_MSI_VECT_SET2_OFFSET);
-	irq_reg_writel(gc, 0, TC956X_MSI_VECT_SET3_OFFSET);
-	irq_reg_writel(gc, 0, TC956X_MSI_VECT_SET4_OFFSET);
-	irq_reg_writel(gc, 0, TC956X_MSI_VECT_SET5_OFFSET);
-	irq_reg_writel(gc, 0, TC956X_MSI_VECT_SET6_OFFSET);
-	irq_reg_writel(gc, 0, TC956X_MSI_VECT_SET7_OFFSET);
+	irq_reg_writel(gc, 0, MSI_VECT_SET0_OFFSET);
+	irq_reg_writel(gc, 0, MSI_VECT_SET1_OFFSET);
+	irq_reg_writel(gc, 0, MSI_VECT_SET2_OFFSET);
+	irq_reg_writel(gc, 0, MSI_VECT_SET3_OFFSET);
+	irq_reg_writel(gc, 0, MSI_VECT_SET4_OFFSET);
+	irq_reg_writel(gc, 0, MSI_VECT_SET5_OFFSET);
+	irq_reg_writel(gc, 0, MSI_VECT_SET6_OFFSET);
+	irq_reg_writel(gc, 0, MSI_VECT_SET7_OFFSET);
 
 	return 0;
 }
 
 static void tc956x_msigen_chip_exit(struct irq_chip_generic *gc)
 {
-	irq_reg_writel(gc, 0, TC956X_MSI_OUT_EN_OFFSET);
-	irq_reg_writel(gc, 1, TC956X_MSI_MASK_CLR_OFFSET);
+	irq_reg_writel(gc, 0, MSI_OUT_EN_OFFSET);
+	irq_reg_writel(gc, 1, MSI_MASK_CLR_OFFSET);
 }
 
 static int tc956x_msigen_domain_init(struct irq_domain *d)
@@ -1481,11 +1479,11 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 
 	res.addr = XGMAC_BASE(td);
 	/* Problems creating mappings will be reported by stmmac_dvr_probe */
-	res.irq = irq_create_mapping(irq_domain, TC956X_HWIRQ_EVENT);
+	res.irq = irq_create_mapping(irq_domain, HWIRQ_EVENT);
 	for (i = 0; i < MTL_MAX_TX_QUEUES; i++)
-		res.tx_irq[i] = irq_create_mapping(irq_domain, TC956X_HWIRQ_TX0 + i);
+		res.tx_irq[i] = irq_create_mapping(irq_domain, HWIRQ_TX0 + i);
 	for (i = 0; i < MTL_MAX_RX_QUEUES; i++)
-		res.rx_irq[i] = irq_create_mapping(irq_domain, TC956X_HWIRQ_RX0 + i);
+		res.rx_irq[i] = irq_create_mapping(irq_domain, HWIRQ_RX0 + i);
 
 	/*
 	 * Hook up the PHY interrupt.
@@ -1494,7 +1492,7 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 	 *       interrupt is not connected we need to fall back to polling)
 	 */
 	td->plat->mdio_bus_data->probed_phy_irq =
-		irq_create_mapping(irq_domain, TC956X_HWIRQ_ETH);
+		irq_create_mapping(irq_domain, HWIRQ_ETH);
 
 	ret = tc956x_platform_probe(td, &res);
 	if (ret) {
