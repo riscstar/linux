@@ -135,7 +135,8 @@ enum tc956x_msigen_hwirq {
 #define EMAC_LPIHWCLKEN			BIT(8)	/* 1 = low power mode */
 #define EMAC_INIT_DONE			BIT(21)
 
-/* The next four are relative to the base of the clock/reset regmap */
+#define NCTLSTS_OFFSET			0x1000
+/* The next four are relative to the base of the clock/reset regmap (NCTLSTS) */
 #define RSTCTRL0_OFFSET			0x0008
 #define RSTCTRL1_OFFSET			0x0010
 #define CLKCTRL0_OFFSET			0x0004
@@ -290,9 +291,9 @@ static const struct regmap_config tc956x_reset_clock_regmap_config = {
 	.name		= "tc956x-clk-reset",
 	.reg_bits	= 32,
 	.reg_stride	= 4,
-	.reg_base	= 0x1000,	/* Register NCTLSTS */
+	.reg_base	= NCTLSTS_OFFSET,
 	.val_bits	= 32,
-	.max_register	= 0x1010,	/* Register NRSTCTRL1 */
+	.max_register	= NCTLSTS_OFFSET + 0x10,	/* Register NRSTCTRL1 */
 };
 
 
