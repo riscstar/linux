@@ -43,19 +43,14 @@
 
 #define GPIO_DEVICE_NAME	"tc9564-gpio"
 
-/*
- * XXX TC956X_AXI4_SLV00_ATR_SIZE (36) defines the source translation
- * XXX region size.  The value held in the field is one less than this,
- * XXX so we subtract one when filling it.
- * XXX
- * XXX That *might* also be related to the value recorded as the
- * XXX base of the translated space:
- * XXX	TC956X_AXI4_SLV00_SRC_ADDR_HI_VAL  0x00000010
- * XXX	TC956X_AXI4_SLV00_SRC_ADDR_LO_VAL  0x00000000
- * XXX
- * XXX Start working on isolating the clocks and resets (and GPIOs and
- * XXX pinctrl), possibly implementing them using the proper common clock
- * XXX and reset interfaces.
+/* XXX
+ * SLV00_ATR_SIZE (35) defines the source translation region size, as:
+ * 	1ULL << (SLV00_ATR_SIZE + 1)
+ *
+ * That *might* also be related to the value recorded as the base of the
+ * translated space:
+ *	SLV00_SRC_ADDR_HI_VAL  0x00000010
+ *	SLV00_SRC_ADDR_LO_VAL  0x00000000
  */
 
 /* PCI BAR assignments */
@@ -213,9 +208,9 @@ static const struct regmap_config tc956x_reset_clock_regmap_config = {
 
 /* Address translation space size */
 #define SLV00_ATR_SIZE_DEFAULT		63	/* 2^64 (16 exabytes) */
-#define TC956X_AXI4_SLV00_ATR_SIZE	35	/* 2^36 (64 gigabytes) */
-#define TC956X_AXI4_SLV00_SRC_ADDR	0x0000001000000000ULL
-#define TC956X_AXI4_SLV00_TRSL_ADDR	0x0000000000000000ULL
+#define SLV00_ATR_SIZE			35	/* 2^36 (64 gigabytes) */
+#define SLV00_SRC_ADDR			0x0000001000000000ULL
+#define SLV00_TRSL_ADDR			0x0000000000000000ULL
 
 #define CM3_TAMAP_COUNT			4
 
@@ -936,7 +931,7 @@ static void tc956x_dma_init_rx_chan(struct stmmac_priv *priv,
 	value = u32_replace_bits(value, setting, XGMAC_OWRQ);
 	writel(value, ioaddr + XGMAC_DMA_CH_RX_CONTROL2(chan));
 
-	writel(upper_32_bits(phy) | upper_32_bits(TC956X_AXI4_SLV00_SRC_ADDR),
+	writel(upper_32_bits(phy) | upper_32_bits(SLV00_SRC_ADDR),
 	       ioaddr + XGMAC_DMA_CH_RxDESC_HADDR(chan));
 	writel(lower_32_bits(phy), ioaddr + XGMAC_DMA_CH_RxDESC_LADDR(chan));
 }
@@ -953,7 +948,7 @@ static void tc956x_dma_init_tx_chan(struct stmmac_priv *priv,
 	value = u32_replace_bits(value, txpbl, XGMAC_TxPBL);
 	writel(value, ioaddr + XGMAC_DMA_CH_TX_CONTROL(chan));
 
-	writel(upper_32_bits(phy) | upper_32_bits(TC956X_AXI4_SLV00_SRC_ADDR),
+	writel(upper_32_bits(phy) | upper_32_bits(SLV00_SRC_ADDR),
 	       ioaddr + XGMAC_DMA_CH_TxDESC_HADDR(chan));
 	writel(lower_32_bits(phy), ioaddr + XGMAC_DMA_CH_TxDESC_LADDR(chan));
 }
@@ -962,14 +957,14 @@ static void tc956x_desc_set_addr(struct dma_desc *p, dma_addr_t addr)
 {
 	p->des0 = cpu_to_le32(lower_32_bits(addr));
 	p->des1 = cpu_to_le32(upper_32_bits(addr) |
-			      upper_32_bits(TC956X_AXI4_SLV00_SRC_ADDR));
+			      upper_32_bits(SLV00_SRC_ADDR));
 }
 
 static void tc956x_desc_set_sec_addr(struct dma_desc *p, dma_addr_t addr, bool is_valid)
 {
 	p->des2 = cpu_to_le32(lower_32_bits(addr));
 	p->des3 = cpu_to_le32(upper_32_bits(addr) |
-			      upper_32_bits(TC956X_AXI4_SLV00_SRC_ADDR));
+			      upper_32_bits(SLV00_SRC_ADDR));
 }
 
 static int tc956x_mac_setup(void *apriv, struct mac_device_info *mac)
@@ -1035,25 +1030,24 @@ static void tc956x_config_tamap(struct tc956x_data *td)
 	/* EDMA address region 0x10 0000 0000 - 0x1f ffff ffff is
 	 * translated to 0x0 0000 0000 - 0xf ffff ffff
 	 */
-	BUILD_BUG_ON(TC956X_AXI4_SLV00_SRC_ADDR & ATR_IMPL);
-	BUILD_BUG_ON(!!u32_get_bits(lower_32_bits(TC956X_AXI4_SLV00_SRC_ADDR),
+	BUILD_BUG_ON(SLV00_SRC_ADDR & ATR_IMPL);
+	BUILD_BUG_ON(!!u32_get_bits(lower_32_bits(SLV00_SRC_ADDR),
 						  ATR_SIZE_MASK));
-	BUILD_BUG_ON(TC956X_AXI4_SLV00_ATR_SIZE < 11);
-
 	base = td->bridge_config + AXI4_SLV_BASE(0);
 
-	val = lower_32_bits(TC956X_AXI4_SLV00_SRC_ADDR);
-	val |= u32_encode_bits(TC956X_AXI4_SLV00_ATR_SIZE - 1, ATR_SIZE_MASK);
+	BUILD_BUG_ON(SLV00_ATR_SIZE < 11);
+	val = lower_32_bits(SLV00_SRC_ADDR);
+	val |= u32_encode_bits(SLV00_ATR_SIZE - 1, ATR_SIZE_MASK);
 	val |= ATR_IMPL;
 	writel(val, base + SRC_ADDR_LO_OFFSET);
 
-	val = upper_32_bits(TC956X_AXI4_SLV00_SRC_ADDR);
+	val = upper_32_bits(SLV00_SRC_ADDR);
 	writel(val, base + SRC_ADDR_HI_OFFSET);
 
-	val = lower_32_bits(TC956X_AXI4_SLV00_TRSL_ADDR);
+	val = lower_32_bits(SLV00_TRSL_ADDR);
 	writel(val, base + TRSL_ADDR_LO_OFFSET);
 
-	val = upper_32_bits(TC956X_AXI4_SLV00_TRSL_ADDR);
+	val = upper_32_bits(SLV00_TRSL_ADDR);
 	writel(val, base + TRSL_ADDR_HI_OFFSET);
 	writel(trsf_param_val, base + TRSL_PARAM_OFFSET);
 }
