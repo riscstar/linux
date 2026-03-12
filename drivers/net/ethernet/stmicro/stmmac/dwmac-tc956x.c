@@ -683,41 +683,31 @@ static void tc956x_config_tamap(struct tc956x_data *td)
 {
 	void __iomem *base;
 	u32 trsf_param_val;
+	u32 atr_size_val;
 	u32 val;
 	u32 i;
 
-	/* This is value assigned to the TRSL_PARAM register */
+	/* This is value assigned to *all* TRSL_PARAM registers */
 	trsf_param_val = u32_encode_bits(TRSL_ID_PCIE_TX_RX, TRSL_ID_MASK);
 	trsf_param_val |= u32_encode_bits(0, TRSF_PARAM_MASK);
 
-	base = td->bridge_config + AXI4_SLV_BASE(td->emac0 ? 0 : 1);
-
-	/* Set all entries to default values */
-	BUILD_BUG_ON(SLV00_ATR_SIZE_DEFAULT < 11);
-	val = u32_encode_bits(SLV00_ATR_SIZE_DEFAULT, ATR_SIZE_MASK);
-	val |= ATR_IMPL;
-	for (i = 0; i < CM3_TAMAP_COUNT; i++) {
-		writel(val, base + SRC_ADDR_LO_OFFSET);
-		writel(0x0, base + SRC_ADDR_HI_OFFSET);
-		writel(0x0, base + TRSL_ADDR_LO_OFFSET);
-		writel(0x0, base + TRSL_ADDR_HI_OFFSET);
-		writel(trsf_param_val, base + TRSL_PARAM_OFFSET);
-		/* XXX Not initializing the TRSL_MASK value? */
-	}
-
-	/* AXI4 Slave 0 - Table 0 Entry */
-	/* EDMA address region 0x10 0000 0000 - 0x1f ffff ffff is
-	 * translated to 0x0 0000 0000 - 0xf ffff ffff
+	/*
+	 * AXI4 slave 0 translation table 0
+	 * We only used the first AXI4 slave translation table entry:
+	 *	EDMA address region:	0x10 0000 0000 - 0x1f ffff ffff
+	 * 	is translated to:	0x00 0000 0000 - 0x0f ffff ffff
 	 */
-	BUILD_BUG_ON(SLV00_SRC_ADDR & ATR_IMPL);
+	BUILD_BUG_ON(SLV00_ATR_SIZE < 11);
 	BUILD_BUG_ON(!!u32_get_bits(lower_32_bits(SLV00_SRC_ADDR),
 						  ATR_SIZE_MASK));
+	BUILD_BUG_ON(SLV00_SRC_ADDR & ATR_IMPL);
+
 	base = td->bridge_config + AXI4_SLV_BASE(0);
 
-	BUILD_BUG_ON(SLV00_ATR_SIZE < 11);
-	val = lower_32_bits(SLV00_SRC_ADDR);
-	val |= u32_encode_bits(SLV00_ATR_SIZE, ATR_SIZE_MASK);
-	val |= ATR_IMPL;
+	atr_size_val = u32_encode_bits(SLV00_ATR_SIZE, ATR_SIZE_MASK);
+	atr_size_val |= ATR_IMPL;
+
+	val = lower_32_bits(SLV00_SRC_ADDR) | atr_size_val;
 	writel(val, base + SRC_ADDR_LO_OFFSET);
 
 	val = upper_32_bits(SLV00_SRC_ADDR);
@@ -728,7 +718,21 @@ static void tc956x_config_tamap(struct tc956x_data *td)
 
 	val = upper_32_bits(SLV00_TRSL_ADDR);
 	writel(val, base + TRSL_ADDR_HI_OFFSET);
+
 	writel(trsf_param_val, base + TRSL_PARAM_OFFSET);
+
+	/* Set all other unused entries to default values */
+	BUILD_BUG_ON(SLV00_ATR_SIZE_DEFAULT < 11);
+	atr_size_val = u32_encode_bits(SLV00_ATR_SIZE_DEFAULT, ATR_SIZE_MASK);
+	atr_size_val |= ATR_IMPL;
+	for (i = 0; i < CM3_TAMAP_COUNT; i++) {
+		base = td->bridge_config + AXI4_SLV_BASE(i);
+		writel(atr_size_val, base + SRC_ADDR_LO_OFFSET);
+		writel(0x0, base + SRC_ADDR_HI_OFFSET);
+		writel(0x0, base + TRSL_ADDR_LO_OFFSET);
+		writel(0x0, base + TRSL_ADDR_HI_OFFSET);
+		writel(trsf_param_val, base + TRSL_PARAM_OFFSET);
+	}
 }
 
 static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
