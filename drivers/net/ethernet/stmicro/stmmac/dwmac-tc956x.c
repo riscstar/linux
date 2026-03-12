@@ -57,134 +57,6 @@
 #define PCI_BAR_BRIDGE_CONFIG	0
 #define PCI_BAR_SFR		4
 
-enum tc9564_chip_reset_id {
-	CHIP_RESET_MCU		= 0,
-	CHIP_RESET_MCU1		= 1,
-	CHIP_RESET_MSIGEN	= 18,
-	CHIP_RESET_INTC		= 4,
-	CHIP_RESET_UART0	= 16,
-};
-
-enum tc9564_mac_reset_id {
-	MAC_RESET_MAC		= 7,
-	MAC_RESET_PMA		= 30,
-	MAC_RESET_XPCS		= 31,
-};
-
-/* NOTE:  the PCIE and I2C clocks (bits 9 and 12) should *not* be managed by
- * this driver.  They are needed by the PCIe driver and its power control
- * driver, and should only be enabled or disabled (if required) there.
- */
-enum tc9564_chip_clock_id {
-	CHIP_CLOCK_MCU		= 0,
-	CHIP_CLOCK_SRAM		= 13,
-	CHIP_CLOCK_MSIGEN	= 18,
-	CHIP_CLOCK_INTC		= 4,
-	CHIP_CLOCK_UART0	= 16,
-};
-
-/* XXX MAC_TX, MAC_RX, and MAC_ALL are always enabled/disabled together */
-/* XXX MAC_125M and MAC_312_5M are always enabled/disabled together */
-/* XXX MAC_PLL, MAC_SGMII, and REFCLK are always enabled/disabled together */
-enum tc9564_mac_clock_id {
-	MAC_CLOCK_TX		= 7,
-	MAC_CLOCK_RX		= 14,
-	MAC_CLOCK_ALL		= 31,
-	MAC_CLOCK_125M		= 29,
-	MAC_CLOCK_312_5M	= 30,
-	/* eMAC 0 only */		/* XXX Are these really MAC clocks? */
-	MAC_CLOCK_PLL		= 24,
-	MAC_CLOCK_SGMII		= 25,
-	MAC_CLOCK_REFCLK	= 26,	/* XXX Probably CHIP_CLOCK_REFCLK */
-	/* eMAC 1 only */
-	MAC_CLOCK_RMII		= 15,
-};
-
-/**
- * struct tc956x_data - Toshiba-specific platform data
- * @dev:		Device pointer
- * @plat:		Pointer to our stmmac platform data
- * @bridge_config:	Mapped bridge config data (BAR 0)
- * @sfr:		Mapped SFR region (BAR 4)
- * @emac0:		Which eMAC port this is (true: port 0; false: port 1)
- * @pinctrl:		Pin control structure
- * @pinctrl_default:	Pin control default value
- * @phy_supply:		PHY supply regulator
- * @phy_reset:		Descriptor for GPIO used for PHY reset
- * @phy_reset_delay:	Delay (milliseconds) after PHY reset
- * @wol_irq:		Wake-on-LAN IRQ number
- * @chip:		Pointer to the containing chip information
- */
-struct tc956x_data {
-	struct device *dev;
-	struct plat_stmmacenet_data *plat;
-	void __iomem *bridge_config;
-	void __iomem *sfr;
-	bool emac0;
-	struct pinctrl *pinctrl;
-	struct pinctrl_state *pinctrl_default;
-	struct regulator *phy_supply;
-	struct gpio_desc *phy_reset;
-	u32 phy_reset_delay;
-	int wol_irq;
-	struct tc956x_chip *chip;
-};
-
-/**
- * struct tc956x_chip - Common chip support information
- * @pci_bus_num:	PCI bus this chip is on
- * @pci_slot:		PCI slot on its bus this chip fills
- * @rev_id:		Revision ID
- * @chip_id:		Chip ID
- * @primary:		Data pointer for the primary eMAC interface
- * @secondary:		Device link between secondary (consumer) and primary
- * @gpio:		Pointer to GPIO information
- * @reset_clock_regmap:	Register map used for clocks and resets
- * @links:		Links in the list of all chips
- *
- * A single tc956x_chip structure represents the chip as a whole,
- * collecting resources that are common to both eMAC interfaces.
- * The first eMAC probed will create one of these when it creates
- * its tc956x_data structure; this will be the *primary* interface.
- * The second eMAC (which could be eMAC 0 or 1, assuming it's probed)
- * will be the *secondary* interface.  The primary interface provides
- * the mapped SFR memory, and for that reason, cannot be removed
- * (and unmapped) unless the secondary interface is not in use.
- */
-struct tc956x_chip {
-	u8 pci_bus_num;
-	u8 pci_slot;
-	u8 rev_id;
-	u8 chip_id;
-	struct tc956x_data *primary;
-	struct device_link *secondary;
-
-	struct regmap *reset_clock_regmap;
-
-	struct list_head links;
-};
-
-static LIST_HEAD(tc956x_chips);		/* List of TC956x chips */
-static DEFINE_MUTEX(tc956x_chips_lock); /* Don't rely on synchronous probing */
-
-static const struct regmap_config tc956x_gpio_regmap_config = {
-	.name		= "tc956x-gpio",
-	.reg_bits	= 32,
-	.reg_stride	= 4,
-	.reg_base	= 0x1200,	/* Register GPIOI0 */
-	.val_bits	= 32,
-	.max_register	= 0x1214,	/* Register GPIOO1 */
-};
-
-static const struct regmap_config tc956x_reset_clock_regmap_config = {
-	.name		= "tc956x-clk-reset",
-	.reg_bits	= 32,
-	.reg_stride	= 4,
-	.reg_base	= 0x1000,	/* Register NCTLSTS */
-	.val_bits	= 32,
-	.max_register	= 0x1010,	/* Register NRSTCTRL1 */
-};
-
 /* XXX TC9564? Also, this is a physical function; virtual is 0x0221 */
 #define PCI_DEVICE_ID_TOSHIBA_TC956X	0x0220
 
@@ -276,6 +148,161 @@ static const struct regmap_config tc956x_reset_clock_regmap_config = {
 #define RSTCTRL1_OFFSET			0x0010
 #define CLKCTRL0_OFFSET			0x0004
 #define CLKCTRL1_OFFSET			0x000c
+
+enum tc9564_chip_reset_id {
+	CHIP_RESET_MCU		= 0,
+	CHIP_RESET_MCU1		= 1,
+	CHIP_RESET_MSIGEN	= 18,
+	CHIP_RESET_INTC		= 4,
+	CHIP_RESET_UART0	= 16,
+};
+
+enum tc9564_mac_reset_id {
+	MAC_RESET_MAC		= 7,
+	MAC_RESET_PMA		= 30,
+	MAC_RESET_XPCS		= 31,
+};
+
+/* NOTE:  the PCIE and I2C clocks (bits 9 and 12) should *not* be managed by
+ * this driver.  They are needed by the PCIe driver and its power control
+ * driver, and should only be enabled or disabled (if required) there.
+ */
+enum tc9564_chip_clock_id {
+	CHIP_CLOCK_MCU		= 0,
+	CHIP_CLOCK_SRAM		= 13,
+	CHIP_CLOCK_MSIGEN	= 18,
+	CHIP_CLOCK_INTC		= 4,
+	CHIP_CLOCK_UART0	= 16,
+};
+
+/* XXX MAC_TX, MAC_RX, and MAC_ALL are always enabled/disabled together */
+/* XXX MAC_125M and MAC_312_5M are always enabled/disabled together */
+/* XXX MAC_PLL, MAC_SGMII, and REFCLK are always enabled/disabled together */
+enum tc9564_mac_clock_id {
+	MAC_CLOCK_TX		= 7,
+	MAC_CLOCK_RX		= 14,
+	MAC_CLOCK_ALL		= 31,
+	MAC_CLOCK_125M		= 29,
+	MAC_CLOCK_312_5M	= 30,
+	/* eMAC 0 only */		/* XXX Are these really MAC clocks? */
+	MAC_CLOCK_PLL		= 24,
+	MAC_CLOCK_SGMII		= 25,
+	MAC_CLOCK_REFCLK	= 26,	/* XXX Probably CHIP_CLOCK_REFCLK */
+	/* eMAC 1 only */
+	MAC_CLOCK_RMII		= 15,
+};
+
+#define XPCS_XGMAC_OFFSET  			0x3a00
+#define PMA_XGMAC_OFFSET   			0x4000
+
+/* PMA registers */
+#define XGMAC_PMA_GL_PM_CFG0			0x01b8
+#define XGMAC_PMA_CFG_0_1_R0			0x1888
+#define XGMAC_PMA_CFG_0_1_R1			0x1890
+#define XGMAC_PMA_CFG_0_1_R2			0x1898
+#define XGMAC_PMA_CFG_0_1_R3			0x18a0
+#define XGMAC_PMA_CFG_0_1_R4			0x18a8
+
+#define XGMAC_PMA_HWT_REFCK_EN_R0		0x1080
+#define XGMAC_PMA_HWT_REFCK_TERM_EN_R0		0x1090
+#define XGMAC_PMA_HWT_REFCK_R_EN_R1		0x1094
+#define XGMAC_PMA_HWT_REFCK_TERM_EN_R1		0x10a4
+#define XGMAC_PMA_HWT_REFCK_R_EN_R2		0x10a8
+#define XGMAC_PMA_HWT_REFCK_TERM_EN_R2		0x10b8
+#define XGMAC_PMA_HWT_REFCK_R_EN_R3		0x10bc
+#define XGMAC_PMA_HWT_REFCK_TERM_EN_R3		0x10cc
+#define XGMAC_PMA_HWT_REFCK_R_EN_R4		0x10d0
+#define XGMAC_PMA_HWT_REFCK_TERM_EN_R4		0x10e0
+
+/* PMA register values */
+#define XGMAC_PMA_OFFSET0			0x00000000
+#define XGMAC_PMA_OFFSET1			0x0001ef04
+
+/**
+ * struct tc956x_data - Toshiba-specific platform data
+ * @dev:		Device pointer
+ * @plat:		Pointer to our stmmac platform data
+ * @bridge_config:	Mapped bridge config data (BAR 0)
+ * @sfr:		Mapped SFR region (BAR 4)
+ * @emac0:		Which eMAC port this is (true: port 0; false: port 1)
+ * @pinctrl:		Pin control structure
+ * @pinctrl_default:	Pin control default value
+ * @phy_supply:		PHY supply regulator
+ * @phy_reset:		Descriptor for GPIO used for PHY reset
+ * @phy_reset_delay:	Delay (milliseconds) after PHY reset
+ * @wol_irq:		Wake-on-LAN IRQ number
+ * @chip:		Pointer to the containing chip information
+ */
+struct tc956x_data {
+	struct device *dev;
+	struct plat_stmmacenet_data *plat;
+	void __iomem *bridge_config;
+	void __iomem *sfr;
+	bool emac0;
+	struct pinctrl *pinctrl;
+	struct pinctrl_state *pinctrl_default;
+	struct regulator *phy_supply;
+	struct gpio_desc *phy_reset;
+	u32 phy_reset_delay;
+	int wol_irq;
+	struct tc956x_chip *chip;
+};
+
+/**
+ * struct tc956x_chip - Common chip support information
+ * @pci_bus_num:	PCI bus this chip is on
+ * @pci_slot:		PCI slot on its bus this chip fills
+ * @rev_id:		Revision ID
+ * @chip_id:		Chip ID
+ * @primary:		Data pointer for the primary eMAC interface
+ * @secondary:		Device link between secondary (consumer) and primary
+ * @gpio:		Pointer to GPIO information
+ * @reset_clock_regmap:	Register map used for clocks and resets
+ * @links:		Links in the list of all chips
+ *
+ * A single tc956x_chip structure represents the chip as a whole,
+ * collecting resources that are common to both eMAC interfaces.
+ * The first eMAC probed will create one of these when it creates
+ * its tc956x_data structure; this will be the *primary* interface.
+ * The second eMAC (which could be eMAC 0 or 1, assuming it's probed)
+ * will be the *secondary* interface.  The primary interface provides
+ * the mapped SFR memory, and for that reason, cannot be removed
+ * (and unmapped) unless the secondary interface is not in use.
+ */
+struct tc956x_chip {
+	u8 pci_bus_num;
+	u8 pci_slot;
+	u8 rev_id;
+	u8 chip_id;
+	struct tc956x_data *primary;
+	struct device_link *secondary;
+
+	struct regmap *reset_clock_regmap;
+
+	struct list_head links;
+};
+
+static LIST_HEAD(tc956x_chips);		/* List of TC956x chips */
+static DEFINE_MUTEX(tc956x_chips_lock); /* Don't rely on synchronous probing */
+
+static const struct regmap_config tc956x_gpio_regmap_config = {
+	.name		= "tc956x-gpio",
+	.reg_bits	= 32,
+	.reg_stride	= 4,
+	.reg_base	= 0x1200,	/* Register GPIOI0 */
+	.val_bits	= 32,
+	.max_register	= 0x1214,	/* Register GPIOO1 */
+};
+
+static const struct regmap_config tc956x_reset_clock_regmap_config = {
+	.name		= "tc956x-clk-reset",
+	.reg_bits	= 32,
+	.reg_stride	= 4,
+	.reg_base	= 0x1000,	/* Register NCTLSTS */
+	.val_bits	= 32,
+	.max_register	= 0x1010,	/* Register NRSTCTRL1 */
+};
+
 
 static void __reset_clock_set(struct tc956x_chip *chip, u32 offset,
 			      u32 bit, bool set)
@@ -591,32 +618,6 @@ err_power_on:
 err_pinctrl_select_state:
 	return -EINVAL;
 }
-
-#define XPCS_XGMAC_OFFSET  			0x3a00
-#define PMA_XGMAC_OFFSET   			0x4000
-
-/* PMA registers */
-#define XGMAC_PMA_GL_PM_CFG0			0x01b8
-#define XGMAC_PMA_CFG_0_1_R0			0x1888
-#define XGMAC_PMA_CFG_0_1_R1			0x1890
-#define XGMAC_PMA_CFG_0_1_R2			0x1898
-#define XGMAC_PMA_CFG_0_1_R3			0x18a0
-#define XGMAC_PMA_CFG_0_1_R4			0x18a8
-
-#define XGMAC_PMA_HWT_REFCK_EN_R0		0x1080
-#define XGMAC_PMA_HWT_REFCK_TERM_EN_R0		0x1090
-#define XGMAC_PMA_HWT_REFCK_R_EN_R1		0x1094
-#define XGMAC_PMA_HWT_REFCK_TERM_EN_R1		0x10a4
-#define XGMAC_PMA_HWT_REFCK_R_EN_R2		0x10a8
-#define XGMAC_PMA_HWT_REFCK_TERM_EN_R2		0x10b8
-#define XGMAC_PMA_HWT_REFCK_R_EN_R3		0x10bc
-#define XGMAC_PMA_HWT_REFCK_TERM_EN_R3		0x10cc
-#define XGMAC_PMA_HWT_REFCK_R_EN_R4		0x10d0
-#define XGMAC_PMA_HWT_REFCK_TERM_EN_R4		0x10e0
-
-/* PMA register values */
-#define XGMAC_PMA_OFFSET0			0x00000000
-#define XGMAC_PMA_OFFSET1			0x0001ef04
 
 static void tc956x_pma_init(struct tc956x_data *td)
 {
