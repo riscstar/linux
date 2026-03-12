@@ -798,9 +798,38 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 				struct plat_stmmacenet_data *plat)
 {
 	struct tc956x_data *td = plat->bsp_priv;
+	int speed;
 	u32 i;
 
-	/* Set common default data first */
+	switch (plat->phy_interface) {
+	case PHY_INTERFACE_MODE_10GBASER:
+		speed = SPEED_10000;
+		break;
+	case PHY_INTERFACE_MODE_SGMII:
+	case PHY_INTERFACE_MODE_2500BASEX:
+		speed = SPEED_2500;
+		break;
+	default:
+		dev_err(&pdev->dev, "Unexpected PHY interface mode\n");
+		return -ENOTSUPP;
+	}
+
+	/* AXI Configuration */
+	plat->axi = devm_kzalloc(&pdev->dev, sizeof(*plat->axi), GFP_KERNEL);
+	if (!plat->axi)
+		return -ENOMEM;
+
+	plat->axi->axi_lpi_en = 1;
+	plat->axi->axi_wr_osr_lmt = 31;
+	plat->axi->axi_rd_osr_lmt = 31;
+	plat->axi->axi_blen_regval =
+		DMA_AXI_BLEN256 | DMA_AXI_BLEN128 | DMA_AXI_BLEN64 |
+		DMA_AXI_BLEN32 | DMA_AXI_BLEN16 | DMA_AXI_BLEN8 | DMA_AXI_BLEN4;
+
+	plat->mac_port_sel_speed = speed;
+	plat->max_speed = speed;
+
+	/* Set common default data */
 	plat->core_type = DWMAC_CORE_XGMAC;
 	plat->force_sf_dma_mode = 1;
 	plat->flags |= STMMAC_FLAG_MULTI_MSI_EN | STMMAC_FLAG_TSO_EN;
@@ -813,21 +842,6 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 		plat->clk_csr = 0x4;	/* clk_csr_i / 12 XXX set CRS bit? */
 	else				/* emac1: SGMII */
 		plat->clk_csr = 0x0;	/* clk_csr_i / 62 */
-
-	switch (plat->phy_interface) {
-	case PHY_INTERFACE_MODE_10GBASER:
-		plat->mac_port_sel_speed = 10000;
-		plat->max_speed = 10000;
-		break;
-	case PHY_INTERFACE_MODE_SGMII:
-	case PHY_INTERFACE_MODE_2500BASEX:
-		plat->mac_port_sel_speed = 2500;
-		plat->max_speed = 2500;
-		break;
-	default:
-		dev_err(&pdev->dev, "Unexpected PHY interface mode\n");
-		return -ENOTSUPP;
-	}
 
 	plat->get_interfaces = tc956x_get_interfaces;
 
@@ -869,18 +883,6 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 	 */
 	plat->tx_fifo_size = min(plat->tx_queues_to_use * 8, 46) * SZ_1K;
 	plat->rx_fifo_size = min(plat->rx_queues_to_use * 8, 46) * SZ_1K;
-
-	/* AXI Configuration */
-	plat->axi = devm_kzalloc(&pdev->dev, sizeof(*plat->axi), GFP_KERNEL);
-	if (!plat->axi)
-		return -ENOMEM;
-
-	plat->axi->axi_lpi_en = 1;
-	plat->axi->axi_wr_osr_lmt = 31;
-	plat->axi->axi_rd_osr_lmt = 31;
-	plat->axi->axi_blen_regval =
-		DMA_AXI_BLEN256 | DMA_AXI_BLEN128 | DMA_AXI_BLEN64 |
-		DMA_AXI_BLEN32 | DMA_AXI_BLEN16 | DMA_AXI_BLEN8 | DMA_AXI_BLEN4;
 
 	return 0;
 }
