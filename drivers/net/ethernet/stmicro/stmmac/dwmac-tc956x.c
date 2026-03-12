@@ -188,27 +188,28 @@ enum tc956x_msigen_hwirq {
 #define PMA_XGMAC_OFFSET   			0x4000
 
 /* All PMA registers are relative to PMA_XGMAC_OFFSET */
-#define XGMAC_PMA_GL_PM_CFG0			0x01b8
-#define XGMAC_PMA_CFG_0_1_R0			0x1888
-#define XGMAC_PMA_CFG_0_1_R1			0x1890
-#define XGMAC_PMA_CFG_0_1_R2			0x1898
-#define XGMAC_PMA_CFG_0_1_R3			0x18a0
-#define XGMAC_PMA_CFG_0_1_R4			0x18a8
+#define PMA_CML_GL_PM_CFG0			0x01b8
+#define PMA_COMM_CFG_0_1_R0			0x1888
+#define PMA_COMM_CFG_0_1_R1			0x1890
+#define PMA_COMM_CFG_0_1_R2			0x1898
+#define PMA_COMM_CFG_0_1_R3			0x18a0
+#define PMA_COMM_CFG_0_1_R4			0x18a8
 
-#define XGMAC_PMA_HWT_REFCK_EN_R0		0x1080
-#define XGMAC_PMA_HWT_REFCK_TERM_EN_R0		0x1090
-#define XGMAC_PMA_HWT_REFCK_R_EN_R1		0x1094
-#define XGMAC_PMA_HWT_REFCK_TERM_EN_R1		0x10a4
-#define XGMAC_PMA_HWT_REFCK_R_EN_R2		0x10a8
-#define XGMAC_PMA_HWT_REFCK_TERM_EN_R2		0x10b8
-#define XGMAC_PMA_HWT_REFCK_R_EN_R3		0x10bc
-#define XGMAC_PMA_HWT_REFCK_TERM_EN_R3		0x10cc
-#define XGMAC_PMA_HWT_REFCK_R_EN_R4		0x10d0
-#define XGMAC_PMA_HWT_REFCK_TERM_EN_R4		0x10e0
+/* This is a mask for a field called write_mask */
+#define COMM_CFG_WRITE_MASK_MASK		GENMASK(16, 9)
+#define COMM_CFG_ENABLE				BIT(8)
+#define COMM_CFG_WRITE_DATA_MASK		GENMASK(7, 0)
 
-/* PMA register values */
-#define XGMAC_PMA_OFFSET0			0x00000000
-#define XGMAC_PMA_OFFSET1			0x0001ef04
+#define PMA_HWT_REFCK_R_EN_R0			0x1080
+#define PMA_HWT_REFCK_TERM_EN_R0		0x1090
+#define PMA_HWT_REFCK_R_EN_R1			0x1094
+#define PMA_HWT_REFCK_TERM_EN_R1		0x10a4
+#define PMA_HWT_REFCK_R_EN_R2			0x10a8
+#define PMA_HWT_REFCK_TERM_EN_R2		0x10b8
+#define PMA_HWT_REFCK_R_EN_R3			0x10bc
+#define PMA_HWT_REFCK_TERM_EN_R3		0x10cc
+#define PMA_HWT_REFCK_R_EN_R4			0x10d0
+#define PMA_HWT_REFCK_TERM_EN_R4		0x10e0
 
 /**
  * struct tc956x_data - Toshiba-specific platform data
@@ -611,40 +612,55 @@ err_pinctrl_select_state:
 	return -EINVAL;
 }
 
+/**
+ * tc956x_pma_init() - Initialize PMA
+ * @td:    bsp_priv pointer
+ *
+ * Initialize (or re-initialize) the PMA, configure the clocks and wait for the
+ * MAC to be ready.
+ */
 static void tc956x_pma_init(struct tc956x_data *td)
 {
-	void __iomem *base = XGMAC_BASE(td) + PMA_XGMAC_OFFSET;
+	void __iomem *pma_base = XGMAC_BASE(td) + PMA_XGMAC_OFFSET;
+	void __iomem *emac_ctl_reg =
+		td->sfr + (td->emac0 ? NEMAC0CTL_OFFSET : NEMAC1CTL_OFFSET);
 	u32 val;
 
+	/*
+	 * When we re-initialize the PMA then the reset is will already have
+	 * been deasserted. We must make sure the PMA reset is asserted before
+	 * we change the clock settings.
+	 */
+	tc956x_mac_reset_assert(td, MAC_RESET_PMA);
+
 	/* Power on CML buffer */
-	val = readl(base + XGMAC_PMA_GL_PM_CFG0);
-	val = XGMAC_PMA_OFFSET0;
-	writel(val, base + XGMAC_PMA_GL_PM_CFG0);
+	writel(0, pma_base + PMA_CML_GL_PM_CFG0);
 
 	/* Switch clock from C0_REFCK to CLK_REF_I */
-	writel(XGMAC_PMA_OFFSET1, base + XGMAC_PMA_CFG_0_1_R0);
-	writel(XGMAC_PMA_OFFSET1, base + XGMAC_PMA_CFG_0_1_R1);
-	writel(XGMAC_PMA_OFFSET1, base + XGMAC_PMA_CFG_0_1_R2);
-	writel(XGMAC_PMA_OFFSET1, base + XGMAC_PMA_CFG_0_1_R3);
-	writel(XGMAC_PMA_OFFSET1, base + XGMAC_PMA_CFG_0_1_R4);
+	val = u32_encode_bits(0xf7, COMM_CFG_WRITE_MASK_MASK) |
+	      COMM_CFG_ENABLE |
+	      u32_encode_bits(4, COMM_CFG_WRITE_DATA_MASK);
+	writel(val, pma_base + PMA_COMM_CFG_0_1_R0);
+	writel(val, pma_base + PMA_COMM_CFG_0_1_R1);
+	writel(val, pma_base + PMA_COMM_CFG_0_1_R2);
+	writel(val, pma_base + PMA_COMM_CFG_0_1_R3);
+	writel(val, pma_base + PMA_COMM_CFG_0_1_R4);
 
-	/* Disable C0_REFCK */
-	writel(XGMAC_PMA_OFFSET0, base + XGMAC_PMA_HWT_REFCK_EN_R0);
-	writel(XGMAC_PMA_OFFSET0, base + XGMAC_PMA_HWT_REFCK_TERM_EN_R0);
-	writel(XGMAC_PMA_OFFSET0, base + XGMAC_PMA_HWT_REFCK_R_EN_R1);
-	writel(XGMAC_PMA_OFFSET0, base + XGMAC_PMA_HWT_REFCK_TERM_EN_R1);
-	writel(XGMAC_PMA_OFFSET0, base + XGMAC_PMA_HWT_REFCK_R_EN_R2);
-	writel(XGMAC_PMA_OFFSET0, base + XGMAC_PMA_HWT_REFCK_TERM_EN_R2);
-	writel(XGMAC_PMA_OFFSET0, base + XGMAC_PMA_HWT_REFCK_R_EN_R3);
-	writel(XGMAC_PMA_OFFSET0, base + XGMAC_PMA_HWT_REFCK_TERM_EN_R3);
-	writel(XGMAC_PMA_OFFSET0, base + XGMAC_PMA_HWT_REFCK_R_EN_R4);
-	writel(XGMAC_PMA_OFFSET0, base + XGMAC_PMA_HWT_REFCK_TERM_EN_R4);
+	/* Disable C0_REFCK and 100 ohm termination */
+	writel(0, pma_base + PMA_HWT_REFCK_R_EN_R0);
+	writel(0, pma_base + PMA_HWT_REFCK_TERM_EN_R0);
+	writel(0, pma_base + PMA_HWT_REFCK_R_EN_R1);
+	writel(0, pma_base + PMA_HWT_REFCK_TERM_EN_R1);
+	writel(0, pma_base + PMA_HWT_REFCK_R_EN_R2);
+	writel(0, pma_base + PMA_HWT_REFCK_TERM_EN_R2);
+	writel(0, pma_base + PMA_HWT_REFCK_R_EN_R3);
+	writel(0, pma_base + PMA_HWT_REFCK_TERM_EN_R3);
+	writel(0, pma_base + PMA_HWT_REFCK_R_EN_R4);
+	writel(0, pma_base + PMA_HWT_REFCK_TERM_EN_R4);
 
 	tc956x_mac_reset_deassert(td, MAC_RESET_PMA);
 
-	base = td->sfr + (td->emac0 ? NEMAC0CTL_OFFSET : NEMAC1CTL_OFFSET),
-
-	WARN_ON(readl_poll_timeout(base, val, val & EMAC_INIT_DONE, 50, 1000000));
+	WARN_ON(readl_poll_timeout(emac_ctl_reg, val, val & EMAC_INIT_DONE, 50, 1000000));
 }
 
 struct {
@@ -1085,8 +1101,6 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 	     "%s@%dMb/s is not supported",
 	     phy_modes(td->plat->phy_interface), speed);
 
-	tc956x_mac_reset_assert(td, MAC_RESET_PMA);
-
 	tc956x_pma_init(td);
 }
 
@@ -1497,7 +1511,6 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 		goto err;
 
 	tc956x_pma_init(td);
-
 	tc956x_mac_reset_deassert(td, MAC_RESET_XPCS);
 
 	ret = stmmac_dvr_probe(dev, td->plat, &res);
