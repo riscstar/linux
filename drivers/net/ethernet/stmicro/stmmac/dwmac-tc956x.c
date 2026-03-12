@@ -195,13 +195,13 @@ static const struct regmap_config tc956x_reset_clock_regmap_config = {
 #define AXI4_SLV_BASE(tid)						\
 		(AXI4_SLV_TABLE_OFFSET + (tid) * AXI4_TABLE_STRIDE)
 
-#define SRC_ADDR_LO_OFFSET		0x00
+#define SRC_ADDR_LO_OFFSET		0x0000
 #define ATR_IMPL			BIT(0)		/* 1 = enabled */
 #define ATR_SIZE_MASK			GENMASK(6, 1)	/* size 2^(ATR + 1) */
-#define SRC_ADDR_HI_OFFSET		0x04
-#define TRSL_ADDR_LO_OFFSET		0x08
-#define TRSL_ADDR_HI_OFFSET		0x0c
-#define TRSL_PARAM_OFFSET		0x10
+#define SRC_ADDR_HI_OFFSET		0x0004
+#define TRSL_ADDR_LO_OFFSET		0x0008
+#define TRSL_ADDR_HI_OFFSET		0x000c
+#define TRSL_PARAM_OFFSET		0x0010
 #define TRSL_ID_MASK			GENMASK(3, 0)
 #define TRSL_ID_PCIE_TX_RX		0
 #define TRSF_PARAM_MASK			GENMASK(27, 16)
@@ -272,10 +272,10 @@ static const struct regmap_config tc956x_reset_clock_regmap_config = {
 #define EMAC_INIT_DONE			BIT(21)
 
 /* The next four are relative to the base of the clock/reset regmap */
-#define RSTCTRL0_OFFSET			0x08
-#define RSTCTRL1_OFFSET			0x10
-#define CLKCTRL0_OFFSET			0x04
-#define CLKCTRL1_OFFSET			0x0c
+#define RSTCTRL0_OFFSET			0x0008
+#define RSTCTRL1_OFFSET			0x0010
+#define CLKCTRL0_OFFSET			0x0004
+#define CLKCTRL1_OFFSET			0x000c
 
 static void __reset_clock_set(struct tc956x_chip *chip, u32 offset,
 			      u32 bit, bool set)
@@ -592,29 +592,29 @@ err_pinctrl_select_state:
 	return -EINVAL;
 }
 
-#define XPCS_XGMAC_OFFSET  0x3a00
-#define PMA_XGMAC_OFFSET   0x4000
+#define XPCS_XGMAC_OFFSET  			0x3a00
+#define PMA_XGMAC_OFFSET   			0x4000
 
-/*PMA registers*/
-#define XGMAC_PMA_GL_PM_CFG0			0x000001b8
-#define XGMAC_PMA_CFG_0_1_R0			0x00001888
-#define XGMAC_PMA_CFG_0_1_R1			0x00001890
-#define XGMAC_PMA_CFG_0_1_R2			0x00001898
-#define XGMAC_PMA_CFG_0_1_R3			0x000018a0
-#define XGMAC_PMA_CFG_0_1_R4			0x000018a8
+/* PMA registers */
+#define XGMAC_PMA_GL_PM_CFG0			0x01b8
+#define XGMAC_PMA_CFG_0_1_R0			0x1888
+#define XGMAC_PMA_CFG_0_1_R1			0x1890
+#define XGMAC_PMA_CFG_0_1_R2			0x1898
+#define XGMAC_PMA_CFG_0_1_R3			0x18a0
+#define XGMAC_PMA_CFG_0_1_R4			0x18a8
 
-#define XGMAC_PMA_HWT_REFCK_EN_R0		0x00001080
-#define XGMAC_PMA_HWT_REFCK_TERM_EN_R0		0x00001090
-#define XGMAC_PMA_HWT_REFCK_R_EN_R1		0x00001094
-#define XGMAC_PMA_HWT_REFCK_TERM_EN_R1		0x000010a4
-#define XGMAC_PMA_HWT_REFCK_R_EN_R2		0x000010a8
-#define XGMAC_PMA_HWT_REFCK_TERM_EN_R2		0x000010b8
-#define XGMAC_PMA_HWT_REFCK_R_EN_R3		0x000010bc
-#define XGMAC_PMA_HWT_REFCK_TERM_EN_R3		0x000010cc
-#define XGMAC_PMA_HWT_REFCK_R_EN_R4		0x000010d0
-#define XGMAC_PMA_HWT_REFCK_TERM_EN_R4		0x000010e0
+#define XGMAC_PMA_HWT_REFCK_EN_R0		0x1080
+#define XGMAC_PMA_HWT_REFCK_TERM_EN_R0		0x1090
+#define XGMAC_PMA_HWT_REFCK_R_EN_R1		0x1094
+#define XGMAC_PMA_HWT_REFCK_TERM_EN_R1		0x10a4
+#define XGMAC_PMA_HWT_REFCK_R_EN_R2		0x10a8
+#define XGMAC_PMA_HWT_REFCK_TERM_EN_R2		0x10b8
+#define XGMAC_PMA_HWT_REFCK_R_EN_R3		0x10bc
+#define XGMAC_PMA_HWT_REFCK_TERM_EN_R3		0x10cc
+#define XGMAC_PMA_HWT_REFCK_R_EN_R4		0x10d0
+#define XGMAC_PMA_HWT_REFCK_TERM_EN_R4		0x10e0
 
-/*PMA register values*/
+/* PMA register values */
 #define XGMAC_PMA_OFFSET0			0x00000000
 #define XGMAC_PMA_OFFSET1			0x0001ef04
 
