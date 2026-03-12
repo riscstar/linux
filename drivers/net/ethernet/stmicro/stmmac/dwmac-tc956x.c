@@ -620,38 +620,38 @@ err_pinctrl_select_state:
 
 static void tc956x_pma_init(struct tc956x_data *td)
 {
-	void __iomem *pmaaddr = XGMAC_BASE(td) + PMA_XGMAC_OFFSET;
+	void __iomem *base = XGMAC_BASE(td) + PMA_XGMAC_OFFSET;
 	u32 val;
 
-	/*Power on CML buffer*/
-	val = readl(pmaaddr + XGMAC_PMA_GL_PM_CFG0);
+	/* Power on CML buffer */
+	val = readl(base + XGMAC_PMA_GL_PM_CFG0);
 	val = XGMAC_PMA_OFFSET0;
-	writel(val, pmaaddr + XGMAC_PMA_GL_PM_CFG0);
+	writel(val, base + XGMAC_PMA_GL_PM_CFG0);
 
-	/*Switch clock from C0_REFCK to CLK_REF_I*/
-	writel(XGMAC_PMA_OFFSET1, pmaaddr + XGMAC_PMA_CFG_0_1_R0);
-	writel(XGMAC_PMA_OFFSET1, pmaaddr + XGMAC_PMA_CFG_0_1_R1);
-	writel(XGMAC_PMA_OFFSET1, pmaaddr + XGMAC_PMA_CFG_0_1_R2);
-	writel(XGMAC_PMA_OFFSET1, pmaaddr + XGMAC_PMA_CFG_0_1_R3);
-	writel(XGMAC_PMA_OFFSET1, pmaaddr + XGMAC_PMA_CFG_0_1_R4);
+	/* Switch clock from C0_REFCK to CLK_REF_I */
+	writel(XGMAC_PMA_OFFSET1, base + XGMAC_PMA_CFG_0_1_R0);
+	writel(XGMAC_PMA_OFFSET1, base + XGMAC_PMA_CFG_0_1_R1);
+	writel(XGMAC_PMA_OFFSET1, base + XGMAC_PMA_CFG_0_1_R2);
+	writel(XGMAC_PMA_OFFSET1, base + XGMAC_PMA_CFG_0_1_R3);
+	writel(XGMAC_PMA_OFFSET1, base + XGMAC_PMA_CFG_0_1_R4);
 
-	/*Disable C0_REFCK*/
-	writel(XGMAC_PMA_OFFSET0, pmaaddr + XGMAC_PMA_HWT_REFCK_EN_R0);
-	writel(XGMAC_PMA_OFFSET0, pmaaddr + XGMAC_PMA_HWT_REFCK_TERM_EN_R0);
-	writel(XGMAC_PMA_OFFSET0, pmaaddr + XGMAC_PMA_HWT_REFCK_R_EN_R1);
-	writel(XGMAC_PMA_OFFSET0, pmaaddr + XGMAC_PMA_HWT_REFCK_TERM_EN_R1);
-	writel(XGMAC_PMA_OFFSET0, pmaaddr + XGMAC_PMA_HWT_REFCK_R_EN_R2);
-	writel(XGMAC_PMA_OFFSET0, pmaaddr + XGMAC_PMA_HWT_REFCK_TERM_EN_R2);
-	writel(XGMAC_PMA_OFFSET0, pmaaddr + XGMAC_PMA_HWT_REFCK_R_EN_R3);
-	writel(XGMAC_PMA_OFFSET0, pmaaddr + XGMAC_PMA_HWT_REFCK_TERM_EN_R3);
-	writel(XGMAC_PMA_OFFSET0, pmaaddr + XGMAC_PMA_HWT_REFCK_R_EN_R4);
-	writel(XGMAC_PMA_OFFSET0, pmaaddr + XGMAC_PMA_HWT_REFCK_TERM_EN_R4);
+	/* Disable C0_REFCK */
+	writel(XGMAC_PMA_OFFSET0, base + XGMAC_PMA_HWT_REFCK_EN_R0);
+	writel(XGMAC_PMA_OFFSET0, base + XGMAC_PMA_HWT_REFCK_TERM_EN_R0);
+	writel(XGMAC_PMA_OFFSET0, base + XGMAC_PMA_HWT_REFCK_R_EN_R1);
+	writel(XGMAC_PMA_OFFSET0, base + XGMAC_PMA_HWT_REFCK_TERM_EN_R1);
+	writel(XGMAC_PMA_OFFSET0, base + XGMAC_PMA_HWT_REFCK_R_EN_R2);
+	writel(XGMAC_PMA_OFFSET0, base + XGMAC_PMA_HWT_REFCK_TERM_EN_R2);
+	writel(XGMAC_PMA_OFFSET0, base + XGMAC_PMA_HWT_REFCK_R_EN_R3);
+	writel(XGMAC_PMA_OFFSET0, base + XGMAC_PMA_HWT_REFCK_TERM_EN_R3);
+	writel(XGMAC_PMA_OFFSET0, base + XGMAC_PMA_HWT_REFCK_R_EN_R4);
+	writel(XGMAC_PMA_OFFSET0, base + XGMAC_PMA_HWT_REFCK_TERM_EN_R4);
 
 	tc956x_mac_reset_deassert(td, MAC_RESET_PMA);
 
-	WARN_ON(readl_poll_timeout(td->sfr + (td->emac0 ? NEMAC0CTL_OFFSET :
-							  NEMAC1CTL_OFFSET),
-				   val, val & EMAC_INIT_DONE, 50, 1000000));
+	base = td->sfr + (td->emac0 ? NEMAC0CTL_OFFSET : NEMAC1CTL_OFFSET),
+
+	WARN_ON(readl_poll_timeout(base, val, val & EMAC_INIT_DONE, 50, 1000000));
 }
 
 struct {
@@ -1173,7 +1173,7 @@ static int tc956x_devm_gpio_device_add(struct tc956x_data *td)
 {
 	struct auxiliary_device *adev;
 	struct device *dev = td->dev;
-	void __iomem *regs = td->sfr;
+	void __iomem *base = td->sfr;
 	struct regmap *regmap;
 	int ret;
 
@@ -1184,7 +1184,7 @@ static int tc956x_devm_gpio_device_add(struct tc956x_data *td)
 	if (!adev)
 		return -ENOMEM;
 
-	regmap = devm_regmap_init_mmio(dev, regs, &tc956x_gpio_regmap_config);
+	regmap = devm_regmap_init_mmio(dev, base, &tc956x_gpio_regmap_config);
 	if (IS_ERR(regmap))
 		return PTR_ERR(regmap);
 
@@ -1250,7 +1250,7 @@ static struct tc956x_data *tc956x_devm_data_create(struct pci_dev *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct tc956x_data *td;
-	void __iomem *virt;
+	void __iomem *base;
 	int ret;
 
 	if (!dev_of_node(dev))
@@ -1269,19 +1269,19 @@ static struct tc956x_data *tc956x_devm_data_create(struct pci_dev *pdev)
 	}
 
 	/* Request the PCI IO Memory for the device */
-	virt = pcim_iomap_region(pdev, PCI_BAR_BRIDGE_CONFIG, DRIVER_NAME);
-	if (IS_ERR(virt)) {
+	base = pcim_iomap_region(pdev, PCI_BAR_BRIDGE_CONFIG, DRIVER_NAME);
+	if (IS_ERR(base)) {
 		dev_err(dev, "failed to map bridge config region\n");
-		return ERR_CAST(virt);
+		return ERR_CAST(base);
 	}
-	td->bridge_config = virt;
+	td->bridge_config = base;
 
-	virt = pcim_iomap_region(pdev, PCI_BAR_SFR, DRIVER_NAME);
-	if (IS_ERR(virt)) {
+	base = pcim_iomap_region(pdev, PCI_BAR_SFR, DRIVER_NAME);
+	if (IS_ERR(base)) {
 		dev_err(dev, "failed to map sfr region\n");
-		return ERR_CAST(virt);
+		return ERR_CAST(base);
 	}
-	td->sfr = virt;
+	td->sfr = base;
 
 #if IS_ENABLED(CONFIG_TRACE_MMIO_ACCESS)
 	/*
