@@ -680,8 +680,8 @@ struct {
 static int tc956x_chipcfg_mac_configure(struct tc956x_data *td, int speed)
 {
 	u32 sp_sel = EMAC_SP_SEL_MASK + 1;
+	void __iomem *emac_ctl_reg;
 	bool mac_125_clock;
-	u32 nemacxctl_offset;
 	u32 val;
 	int i;
 
@@ -697,19 +697,19 @@ static int tc956x_chipcfg_mac_configure(struct tc956x_data *td, int speed)
 	if (sp_sel & ~EMAC_SP_SEL_MASK)
 		return -ENOTSUPP;
 
-	nemacxctl_offset = td->emac0 ? NEMAC0CTL_OFFSET : NEMAC1CTL_OFFSET;
-
 	if (mac_125_clock)
 		tc956x_mac_clock_enable(td, MAC_CLOCK_125M);
 	else
 		tc956x_mac_clock_disable(td, MAC_CLOCK_125M);
 
-	val = readl(td->sfr + nemacxctl_offset);
+	emac_ctl_reg = td->sfr + (td->emac0 ? NEMAC0CTL_OFFSET
+					    : NEMAC1CTL_OFFSET);
+	val = readl(emac_ctl_reg);
 	val |= EMAC_LPIHWCLKEN;
 	val &= ~EMAC_INV_SGM_SIG_DET;
 	val = u32_replace_bits(val, PCS_CLK_PHY, EMAC_PHY_INF_SEL_MASK);
 	val = u32_replace_bits(val, sp_sel, EMAC_SP_SEL_MASK);
-	writel(val, td->sfr + nemacxctl_offset);
+	writel(val, emac_ctl_reg);
 
 	return 0;
 }
