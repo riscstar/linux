@@ -563,8 +563,7 @@ static int tc956x_platform_of_parse(struct tc956x_data *td)
 	return 0;
 }
 
-static int tc956x_platform_probe(struct tc956x_data *td,
-				 struct stmmac_resources *res)
+static int tc956x_platform_probe(struct tc956x_data *td)
 {
 	struct device *dev = td->dev;
 	struct pinctrl *pinctrl;
@@ -586,8 +585,6 @@ static int tc956x_platform_probe(struct tc956x_data *td,
 		dev_err(dev, "Failed to power on PHY with error %d\n", ret);
 		goto err_power_on;
 	}
-
-	res->wol_irq = td->wol_irq;
 
 	return 0;
 
@@ -1483,6 +1480,7 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 		res.tx_irq[i] = irq_create_mapping(irq_domain, HWIRQ_TX0 + i);
 	for (i = 0; i < MTL_MAX_RX_QUEUES; i++)
 		res.rx_irq[i] = irq_create_mapping(irq_domain, HWIRQ_RX0 + i);
+	res.wol_irq = td->wol_irq;
 
 	/*
 	 * Hook up the PHY interrupt.
@@ -1493,7 +1491,7 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 	td->plat->mdio_bus_data->probed_phy_irq =
 		irq_create_mapping(irq_domain, HWIRQ_ETH);
 
-	ret = tc956x_platform_probe(td, &res);
+	ret = tc956x_platform_probe(td);
 	if (ret) {
 		dev_err(dev, "Platform (DT) code failed\n");
 		goto err;
