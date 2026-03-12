@@ -86,52 +86,10 @@
 
 #define CM3_TAMAP_COUNT			4
 
-#define XGMAC_BASE(td)	((td)->sfr + ((td)->emac0 ? 0x40000 : 0x48000))
-
 /* Configuration Register Address */
 #define NCID_OFFSET			0x0000
 #define NCID_REV_ID_MASK		GENMASK(7, 0)
 #define NCID_CHIP_ID_MASK		GENMASK(15, 8)
-
-/* MSIGEN Registers */
-#define TC956X_MSIGEN_BASE(pf_id)	(0x00f000 + (pf_id) * 0x0100)
-#define MSI_OUT_EN_OFFSET		0x0000
-#define MSI_MASK_SET_OFFSET		0x0008
-#define MSI_MASK_CLR_OFFSET		0x000c
-#define MSI_INT_STS_OFFSET		0x0010
-#define MSI_VECT_SET_OFFSET(x)		(0x0020 + (x) * 4)
-#define SW_MSI_CLR			0x0054
-
-enum tc956x_msigen_hwirq {
-	HWIRQ_LPI		= 0,
-	HWIRQ_PMT		= 1,
-	HWIRQ_EVENT		= 2,
-	HWIRQ_TX0 = 3,
-	HWIRQ_RX0 = 11,
-	HWIRQ_XPCS = 19,
-	HWIRQ_ETH = 20, /* PHY interrupt */
-	HWIRQ_PFMAILBOX = 21,
-	HWIRQ_MSIREQ_PLS = 24
-}
-#define TC956X_NR_HWIRQ 25
-
-/* EMAC control registers for ports 0 and 1 (both have same format) */
-#define NEMAC0CTL_OFFSET		0x1070
-#define NEMAC1CTL_OFFSET		0x1074
-
-/* Fields and values for the NEMACxCTL registers */
-#define EMAC_SP_SEL_MASK		GENMASK(3, 0)
-#define SP_SEL_SGMII_2500M		4
-#define SP_SEL_SGMII_1000M		5
-#define SP_SEL_SGMII_100M		6
-#define SP_SEL_SGMII_10M		7
-#define SP_SEL_USXGMII_10G_10G		8
-#define EMAC_PHY_INF_SEL_MASK		GENMASK(5, 4)
-#define PCS_CLK_PLL			0	/* Clock from internal PLL */
-#define PCS_CLK_PHY			1	/* Clock from PHY */
-#define EMAC_INV_SGM_SIG_DET		BIT(6)	/* 1 = polarity inverted */
-#define EMAC_LPIHWCLKEN			BIT(8)	/* 1 = low power mode */
-#define EMAC_INIT_DONE			BIT(21)
 
 #define NCTLSTS_OFFSET			0x1000
 /* The next four are relative to the base of the clock/reset regmap (NCTLSTS) */
@@ -183,10 +141,53 @@ enum tc9564_mac_clock_id {
 	MAC_CLOCK_RMII		= 15,
 };
 
+/* EMAC control registers for ports 0 and 1 (both have same format) */
+#define NEMAC0CTL_OFFSET		0x1070
+#define NEMAC1CTL_OFFSET		0x1074
+
+/* Fields and values for the NEMACxCTL registers */
+#define EMAC_SP_SEL_MASK		GENMASK(3, 0)
+#define SP_SEL_SGMII_2500M		4
+#define SP_SEL_SGMII_1000M		5
+#define SP_SEL_SGMII_100M		6
+#define SP_SEL_SGMII_10M		7
+#define SP_SEL_USXGMII_10G_10G		8
+#define EMAC_PHY_INF_SEL_MASK		GENMASK(5, 4)
+#define PCS_CLK_PLL			0	/* Clock from internal PLL */
+#define PCS_CLK_PHY			1	/* Clock from PHY */
+#define EMAC_INV_SGM_SIG_DET		BIT(6)	/* 1 = polarity inverted */
+#define EMAC_LPIHWCLKEN			BIT(8)	/* 1 = low power mode */
+#define EMAC_INIT_DONE			BIT(21)
+
+/* MSIGEN Registers */
+#define TC956X_MSIGEN_BASE(pf_id)	(0x00f000 + (pf_id) * 0x0100)
+#define MSI_OUT_EN_OFFSET		0x0000
+#define MSI_MASK_SET_OFFSET		0x0008
+#define MSI_MASK_CLR_OFFSET		0x000c
+#define MSI_INT_STS_OFFSET		0x0010
+#define MSI_VECT_SET_OFFSET(x)		(0x0020 + (x) * 4)
+#define SW_MSI_CLR			0x0054
+
+enum tc956x_msigen_hwirq {
+	HWIRQ_LPI		= 0,
+	HWIRQ_PMT		= 1,
+	HWIRQ_EVENT		= 2,
+	HWIRQ_TX0		= 3,
+	HWIRQ_RX0		= 11,
+	HWIRQ_XPCS		= 19,
+	HWIRQ_ETH		= 20, /* PHY interrupt */
+	HWIRQ_PFMAILBOX		= 21,
+	HWIRQ_MSIREQ_PLS	= 24
+};
+#define TC956X_NR_HWIRQ		25
+
+#define XGMAC_BASE(td)	((td)->sfr + ((td)->emac0 ? 0x40000 : 0x48000))
+
+/* The next two are relative to XGMAC_BASE() */
 #define XPCS_XGMAC_OFFSET  			0x3a00
 #define PMA_XGMAC_OFFSET   			0x4000
 
-/* PMA registers */
+/* All PMA registers are relative to PMA_XGMAC_OFFSET */
 #define XGMAC_PMA_GL_PM_CFG0			0x01b8
 #define XGMAC_PMA_CFG_0_1_R0			0x1888
 #define XGMAC_PMA_CFG_0_1_R1			0x1890
