@@ -716,7 +716,7 @@ static void tc956x_config_tamap(struct tc956x_data *td)
 
 	BUILD_BUG_ON(SLV00_ATR_SIZE < 11);
 	val = lower_32_bits(SLV00_SRC_ADDR);
-	val |= u32_encode_bits(SLV00_ATR_SIZE - 1, ATR_SIZE_MASK);
+	val |= u32_encode_bits(SLV00_ATR_SIZE, ATR_SIZE_MASK);
 	val |= ATR_IMPL;
 	writel(val, base + SRC_ADDR_LO_OFFSET);
 
