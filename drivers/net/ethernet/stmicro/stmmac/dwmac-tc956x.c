@@ -563,37 +563,6 @@ static int tc956x_platform_of_parse(struct tc956x_data *td)
 	return 0;
 }
 
-static int tc956x_platform_probe(struct tc956x_data *td)
-{
-	struct device *dev = td->dev;
-	struct pinctrl *pinctrl;
-	int ret;
-
-	/* XXX Can't we do this in the DTS file? */
-	pinctrl = devm_pinctrl_get_select_default(dev);
-	if (IS_ERR(pinctrl)) {
-		dev_err(dev, "error selecting the PHY reset pinctrl state\n");
-		return PTR_ERR(pinctrl);
-	}
-
-	ret = tc956x_reset_gpio_get(td);
-	if (ret)
-		return ret;
-
-	ret = tc956x_phy_power_on(td);
-	if (ret) {
-		dev_err(dev, "Failed to power on PHY with error %d\n", ret);
-		goto err_power_on;
-	}
-
-	return 0;
-
-err_power_on:
-	irq_set_irq_wake(td->wol_irq, 0);	/* XXX Something missing here */
-
-	return -EINVAL;
-}
-
 /**
  * tc956x_pma_init() - Initialize PMA
  * @td:    bsp_priv pointer
@@ -1406,6 +1375,7 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 	struct pci_dev *pdev = to_pci_dev(dev);
 	struct stmmac_resources res = { };
 	struct irq_domain *irq_domain;
+	struct pinctrl *pinctrl;
 	u32 pci_fn;
 	int ret;
 	u32 i;
@@ -1491,9 +1461,23 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 	td->plat->mdio_bus_data->probed_phy_irq =
 		irq_create_mapping(irq_domain, HWIRQ_ETH);
 
-	ret = tc956x_platform_probe(td);
+	/* XXX Can't we do this in the DTS file? */
+	pinctrl = devm_pinctrl_get_select_default(dev);
+	if (IS_ERR(pinctrl)) {
+		ret = PTR_ERR(pinctrl);
+		dev_err(dev, "error %d selecting PHY reset state\n", ret);
+		goto err;
+	}
+
+	ret = tc956x_reset_gpio_get(td);
+	if (ret)
+		goto err;
+
+	ret = tc956x_phy_power_on(td);
 	if (ret) {
-		dev_err(dev, "Platform (DT) code failed\n");
+		/* XXX This was moved, but it's clear something's missing */
+		irq_set_irq_wake(td->wol_irq, 0);
+		dev_err(dev, "error %d powering on PHY\n", ret);
 		goto err;
 	}
 
