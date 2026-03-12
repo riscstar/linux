@@ -218,8 +218,6 @@ enum tc956x_msigen_hwirq {
  * @bridge_config:	Mapped bridge config data (BAR 0)
  * @sfr:		Mapped SFR region (BAR 4)
  * @emac0:		Which eMAC port this is (true: port 0; false: port 1)
- * @pinctrl:		Pin control structure
- * @pinctrl_default:	Pin control default value
  * @phy_supply:		PHY supply regulator
  * @phy_reset:		Descriptor for GPIO used for PHY reset
  * @phy_reset_delay:	Delay (milliseconds) after PHY reset
@@ -232,8 +230,6 @@ struct tc956x_data {
 	void __iomem *bridge_config;
 	void __iomem *sfr;
 	bool emac0;
-	struct pinctrl *pinctrl;
-	struct pinctrl_state *pinctrl_default;
 	struct regulator *phy_supply;
 	struct gpio_desc *phy_reset;
 	u32 phy_reset_delay;
@@ -571,31 +567,19 @@ static int tc956x_platform_probe(struct tc956x_data *td,
 				 struct stmmac_resources *res)
 {
 	struct device *dev = td->dev;
-	int ret = 0;
+	struct pinctrl *pinctrl;
+	int ret;
+
+	/* XXX Can't we do this in the DTS file? */
+	pinctrl = devm_pinctrl_get_select_default(dev);
+	if (IS_ERR(pinctrl)) {
+		dev_err(dev, "error selecting the PHY reset pinctrl state\n");
+		return PTR_ERR(pinctrl);
+	}
 
 	ret = tc956x_reset_gpio_get(td);
 	if (ret)
 		return ret;
-
-	/* XXX Have to chase down why the following is necessary... */
-	td->pinctrl = devm_pinctrl_get(dev);
-	if (IS_ERR(td->pinctrl)) {
-		dev_err(dev, "failed to get pinctrl handle\n");
-		return PTR_ERR(td->pinctrl);
-	}
-
-	td->pinctrl_default = pinctrl_lookup_state(td->pinctrl,
-						   PINCTRL_STATE_DEFAULT);
-	if (IS_ERR(td->pinctrl_default)) {
-		dev_err(dev, "failed to look up default pinctrl state\n");
-		return PTR_ERR(td->pinctrl_default);
-	}
-
-	ret = pinctrl_select_state(td->pinctrl, td->pinctrl_default);
-	if (ret) {
-		dev_err(dev, "Failed to select the 'default' pincrl state\n");
-		goto err_pinctrl_select_state;
-	}
 
 	ret = tc956x_phy_power_on(td);
 	if (ret) {
@@ -604,11 +588,12 @@ static int tc956x_platform_probe(struct tc956x_data *td,
 	}
 
 	res->wol_irq = td->wol_irq;
+
 	return 0;
 
 err_power_on:
-	irq_set_irq_wake(td->wol_irq, 0);
-err_pinctrl_select_state:
+	irq_set_irq_wake(td->wol_irq, 0);	/* XXX Something missing here */
+
 	return -EINVAL;
 }
 
