@@ -43,16 +43,6 @@
 
 #define GPIO_DEVICE_NAME	"tc9564-gpio"
 
-/* XXX
- * SLV00_ATR_SIZE (35) defines the source translation region size, as:
- * 	1ULL << (SLV00_ATR_SIZE + 1)
- *
- * That *might* also be related to the value recorded as the base of the
- * translated space:
- *	SLV00_SRC_ADDR_HI_VAL  0x00000010
- *	SLV00_SRC_ADDR_LO_VAL  0x00000000
- */
-
 /* PCI BAR assignments */
 #define PCI_BAR_BRIDGE_CONFIG	0
 #define PCI_BAR_SFR		4
@@ -112,10 +102,6 @@ enum tc9564_mac_reset_id {
 	MAC_RESET_XPCS		= 31,
 };
 
-/* NOTE:  the PCIE and I2C clocks (bits 9 and 12) should *not* be managed by
- * this driver.  They are needed by the PCIe driver and its power control
- * driver, and should only be enabled or disabled (if required) there.
- */
 enum tc9564_chip_clock_id {
 	CHIP_CLOCK_MCU		= 0,
 	CHIP_CLOCK_SRAM		= 13,
@@ -124,9 +110,6 @@ enum tc9564_chip_clock_id {
 	CHIP_CLOCK_UART0	= 16,
 };
 
-/* XXX MAC_TX, MAC_RX, and MAC_ALL are always enabled/disabled together */
-/* XXX MAC_125M and MAC_312_5M are always enabled/disabled together */
-/* XXX MAC_PLL, MAC_SGMII, and REFCLK are always enabled/disabled together */
 enum tc9564_mac_clock_id {
 	MAC_CLOCK_TX		= 7,
 	MAC_CLOCK_RX		= 14,
@@ -137,8 +120,7 @@ enum tc9564_mac_clock_id {
 	MAC_CLOCK_PLL		= 24,
 	MAC_CLOCK_SGMII		= 25,
 	MAC_CLOCK_REFCLK	= 26,	/* XXX Probably CHIP_CLOCK_REFCLK */
-	/* eMAC 1 only */
-	MAC_CLOCK_RMII		= 15,
+	MAC_CLOCK_RMII		= 15,	/* eMAC 1 only */
 };
 
 /* EMAC control registers for ports 0 and 1 (both have same format) */
@@ -288,9 +270,9 @@ static const struct regmap_config tc956x_reset_clock_regmap_config = {
 	.name		= "tc956x-clk-reset",
 	.reg_bits	= 32,
 	.reg_stride	= 4,
-	.reg_base	= NCTLSTS_OFFSET,
+	.reg_base	= 0x1000,	/* Register NCTLSTS */
 	.val_bits	= 32,
-	.max_register	= NCTLSTS_OFFSET + 0x10,	/* Register NRSTCTRL1 */
+	.max_register	= 0x1010,	/* Register NRSTCTRL1 */
 };
 
 
@@ -693,7 +675,7 @@ static void tc956x_config_tamap(struct tc956x_data *td)
 
 	/*
 	 * AXI4 slave 0 translation table 0
-	 * We only used the first AXI4 slave translation table entry:
+	 * We only use the first AXI4 slave translation table entry:
 	 *	EDMA address region:	0x10 0000 0000 - 0x1f ffff ffff
 	 * 	is translated to:	0x00 0000 0000 - 0x0f ffff ffff
 	 */
@@ -966,6 +948,7 @@ static void tc956x_dma_init_rx_chan(struct stmmac_priv *priv,
 	value = u32_replace_bits(value, setting, XGMAC_OWRQ);
 	writel(value, ioaddr + XGMAC_DMA_CH_RX_CONTROL2(chan));
 
+	/* Set BIT(36) in the physical address */
 	writel(upper_32_bits(phy) | upper_32_bits(SLV00_SRC_ADDR),
 	       ioaddr + XGMAC_DMA_CH_RxDESC_HADDR(chan));
 	writel(lower_32_bits(phy), ioaddr + XGMAC_DMA_CH_RxDESC_LADDR(chan));
@@ -976,13 +959,14 @@ static void tc956x_dma_init_tx_chan(struct stmmac_priv *priv,
 				    struct stmmac_dma_cfg *dma_cfg,
 				    dma_addr_t phy, u32 chan)
 {
-	u32 txpbl = dma_cfg->txpbl ?: dma_cfg->pbl;
+	u32 txpbl = dma_cfg->txpbl ? : dma_cfg->pbl;
 	u32 value;
 
 	value = readl(ioaddr + XGMAC_DMA_CH_TX_CONTROL(chan));
 	value = u32_replace_bits(value, txpbl, XGMAC_TxPBL);
 	writel(value, ioaddr + XGMAC_DMA_CH_TX_CONTROL(chan));
 
+	/* Set BIT(36) in the physical address */
 	writel(upper_32_bits(phy) | upper_32_bits(SLV00_SRC_ADDR),
 	       ioaddr + XGMAC_DMA_CH_TxDESC_HADDR(chan));
 	writel(lower_32_bits(phy), ioaddr + XGMAC_DMA_CH_TxDESC_LADDR(chan));
@@ -991,6 +975,7 @@ static void tc956x_dma_init_tx_chan(struct stmmac_priv *priv,
 static void tc956x_desc_set_addr(struct dma_desc *p, dma_addr_t addr)
 {
 	p->des0 = cpu_to_le32(lower_32_bits(addr));
+	/* Set BIT(36) in the physical address */
 	p->des1 = cpu_to_le32(upper_32_bits(addr) |
 			      upper_32_bits(SLV00_SRC_ADDR));
 }
@@ -998,6 +983,7 @@ static void tc956x_desc_set_addr(struct dma_desc *p, dma_addr_t addr)
 static void tc956x_desc_set_sec_addr(struct dma_desc *p, dma_addr_t addr, bool is_valid)
 {
 	p->des2 = cpu_to_le32(lower_32_bits(addr));
+	/* Set BIT(36) in the physical address */
 	p->des3 = cpu_to_le32(upper_32_bits(addr) |
 			      upper_32_bits(SLV00_SRC_ADDR));
 }
