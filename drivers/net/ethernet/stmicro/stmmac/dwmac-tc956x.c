@@ -518,27 +518,6 @@ static int tc956x_reset_gpio_get(struct tc956x_data *td)
 	return ret;
 }
 
-static int tc956x_platform_of_parse(struct tc956x_data *td)
-{
-	struct device *dev = td->dev;
-	int ret;
-
-	ret = of_irq_get_byname(dev_of_node(dev), "wake-on-lan");
-	if (ret <= 0) {
-		dev_err(dev, "failed to get wake-on-lan property\n");
-		return ret ? : -EINVAL;
-	}
-	td->wol_irq = ret;
-
-	td->phy_supply = devm_regulator_get(dev, "phy");
-	if (IS_ERR(td->phy_supply)) {
-		dev_err(dev, "failed to get phy-supply\n");
-		return PTR_ERR(td->phy_supply);
-	}
-
-	return 0;
-}
-
 /**
  * tc956x_pma_init() - Initialize PMA
  * @td:    bsp_priv pointer
@@ -1337,13 +1316,22 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 	int ret;
 	u32 i;
 
-	ret = tc956x_platform_of_parse(td);
-	if (ret)
-		return ret;
-
 	td->plat = tc956x_plat_dat_alloc(td, pdev);
 	if (!td->plat)
 		return -ENOMEM;
+
+	ret = of_irq_get_byname(dev_of_node(dev), "wake-on-lan");
+	if (ret <= 0) {
+		dev_err(dev, "failed to get wake-on-lan property\n");
+		return ret ? : -EINVAL;
+	}
+	td->wol_irq = ret;
+
+	td->phy_supply = devm_regulator_get(dev, "phy");
+	if (IS_ERR(td->phy_supply)) {
+		dev_err(dev, "failed to get phy-supply\n");
+		return PTR_ERR(td->phy_supply);
+	}
 
 	/*
 	 * We must hold the chips lock until we have decided whether or not we
