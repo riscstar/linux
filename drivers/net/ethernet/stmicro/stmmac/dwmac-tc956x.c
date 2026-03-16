@@ -1087,27 +1087,18 @@ static void tc956x_adev_remove(void *data)
 	auxiliary_device_uninit(adev);
 }
 
-/* The embedded GPIO controller has an auxiliary device driver */
-static int tc956x_devm_gpio_device_add(struct tc956x_data *td)
+static int tc956x_devm_adev_device_add(struct tc956x_data *td,
+				       const char *name, struct regmap *regmap)
 {
 	struct auxiliary_device *adev;
 	struct device *dev = td->dev;
-	void __iomem *base = td->sfr;
-	struct regmap *regmap;
 	int ret;
-
-	if (!device_property_present(dev, "gpio-controller"))
-		return 0;
 
 	adev = devm_kzalloc(dev, sizeof(*adev), GFP_KERNEL);
 	if (!adev)
 		return -ENOMEM;
 
-	regmap = devm_regmap_init_mmio(dev, base, &tc956x_gpio_regmap_config);
-	if (IS_ERR(regmap))
-		return PTR_ERR(regmap);
-
-	adev->name = GPIO_DEVICE_NAME;
+	adev->name = name;
 	adev->dev.parent = dev;
 	adev->dev.release = tc956x_adev_release;
 	adev->dev.of_node = dev->of_node;
@@ -1129,6 +1120,24 @@ static int tc956x_devm_gpio_device_add(struct tc956x_data *td)
 		return ret;
 
 	return 1;
+}
+
+/* The embedded GPIO controller has an auxiliary device driver */
+static int tc956x_devm_gpio_device_add(struct tc956x_data *td)
+{
+	struct device *dev = td->dev;
+	void __iomem *base = td->sfr;
+	struct regmap *regmap;
+
+	/* XXX It might be nice to preclude both MACs defining this */
+	if (!device_property_present(dev, "gpio-controller"))
+		return 0;
+
+	regmap = devm_regmap_init_mmio(dev, base, &tc956x_gpio_regmap_config);
+	if (IS_ERR(regmap))
+		return PTR_ERR(regmap);
+
+	return tc956x_devm_adev_device_add(td, GPIO_DEVICE_NAME, regmap);
 }
 
 static struct plat_stmmacenet_data *
