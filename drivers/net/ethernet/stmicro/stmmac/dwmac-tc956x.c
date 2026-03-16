@@ -1156,9 +1156,6 @@ static struct tc956x_data *tc956x_devm_data_create(struct pci_dev *pdev)
 	void __iomem *base;
 	int ret;
 
-	if (!dev_of_node(dev))
-		return ERR_PTR(-EINVAL);
-
 	td = devm_kzalloc(dev, sizeof(*td), GFP_KERNEL);
 	if (!td)
 		return ERR_PTR(-ENOMEM);
@@ -1464,6 +1461,9 @@ static int tc956x_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	int has_gpio_controller;
 	struct tc956x_data *td;
 	int ret;
+
+	if (!dev_of_node(&pdev->dev))
+		return -EINVAL;
 
 	td = tc956x_devm_data_create(pdev);
 	if (IS_ERR(td))
