@@ -323,6 +323,20 @@ static void __reset_clock_set(struct tc956x_chip *chip, u32 offset,
 	__reset_clock_set((_td)->chip, tc956x_mac_clock_offset(_td),	\
 			  (u32)(_id), false)
 
+static int tc956x_reset_clock_init(struct tc956x_chip *chip)
+{
+	struct tc956x_data *td = chip->primary;
+	struct regmap *regmap;
+
+	regmap = devm_regmap_init_mmio(td->dev, td->sfr,
+				       &tc956x_reset_clock_regmap_config);
+	if (IS_ERR(regmap))
+		return PTR_ERR(regmap);
+	chip->reset_clock_regmap = regmap;
+
+	return 0;
+}
+
 struct tc956x_msigen_data {
 	void __iomem *regs;
 	int irq;
@@ -1231,8 +1245,8 @@ static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 	u8 pci_bus_num = PCI_BUS_NUM(pdev->devfn);
 	u8 pci_slot = PCI_SLOT(pdev->devfn);
 	struct tc956x_chip *chip;
-	struct regmap *regmap;
 	u32 val;
+	int ret;
 
 	/* Use the existing chip structure if it's already been created */
 	list_for_each_entry(chip, &tc956x_chips, links) {
@@ -1267,11 +1281,9 @@ static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 	chip->chip_id = u32_get_bits(val, NCID_CHIP_ID_MASK);
 	dev_dbg(dev, "NCID Register value: %x\n", val);
 
-	regmap = devm_regmap_init_mmio(td->dev, td->sfr,
-				       &tc956x_reset_clock_regmap_config);
-	if (IS_ERR(regmap))
-		return ERR_CAST(regmap);
-	chip->reset_clock_regmap = regmap;
+	ret = tc956x_reset_clock_init(chip);
+	if (ret)
+		return ERR_PTR(ret);
 
 	/* Put chip resets and clocks into a known initial state */
 	tc956x_stop_chip(chip);
