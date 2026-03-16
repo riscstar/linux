@@ -157,7 +157,7 @@ enum tc956x_msigen_hwirq {
 };
 #define TC956X_NR_HWIRQ		25
 
-#define XGMAC_BASE(td)	((td)->sfr + ((td)->emac0 ? 0x40000 : 0x48000))
+#define XGMAC_BASE(td)	((td)->sfr + ((td)->pci_fn ? 0x48000 : 0x40000))
 
 /* The next two are relative to XGMAC_BASE() */
 #define XPCS_XGMAC_OFFSET  			0x3a00
@@ -194,7 +194,6 @@ enum tc956x_msigen_hwirq {
  * @bridge_config:	Mapped bridge config data (BAR 0)
  * @sfr:		Mapped SFR region (BAR 4)
  * @pci_fn:		Which PCI function this is (0 or 1)
- * @emac0:		Which eMAC port this is (true: port 0; false: port 1)
  * @phy_supply:		PHY supply regulator
  * @phy_reset:		Descriptor for GPIO used for PHY reset
  * @phy_reset_delay:	Delay (milliseconds) after PHY reset
@@ -207,7 +206,6 @@ struct tc956x_data {
 	void __iomem *bridge_config;
 	void __iomem *sfr;
 	unsigned int pci_fn;
-	bool emac0;
 	struct regulator *phy_supply;
 	struct gpio_desc *phy_reset;
 	u32 phy_reset_delay;
@@ -303,7 +301,7 @@ static void __reset_clock_set(struct tc956x_chip *chip, u32 offset,
 	__reset_clock_set((_chip), RSTCTRL0_OFFSET, (u32)(_id), false)
 
 #define tc956x_mac_reset_offset(_td)					\
-	((_td)->emac0 ? RSTCTRL0_OFFSET : RSTCTRL1_OFFSET)
+	((_td)->pci_fn ? RSTCTRL1_OFFSET : RSTCTRL0_OFFSET)
 #define tc956x_mac_reset_assert(_td, _id)				\
 	__reset_clock_set((_td)->chip, tc956x_mac_reset_offset(_td),	\
 			  (u32)(_id), true)
@@ -317,7 +315,7 @@ static void __reset_clock_set(struct tc956x_chip *chip, u32 offset,
 	__reset_clock_set((_chip), CLKCTRL0_OFFSET, (u32)(_id), false)
 
 #define tc956x_mac_clock_offset(_td)					\
-	((_td)->emac0 ? CLKCTRL0_OFFSET : CLKCTRL1_OFFSET)
+	((_td)->pci_fn ? CLKCTRL1_OFFSET : CLKCTRL0_OFFSET)
 #define tc956x_mac_clock_enable(_td, _id)				\
 	__reset_clock_set((_td)->chip, tc956x_mac_clock_offset(_td),	\
 			  (u32)(_id), true)
@@ -439,7 +437,7 @@ static struct irq_domain *devm_tc956x_msigen_register(struct pci_dev *pdev,
 	if (!tc956x_msigen)
 		return ERR_PTR(-ENOMEM);
 
-	tc956x_msigen->regs = td->sfr + TC956X_MSIGEN_BASE(td->emac0 ? 0 : 1);
+	tc956x_msigen->regs = td->sfr + TC956X_MSIGEN_BASE(td->pci_fn);
 	tc956x_msigen->irq = pdev->irq;
 	d_info.host_data = tc956x_msigen;
 
@@ -545,8 +543,7 @@ static int tc956x_reset_gpio_get(struct tc956x_data *td)
 static void tc956x_mac_pma_init(struct tc956x_data *td)
 {
 	void __iomem *pma_base = XGMAC_BASE(td) + PMA_XGMAC_OFFSET;
-	void __iomem *emac_ctl_reg =
-		td->sfr + (td->emac0 ? NEMAC0CTL_OFFSET : NEMAC1CTL_OFFSET);
+	void __iomem *emac_ctl_reg;
 	u32 val;
 
 	/*
@@ -582,6 +579,9 @@ static void tc956x_mac_pma_init(struct tc956x_data *td)
 	writel(0, pma_base + PMA_HWT_REFCK_TERM_EN_R4);
 
 	tc956x_mac_reset_deassert(td, MAC_RESET_PMA);
+
+	emac_ctl_reg = td->sfr + (td->pci_fn ? NEMAC1CTL_OFFSET
+					     : NEMAC0CTL_OFFSET);
 
 	WARN_ON(readl_poll_timeout(emac_ctl_reg, val, val & EMAC_INIT_DONE, 50, 1000000));
 }
@@ -620,8 +620,8 @@ static int tc956x_chipcfg_mac_configure(struct tc956x_data *td, int speed)
 	else
 		tc956x_mac_clock_disable(td, MAC_CLOCK_125M);
 
-	emac_ctl_reg = td->sfr + (td->emac0 ? NEMAC0CTL_OFFSET
-					    : NEMAC1CTL_OFFSET);
+	emac_ctl_reg = td->sfr + (td->pci_fn ? NEMAC1CTL_OFFSET
+					     : NEMAC0CTL_OFFSET);
 	val = readl(emac_ctl_reg);
 	val |= EMAC_LPIHWCLKEN;
 	val &= ~EMAC_INV_SGM_SIG_DET;
@@ -706,7 +706,7 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 	tc956x_mac_clock_enable(td, MAC_CLOCK_TX);
 	tc956x_mac_clock_enable(td, MAC_CLOCK_RX);
 	tc956x_mac_clock_enable(td, MAC_CLOCK_ALL);
-	if (!td->emac0)
+	if (td->pci_fn)
 		tc956x_mac_clock_enable(td, MAC_CLOCK_RMII);
 
 	/* Set the speed related registers */
@@ -734,7 +734,7 @@ static void tc956x_stop_mac(struct tc956x_data *td)
 	tc956x_mac_clock_disable(td, MAC_CLOCK_TX);
 	tc956x_mac_clock_disable(td, MAC_CLOCK_125M);
 	tc956x_mac_clock_disable(td, MAC_CLOCK_312_5M);
-	if (!td->emac0)
+	if (td->pci_fn)
 		tc956x_mac_clock_disable(td, MAC_CLOCK_RMII);
 }
 
@@ -796,10 +796,10 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 	plat->clk_ptp_rate = 50000000;
 
 	/* For TC956X, clk_csr_i = 125MHz XXX any standard XGMAC values? */
-	if (td->emac0)			/* emac0: XFI */
-		plat->clk_csr = 0x4;	/* clk_csr_i / 12 XXX set CRS bit? */
-	else				/* emac1: SGMII */
+	if (td->pci_fn)			/* emac1: SGMII */
 		plat->clk_csr = 0x0;	/* clk_csr_i / 62 */
+	else				/* emac0: XFI */
+		plat->clk_csr = 0x4;	/* clk_csr_i / 12 XXX set CRS bit? */
 
 	plat->get_interfaces = tc956x_get_interfaces;
 
@@ -1169,7 +1169,6 @@ static struct tc956x_data *tc956x_devm_data_create(struct pci_dev *pdev)
 
 	td->dev = dev;
 	td->pci_fn = pci_fn;
-	td->emac0 = pci_fn == 0;
 
 	ret = pcim_enable_device(pdev);
 	if (ret) {
@@ -1356,8 +1355,8 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 	tc956x_stop_mac(td);
 
 	// TODO: this needs to come from devicetree
-	td->plat->phy_interface = td->emac0 ? PHY_INTERFACE_MODE_10GBASER :
-					      PHY_INTERFACE_MODE_SGMII;
+	td->plat->phy_interface = td->pci_fn ? PHY_INTERFACE_MODE_SGMII
+					     : PHY_INTERFACE_MODE_10GBASER;
 
 	ret = tc956x_xgmac3_default_data(pdev, td->plat);
 	if (ret)
