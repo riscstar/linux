@@ -193,6 +193,7 @@ enum tc956x_msigen_hwirq {
  * @plat:		Pointer to our stmmac platform data
  * @bridge_config:	Mapped bridge config data (BAR 0)
  * @sfr:		Mapped SFR region (BAR 4)
+ * @pci_fn:		Which PCI function this is (0 or 1)
  * @emac0:		Which eMAC port this is (true: port 0; false: port 1)
  * @phy_supply:		PHY supply regulator
  * @phy_reset:		Descriptor for GPIO used for PHY reset
@@ -205,6 +206,7 @@ struct tc956x_data {
 	struct plat_stmmacenet_data *plat;
 	void __iomem *bridge_config;
 	void __iomem *sfr;
+	unsigned int pci_fn;
 	bool emac0;
 	struct regulator *phy_supply;
 	struct gpio_desc *phy_reset;
@@ -1153,14 +1155,21 @@ static struct tc956x_data *tc956x_devm_data_create(struct pci_dev *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct tc956x_data *td;
+	unsigned int pci_fn;
 	void __iomem *base;
 	int ret;
+
+	pci_fn = PCI_FUNC(pdev->devfn);
+	if (WARN_ON(pci_fn > 1))
+		return ERR_PTR(-EINVAL);
 
 	td = devm_kzalloc(dev, sizeof(*td), GFP_KERNEL);
 	if (!td)
 		return ERR_PTR(-ENOMEM);
 
 	td->dev = dev;
+	td->pci_fn = pci_fn;
+	td->emac0 = pci_fn == 0;
 
 	ret = pcim_enable_device(pdev);
 	if (ret) {
@@ -1311,7 +1320,6 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 	struct stmmac_resources res = { };
 	struct irq_domain *irq_domain;
 	struct pinctrl *pinctrl;
-	u32 pci_fn;
 	int ret;
 	u32 i;
 
@@ -1343,14 +1351,6 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 	td->chip = tc956x_chip_get(td);
 	if (IS_ERR(td->chip))
 		return dev_err_probe(dev, PTR_ERR(td->chip), "cannot get chip\n");
-
-	/* The physical port number matches from the PCI function number */
-	pci_fn = PCI_FUNC(pdev->devfn);
-	if (WARN_ON(pci_fn > 1)) {
-		ret = -EINVAL;
-		goto err;
-	}
-	td->emac0 = pci_fn == 0;
 
 	/* Put the MAC in a known initial state */
 	tc956x_stop_mac(td);
