@@ -248,6 +248,21 @@ struct tc956x_chip {
 	struct list_head links;		/* Protected by tc956x_chips_lock */
 };
 
+struct tc956x_mac_speed {
+	phy_interface_t phy_interface;
+	int speed;
+	u32 sp_sel;
+};
+
+static struct tc956x_mac_speed tc956x_chipcfg_mac_speed[] = {
+	{ PHY_INTERFACE_MODE_10GBASER,	SPEED_10000, SP_SEL_USXGMII_10G_10G, },
+	{ PHY_INTERFACE_MODE_SGMII,	SPEED_2500,  SP_SEL_SGMII_2500M, },
+	{ PHY_INTERFACE_MODE_2500BASEX,	SPEED_2500,  SP_SEL_SGMII_2500M, },
+	{ PHY_INTERFACE_MODE_SGMII,	SPEED_1000,  SP_SEL_SGMII_1000M, },
+	{ PHY_INTERFACE_MODE_SGMII,	SPEED_100,   SP_SEL_SGMII_100M, },
+	{ PHY_INTERFACE_MODE_SGMII,	SPEED_10,    SP_SEL_SGMII_10M, },
+};
+
 static LIST_HEAD(tc956x_chips);		/* List of TC956x chips */
 static DEFINE_MUTEX(tc956x_chips_lock); /* Don't rely on synchronous probing */
 
@@ -568,19 +583,6 @@ static void tc956x_mac_pma_init(struct tc956x_data *td)
 
 	WARN_ON(readl_poll_timeout(emac_ctl_reg, val, val & EMAC_INIT_DONE, 50, 1000000));
 }
-
-struct {
-	phy_interface_t phy_interface;
-	int speed;
-	u32 sp_sel;
-} tc956x_chipcfg_mac_speed[] = {
-	{ PHY_INTERFACE_MODE_10GBASER, SPEED_10000, SP_SEL_USXGMII_10G_10G },
-	{ PHY_INTERFACE_MODE_SGMII, SPEED_2500, SP_SEL_SGMII_2500M },
-	{ PHY_INTERFACE_MODE_2500BASEX, SPEED_2500, SP_SEL_SGMII_2500M },
-	{ PHY_INTERFACE_MODE_SGMII, SPEED_1000, SP_SEL_SGMII_1000M, },
-	{ PHY_INTERFACE_MODE_SGMII, SPEED_100, SP_SEL_SGMII_100M, },
-	{ PHY_INTERFACE_MODE_SGMII, SPEED_10, SP_SEL_SGMII_10M, },
-};
 
 static int tc956x_mac_speed_select(struct tc956x_data *td, int speed)
 {
