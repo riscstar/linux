@@ -519,13 +519,13 @@ static int tc956x_reset_gpio_get(struct tc956x_data *td)
 }
 
 /**
- * tc956x_pma_init() - Initialize PMA
+ * tc956x_mac_pma_init() - Initialize PMA
  * @td:    bsp_priv pointer
  *
  * Initialize (or re-initialize) the PMA, configure the clocks and wait for the
  * MAC to be ready.
  */
-static void tc956x_pma_init(struct tc956x_data *td)
+static void tc956x_mac_pma_init(struct tc956x_data *td)
 {
 	void __iomem *pma_base = XGMAC_BASE(td) + PMA_XGMAC_OFFSET;
 	void __iomem *emac_ctl_reg =
@@ -712,7 +712,7 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 
 	tc956x_mac_reset_deassert(td, MAC_RESET_MAC);
 
-	tc956x_pma_init(td);
+	tc956x_mac_pma_init(td);
 
 	tc956x_mac_reset_deassert(td, MAC_RESET_XPCS);
 
@@ -1007,7 +1007,7 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 
 	/* XXX Are we certain we need to provide this callback? */
 	(void)tc956x_chipcfg_mac_configure(td, speed);
-	tc956x_pma_init(td);
+	tc956x_mac_pma_init(td);
 }
 
 static int tc956x_xgmac3_suspend(struct device *dev, void *bsp_priv)
