@@ -106,6 +106,9 @@ enum tc9564_chip_clock_id {
 	CHIP_CLOCK_MCU		= 0,
 	CHIP_CLOCK_SRAM		= 13,
 	CHIP_CLOCK_MSIGEN	= 18,
+	CHIP_CLOCK_PLL		= 24,
+	CHIP_CLOCK_SGMII	= 25,
+	CHIP_CLOCK_REFCLK	= 26,
 	CHIP_CLOCK_INTC		= 4,
 	CHIP_CLOCK_UART0	= 16,
 };
@@ -117,9 +120,6 @@ enum tc9564_mac_clock_id {
 	MAC_CLOCK_125M		= 29,
 	MAC_CLOCK_312_5M	= 30,
 	/* eMAC 0 only */		/* XXX Are these really MAC clocks? */
-	MAC_CLOCK_PLL		= 24,
-	MAC_CLOCK_SGMII		= 25,
-	MAC_CLOCK_REFCLK	= 26,	/* XXX Probably CHIP_CLOCK_REFCLK */
 	MAC_CLOCK_RMII		= 15,	/* eMAC 1 only */
 };
 
@@ -729,22 +729,8 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 	tc956x_mac_clock_enable(td, MAC_CLOCK_TX);
 	tc956x_mac_clock_enable(td, MAC_CLOCK_RX);
 	tc956x_mac_clock_enable(td, MAC_CLOCK_ALL);
-	if (td->emac0) {
-		/* XXX
-		 * eMAC0 will be 10GBASER; eMAC1 will be SGMII + 2500BASEX
-		 * I think these clocks might need to be set for the eMAC1
-		 * interface (but in that case they'd be chip clocks, not
-		 * MAC clocks).
-		 */
-		if (plat->phy_interface == PHY_INTERFACE_MODE_SGMII ||
-		    plat->phy_interface == PHY_INTERFACE_MODE_2500BASEX) {
-			tc956x_mac_clock_disable(td, MAC_CLOCK_PLL);
-			tc956x_mac_clock_disable(td, MAC_CLOCK_SGMII);
-			tc956x_mac_clock_disable(td, MAC_CLOCK_REFCLK);
-		}
-	} else {
+	if (!td->emac0)
 		tc956x_mac_clock_enable(td, MAC_CLOCK_RMII);
-	}
 
 	/* Set the speed related registers */
 	ret = tc956x_chipcfg_mac_configure(td, plat->max_speed);
@@ -769,17 +755,10 @@ static void tc956x_stop_mac(struct tc956x_data *td)
 	tc956x_mac_clock_disable(td, MAC_CLOCK_ALL);
 	tc956x_mac_clock_disable(td, MAC_CLOCK_RX);
 	tc956x_mac_clock_disable(td, MAC_CLOCK_TX);
-
 	tc956x_mac_clock_disable(td, MAC_CLOCK_125M);
 	tc956x_mac_clock_disable(td, MAC_CLOCK_312_5M);
-
-	if (td == td->chip->primary) {
-		tc956x_mac_clock_disable(td, MAC_CLOCK_PLL);
-		tc956x_mac_clock_disable(td, MAC_CLOCK_SGMII);
-		tc956x_mac_clock_disable(td, MAC_CLOCK_REFCLK);
-	} else {
+	if (!td->emac0)
 		tc956x_mac_clock_disable(td, MAC_CLOCK_RMII);
-	}
 }
 
 static void tc956x_get_interfaces(struct stmmac_priv *priv, void *bsp_priv,
@@ -1257,8 +1236,10 @@ static void tc956x_stop_chip(struct tc956x_chip *chip)
 
 	tc956x_chip_clock_disable(chip, CHIP_CLOCK_MCU);
 	tc956x_chip_clock_disable(chip, CHIP_CLOCK_SRAM);
-
 	tc956x_chip_clock_disable(chip, CHIP_CLOCK_MSIGEN);
+	tc956x_chip_clock_disable(chip, CHIP_CLOCK_PLL);
+	tc956x_chip_clock_disable(chip, CHIP_CLOCK_SGMII);
+	tc956x_chip_clock_disable(chip, CHIP_CLOCK_REFCLK);
 	tc956x_chip_clock_disable(chip, CHIP_CLOCK_INTC);
 	tc956x_chip_clock_disable(chip, CHIP_CLOCK_UART0);
 }
