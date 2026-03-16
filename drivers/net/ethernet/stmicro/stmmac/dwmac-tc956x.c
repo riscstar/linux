@@ -10,18 +10,13 @@
 
 #define pr_fmt(fmt) "dwmac-tc956x: " fmt
 
-#include <linux/aer.h>
 #include <linux/auxiliary_bus.h>
 #include <linux/bitops.h>
 #include <linux/cleanup.h>
-#include <linux/clk-provider.h>
 #include <linux/delay.h>
-#include <linux/dmi.h>
-#include <linux/firmware.h>
 #include <linux/gpio/consumer.h>
-#include <linux/gpio/driver.h>
-#include <linux/gpio/machine.h>
 #include <linux/iopoll.h>
+#include <linux/irqchip/chained_irq.h>
 #include <linux/of_irq.h>
 #include <linux/pci.h>
 #include <linux/pcs/pcs-xpcs-regmap.h>
@@ -32,7 +27,6 @@
 #include <linux/regulator/consumer.h>
 #include <linux/stmmac.h>
 #include <linux/types.h>
-#include <linux/version.h>
 
 #include "common.h"
 #include "dwxgmac2.h"
