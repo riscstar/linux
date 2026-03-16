@@ -725,7 +725,7 @@ static void tc956x_config_tamap(struct tc956x_data *td)
 	BUILD_BUG_ON(SLV00_ATR_SIZE_DEFAULT < 11);
 	atr_size_val = u32_encode_bits(SLV00_ATR_SIZE_DEFAULT, ATR_SIZE_MASK);
 	atr_size_val |= ATR_IMPL;
-	for (i = 0; i < CM3_TAMAP_COUNT; i++) {
+	for (i = 1; i < CM3_TAMAP_COUNT; i++) {
 		base = td->bridge_config + AXI4_SLV_BASE(i);
 		writel(atr_size_val, base + SRC_ADDR_LO_OFFSET);
 		writel(0x0, base + SRC_ADDR_HI_OFFSET);
