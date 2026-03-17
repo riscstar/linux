@@ -45,6 +45,7 @@
 #include <linux/auxiliary_bus.h>
 #include <linux/device.h>
 #include <linux/init.h>
+#include <linux/io.h>
 #include <linux/module.h>
 #include <linux/pci.h>
 #include <linux/printk.h>
@@ -112,6 +113,21 @@ static const struct regmap_config reset_clock_regmap_config = {
 static struct tc9564_function *chip_to_function(struct tc9564_chip *chip)
 {
 	return (struct tc9564_function *)chip;
+}
+
+static void regmap_log(const char *name, const struct regmap_config *config)
+{
+#if IS_ENABLED(CONFIG_TRACE_MMIO_ACCESS)
+	void __iomem *range_base;
+	unsigned long range_len;
+
+	range_base = base + config->reg_base,
+	len = config->max_register;
+	len -= config->reg_base,
+	len += config->reg_bits / BITS_PER_BYTE;
+
+	log_mmio_register_range(range_base, range_len, name);
+#endif
 }
 
 /* Common clock/reset register update function */
@@ -193,6 +209,8 @@ static int devm_gpio_auxiliary_device_add(struct tc9564_function *function)
 	if (IS_ERR(regmap))
 		return PTR_ERR(regmap);
 
+	regmap_log("misc-gpio", &gpio_regmap_config);
+
 	return devm_adev_device_add(function, GPIO_DEVICE_NAME, regmap);
 }
 
@@ -206,6 +224,8 @@ static int reset_clock_init(struct tc9564_function *function)
 	if (IS_ERR(regmap))
 		return PTR_ERR(regmap);
 	function->reset_clock_regmap = regmap;
+
+	regmap_log("misc-reset-clock", &reset_clock_regmap_config);
 
 	return 0;
 }
