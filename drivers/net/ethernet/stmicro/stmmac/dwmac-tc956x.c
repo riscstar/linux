@@ -899,7 +899,7 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 
 	/*
 	 * Oversized FIFOs result in reduced performance in bandwidth tests.
-	 * Let's limit them either to 8KiB unless they must be smaller.
+	 * Let's limit them to 8KiB unless they must be smaller.
 	 */
 	plat->tx_fifo_size = min(plat->tx_queues_to_use * 8, 46) * SZ_1K;
 	plat->rx_fifo_size = min(plat->rx_queues_to_use * 8, 46) * SZ_1K;
