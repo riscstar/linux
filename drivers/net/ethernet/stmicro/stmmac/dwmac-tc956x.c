@@ -199,6 +199,7 @@ enum tc956x_msigen_hwirq {
  * @phy_reset_delay:	Delay (milliseconds) after PHY reset
  * @wol_irq:		Wake-on-LAN IRQ number
  * @chip:		Pointer to the containing chip information
+ * @dma_cfg:		DMA config buffer used by plat_stmmacenet_data
  */
 struct tc956x_data {
 	struct device *dev;
@@ -211,6 +212,9 @@ struct tc956x_data {
 	u32 phy_reset_delay;
 	int wol_irq;
 	struct tc956x_chip *chip;
+
+	/* Remaining fields are used by the plat_stmmacenet_data structure */
+	struct stmmac_dma_cfg dma_cfg;
 };
 
 /**
@@ -1172,10 +1176,8 @@ tc956x_plat_dat_alloc(struct tc956x_data *td, struct pci_dev *pdev)
 	if (!plat->mdio_bus_data)
 		return NULL;
 
-	/* XXX We initialize two (four) fields here; what is required? */
-	plat->dma_cfg = devm_kzalloc(dev, sizeof(*plat->dma_cfg), GFP_KERNEL);
-	if (!plat->dma_cfg)
-		return NULL;
+	/* Initialized in tc956x_xgmac3_default_data() and tc956x_dma_init() */
+	plat->dma_cfg = &td->dma_cfg;
 
 	return plat;
 }
