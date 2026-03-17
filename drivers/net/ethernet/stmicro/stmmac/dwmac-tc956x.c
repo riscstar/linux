@@ -200,6 +200,7 @@ enum tc956x_msigen_hwirq {
  * @wol_irq:		Wake-on-LAN IRQ number
  * @chip:		Pointer to the containing chip information
  * @dma_cfg:		DMA config buffer used by plat_stmmacenet_data
+ * @mdio_bus_data:	MDIO bus data used by plat_stmmacenet_data
  */
 struct tc956x_data {
 	struct device *dev;
@@ -215,6 +216,7 @@ struct tc956x_data {
 
 	/* Remaining fields are used by the plat_stmmacenet_data structure */
 	struct stmmac_dma_cfg dma_cfg;
+	struct stmmac_mdio_bus_data mdio_bus_data;
 };
 
 /**
@@ -1170,11 +1172,8 @@ tc956x_plat_dat_alloc(struct tc956x_data *td, struct pci_dev *pdev)
 	plat->suspend = tc956x_xgmac3_suspend;
 	plat->resume = tc956x_xgmac3_resume;
 
-	/* XXX We don't initialize this; what is required? */
-	plat->mdio_bus_data = devm_kzalloc(dev, sizeof(*plat->mdio_bus_data),
-					   GFP_KERNEL);
-	if (!plat->mdio_bus_data)
-		return NULL;
+	/* The probed_phy_irq field is set in tc956x_xgmac3_probe() */
+	plat->mdio_bus_data = &td->mdio_bus_data;
 
 	/* Initialized in tc956x_xgmac3_default_data() and tc956x_dma_init() */
 	plat->dma_cfg = &td->dma_cfg;
