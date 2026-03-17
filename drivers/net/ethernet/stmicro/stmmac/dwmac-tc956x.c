@@ -1092,7 +1092,7 @@ static int tc956x_xgmac3_suspend(struct device *dev, void *bsp_priv)
 
 	tc956x_stop_mac(td);
 
-	return stmmac_pci_plat_suspend(dev, bsp_priv);
+	return 0;
 }
 
 static int tc956x_xgmac3_resume(struct device *dev, void *bsp_priv)
