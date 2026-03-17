@@ -1231,20 +1231,27 @@ static struct tc956x_data *tc956x_devm_data_create(struct pci_dev *pdev)
 
 static void tc956x_stop_chip(struct tc956x_chip *chip)
 {
+	tc956x_chip_reset_assert(chip, CHIP_RESET_MSIGEN);
+
+	tc956x_chip_clock_disable(chip, CHIP_CLOCK_MSIGEN);
+}
+
+static void tc956x_chip_init_state(struct tc956x_chip *chip)
+{
 	tc956x_chip_reset_assert(chip, CHIP_RESET_MCU);
 	tc956x_chip_reset_assert(chip, CHIP_RESET_MCU1);
-	tc956x_chip_reset_assert(chip, CHIP_RESET_MSIGEN);
 	tc956x_chip_reset_assert(chip, CHIP_RESET_INTC);
 	tc956x_chip_reset_assert(chip, CHIP_RESET_UART0);
 
 	tc956x_chip_clock_disable(chip, CHIP_CLOCK_MCU);
 	tc956x_chip_clock_disable(chip, CHIP_CLOCK_SRAM);
-	tc956x_chip_clock_disable(chip, CHIP_CLOCK_MSIGEN);
 	tc956x_chip_clock_disable(chip, CHIP_CLOCK_PLL);
 	tc956x_chip_clock_disable(chip, CHIP_CLOCK_SGMII);
 	tc956x_chip_clock_disable(chip, CHIP_CLOCK_REFCLK);
 	tc956x_chip_clock_disable(chip, CHIP_CLOCK_INTC);
 	tc956x_chip_clock_disable(chip, CHIP_CLOCK_UART0);
+
+	tc956x_stop_chip(chip);
 }
 
 static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
@@ -1295,7 +1302,7 @@ static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 		return ERR_PTR(ret);
 
 	/* Put chip resets and clocks into a known initial state */
-	tc956x_stop_chip(chip);
+	tc956x_chip_init_state(chip);
 
 	tc956x_chip_clock_enable(chip, CHIP_CLOCK_MSIGEN);
 	tc956x_chip_reset_deassert(chip, CHIP_RESET_MSIGEN);
