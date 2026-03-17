@@ -52,6 +52,8 @@
 #include <linux/regmap.h>
 #include <linux/types.h>
 
+#include "soc-tc9564-chip.h"
+
 #define DRIVER_NAME			"tc9564-chip"
 
 #define GPIO_DEVICE_NAME		"tc9564-gpio"
@@ -60,6 +62,21 @@
 
 /* PCI BAR assignments */
 #define PCI_BAR_SFR			4
+
+/* Reset and clock register offsets.  Chip resets and clocks are controlled
+ * by bits in register 0.  MAC resets and clocks are controlled by bits in
+ * register 0 for MAC0, register 1 for MAC1.
+ *
+ * These are relative to the base of the clock/reset regmap.
+ */
+#define RSTCTRL0_OFFSET			0x0008
+#define RSTCTRL1_OFFSET			0x0010
+#define CLKCTRL0_OFFSET			0x0004
+#define CLKCTRL1_OFFSET			0x000c
+
+/* For now we'll just make this be an alias for the tc9564_function structure */
+struct tc9564_chip {
+};
 
 /*
  * struct tc9564_function - Information related to the embedded GPIO controller
@@ -70,6 +87,7 @@
 struct tc9564_function {
 	struct pci_dev *pdev;
 	void __iomem *sfr;
+	struct regmap *reset_clock_regmap;
 	u8 pci_fn;			/* XXX Redundant if we keep pdev */
 };
 
@@ -81,6 +99,35 @@ static const struct regmap_config gpio_regmap_config = {
 	.val_bits	= 32,
 	.max_register	= 0x1214,	/* Register GPIOO1 */
 };
+
+static const struct regmap_config reset_clock_regmap_config = {
+	.name		= "tc956x-clk-reset",
+	.reg_bits	= 32,
+	.reg_stride	= 4,
+	.reg_base	= 0x1000,	/* Register NCTLSTS */
+	.val_bits	= 32,
+	.max_register	= 0x1010,	/* Register NRSTCTRL1 */
+};
+
+static struct tc9564_function *chip_to_function(struct tc9564_chip *chip)
+{
+	return (struct tc9564_function *)chip;
+}
+
+/* Common clock/reset register update function */
+void tc9564_chip_reset_clock_set(struct tc9564_chip *chip, bool reset,
+				 bool reg0, bool set, u8 bit)
+{
+	u32 offset = reset ? reg0 ? RSTCTRL0_OFFSET : RSTCTRL1_OFFSET
+			   : reg0 ? CLKCTRL0_OFFSET : CLKCTRL1_OFFSET;
+	struct tc9564_function *function = chip_to_function(chip);
+	u32 mask = BIT(bit);
+
+	/* Note: no need to check for errors on read/write for MMIO regmap */
+	(void)regmap_update_bits(function->reset_clock_regmap, offset, mask,
+				 set ? mask : 0);
+}
+EXPORT_SYMBOL_GPL(tc9564_chip_reset_clock_set);
 
 static void adev_release(struct device *dev)
 {
@@ -149,6 +196,20 @@ static int devm_gpio_auxiliary_device_add(struct tc9564_function *function)
 	return devm_adev_device_add(function, GPIO_DEVICE_NAME, regmap);
 }
 
+static int reset_clock_init(struct tc9564_function *function)
+{
+	struct device *dev = &function->pdev->dev;
+	void __iomem *base = function->sfr;
+	struct regmap *regmap;
+
+	regmap = devm_regmap_init_mmio(dev, base, &reset_clock_regmap_config);
+	if (IS_ERR(regmap))
+		return PTR_ERR(regmap);
+	function->reset_clock_regmap = regmap;
+
+	return 0;
+}
+
 static int tc9564_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
 	struct tc9564_function *function;
@@ -171,14 +232,19 @@ static int tc9564_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		return -EINVAL;
 
 	function->sfr = pcim_iomap_region(pdev, PCI_BAR_SFR, DRIVER_NAME);
-	if (IS_ERR(function->sfr)) {
-		dev_err(dev, "failed to map sfr region\n");
-		return PTR_ERR(function->sfr);
-	}
+	if (IS_ERR(function->sfr))
+		return dev_err_probe(dev, PTR_ERR(function->sfr),
+				     "failed to map sfr region\n");
+
+	ret = reset_clock_init(function);
+	if (ret)
+		return dev_err_probe(dev, ret,
+				     "failed to initialize reset/clock\n");
 
 	ret = devm_gpio_auxiliary_device_add(function);
 	if (ret)
-		return ret;
+		return dev_err_probe(dev, ret,
+				     "failed to add GPIO device\n");
 
 	pci_set_drvdata(pdev, function);
 
@@ -200,6 +266,7 @@ static const struct pci_device_id tc9564_id_table[] = {
 	{ PCI_DEVICE(PCI_VENDOR_ID_TOSHIBA, PCI_DEVICE_ID_TOSHIBA_TC9564), },
 	{ },
 };
+MODULE_DEVICE_TABLE(pci, tc9564_id_table);
 
 static struct pci_driver tc9564_pci_driver = {
 	.name		= DRIVER_NAME,
