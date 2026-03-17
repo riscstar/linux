@@ -872,8 +872,11 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 }
 
 /* Extra fields for XGMAC_DMA_MODE */
-#define XGMAC_DSPW			BIT(8)
+/* Descriptor posted write */
+#define XGMAC_DSPW			BIT(8)	/* 1: All Rx DMA posted */
+/* Interrupt mode */
 #define XGMAC_DMA_MODE_INTM		GENMASK(13, 12)
+#define DMA_MODE_INTM_LEVEL_ONCE	1
 
 #define XGMAC_DMA_CH_RX_CONTROL2(_x)	(0x00003134 + (0x80 * (_x)))
 #define XGMAC_OWRQ			GENMASK(25, 24)
@@ -891,7 +894,8 @@ static void tc956x_dma_init(void __iomem *ioaddr,
 	 * XGMAC 3.01a errata.
 	 */
 	value = readl(ioaddr + XGMAC_DMA_MODE);
-	value = u32_replace_bits(value, 1, XGMAC_DMA_MODE_INTM);
+	value = u32_replace_bits(value, DMA_MODE_INTM_LEVEL_ONCE,
+				 XGMAC_DMA_MODE_INTM);
 	value &= ~XGMAC_DSPW;
 	writel(value, ioaddr + XGMAC_DMA_MODE);
 
