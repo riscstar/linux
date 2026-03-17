@@ -747,9 +747,15 @@ static void tc956x_stop_mac(struct tc956x_data *td)
 	tc956x_mac_clock_disable(td, MAC_CLOCK_RX);
 	tc956x_mac_clock_disable(td, MAC_CLOCK_TX);
 	tc956x_mac_clock_disable(td, MAC_CLOCK_125M);
-	tc956x_mac_clock_disable(td, MAC_CLOCK_312_5M);
 	if (td->pci_fn)
 		tc956x_mac_clock_disable(td, MAC_CLOCK_RMII);
+}
+
+static void tc956x_mac_init_state(struct tc956x_data *td)
+{
+	tc956x_mac_clock_disable(td, MAC_CLOCK_312_5M);
+
+	tc956x_stop_mac(td);
 }
 
 static void tc956x_get_interfaces(struct stmmac_priv *priv, void *bsp_priv,
@@ -1380,7 +1386,7 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 		return dev_err_probe(dev, PTR_ERR(td->chip), "cannot get chip\n");
 
 	/* Put the MAC in a known initial state */
-	tc956x_stop_mac(td);
+	tc956x_mac_init_state(td);
 
 	// TODO: this needs to come from devicetree
 	td->plat->phy_interface = td->pci_fn ? PHY_INTERFACE_MODE_SGMII
