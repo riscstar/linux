@@ -172,7 +172,7 @@ static int tc9564_gpio_probe(struct auxiliary_device *adev,
 }
 
 static const struct auxiliary_device_id tc964_gpio_ids[] = {
-	{ .name = "dwmac_tc956x." DRIVER_NAME, },
+	{ .name = "misc_tc9564_chip." DRIVER_NAME, },
 	{ }
 };
 MODULE_DEVICE_TABLE(auxiliary, tc964_gpio_ids);
