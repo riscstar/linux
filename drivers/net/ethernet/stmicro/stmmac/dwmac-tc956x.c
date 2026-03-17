@@ -33,6 +33,8 @@
 #include "stmmac.h"
 #include "stmmac_libpci.h"
 
+#include "soc-tc9564-chip.h"
+
 #define DRIVER_NAME		"dwmac-tc956x"
 
 #define GPIO_DEVICE_NAME	"tc9564-gpio"
@@ -81,41 +83,6 @@
 #define RSTCTRL1_OFFSET			0x0010
 #define CLKCTRL0_OFFSET			0x0004
 #define CLKCTRL1_OFFSET			0x000c
-
-enum tc9564_chip_reset_id {
-	CHIP_RESET_MCU		= 0,
-	CHIP_RESET_MCU1		= 1,
-	CHIP_RESET_MSIGEN	= 18,
-	CHIP_RESET_INTC		= 4,
-	CHIP_RESET_UART0	= 16,
-};
-
-enum tc9564_mac_reset_id {
-	MAC_RESET_MAC		= 7,
-	MAC_RESET_PMA		= 30,
-	MAC_RESET_XPCS		= 31,
-};
-
-enum tc9564_chip_clock_id {
-	CHIP_CLOCK_MCU		= 0,
-	CHIP_CLOCK_SRAM		= 13,
-	CHIP_CLOCK_MSIGEN	= 18,
-	CHIP_CLOCK_PLL		= 24,
-	CHIP_CLOCK_SGMII	= 25,
-	CHIP_CLOCK_REFCLK	= 26,
-	CHIP_CLOCK_INTC		= 4,
-	CHIP_CLOCK_UART0	= 16,
-};
-
-enum tc9564_mac_clock_id {
-	MAC_CLOCK_TX		= 7,
-	MAC_CLOCK_RX		= 14,
-	MAC_CLOCK_ALL		= 31,
-	MAC_CLOCK_125M		= 29,
-	MAC_CLOCK_312_5M	= 30,
-	/* eMAC 0 only */		/* XXX Are these really MAC clocks? */
-	MAC_CLOCK_RMII		= 15,	/* eMAC 1 only */
-};
 
 /* EMAC control registers for ports 0 and 1 (both have same format) */
 #define NEMAC0CTL_OFFSET		0x1070
@@ -212,7 +179,7 @@ struct tc956x_data {
 	struct gpio_desc *phy_reset;
 	u32 phy_reset_delay;
 	int wol_irq;
-	struct tc956x_chip *chip;
+	struct tc9564_chip *chip;
 
 	/* Remaining fields are used by the plat_stmmacenet_data structure */
 	struct stmmac_dma_cfg dma_cfg;
@@ -220,7 +187,7 @@ struct tc956x_data {
 };
 
 /**
- * struct tc956x_chip - Common chip support information
+ * struct tc9564_chip - Common chip support information
  * @reset_clock_regmap:	Register map used for clocks and resets
  * @primary:		Data pointer for the primary eMAC interface
  * @secondary:		Device link between secondary (consumer) and primary
@@ -230,7 +197,7 @@ struct tc956x_data {
  * @chip_id:		Chip ID
  * @links:		Links in the list of all chips
  *
- * A single tc956x_chip structure represents the chip as a whole,
+ * A single tc9564_chip structure represents the chip as a whole,
  * collecting resources that are common to both eMAC interfaces.
  * The first eMAC probed will create one of these when it creates
  * its tc956x_data structure; this will be the *primary* interface.
@@ -239,7 +206,7 @@ struct tc956x_data {
  * the mapped SFR memory, and for that reason, cannot be removed
  * (and unmapped) unless the secondary interface is not in use.
  */
-struct tc956x_chip {
+struct tc9564_chip {
 	struct regmap *reset_clock_regmap;
 
 	struct tc956x_data *primary;
@@ -251,7 +218,7 @@ struct tc956x_chip {
 	u8 rev_id;
 	u8 chip_id;
 
-	struct list_head links;		/* Protected by tc956x_chips_lock */
+	struct list_head links;		/* Protected by tc9564_chips_lock */
 };
 
 struct tc956x_mac_speed {
@@ -269,8 +236,8 @@ static struct tc956x_mac_speed tc956x_chipcfg_mac_speed[] = {
 	{ PHY_INTERFACE_MODE_SGMII,	SPEED_10,    SP_SEL_SGMII_10M, },
 };
 
-static LIST_HEAD(tc956x_chips);		/* List of TC956x chips */
-static DEFINE_MUTEX(tc956x_chips_lock); /* Don't rely on synchronous probing */
+static LIST_HEAD(tc9564_chips);		/* List of TC956x chips */
+static DEFINE_MUTEX(tc9564_chips_lock); /* Don't rely on synchronous probing */
 
 static const struct regmap_config tc956x_gpio_regmap_config = {
 	.name		= "tc956x-gpio",
@@ -290,10 +257,11 @@ static const struct regmap_config tc956x_reset_clock_regmap_config = {
 	.max_register	= 0x1010,	/* Register NRSTCTRL1 */
 };
 
-
-static void __reset_clock_set(struct tc956x_chip *chip, u32 offset,
-			      u32 bit, bool set)
+void tc9564_chip_reset_clock_set(struct tc9564_chip *chip, bool reset,
+				 bool reg0, bool set, u8 bit)
 {
+	u32 offset = reset ? reg0 ? RSTCTRL0_OFFSET : RSTCTRL1_OFFSET
+			   : reg0 ? CLKCTRL0_OFFSET : CLKCTRL1_OFFSET;
 	u32 mask = BIT(bit);
 
 	/* Note: no need to check for errors on read/write for MMIO regmap */
@@ -301,35 +269,7 @@ static void __reset_clock_set(struct tc956x_chip *chip, u32 offset,
 				 set ? mask : 0);
 }
 
-#define tc956x_chip_reset_assert(_chip, _id)				\
-	__reset_clock_set((_chip), RSTCTRL0_OFFSET, (u32)(_id), true)
-#define tc956x_chip_reset_deassert(_chip, _id)				\
-	__reset_clock_set((_chip), RSTCTRL0_OFFSET, (u32)(_id), false)
-
-#define tc956x_mac_reset_offset(_td)					\
-	((_td)->pci_fn ? RSTCTRL1_OFFSET : RSTCTRL0_OFFSET)
-#define tc956x_mac_reset_assert(_td, _id)				\
-	__reset_clock_set((_td)->chip, tc956x_mac_reset_offset(_td),	\
-			  (u32)(_id), true)
-#define tc956x_mac_reset_deassert(_td, _id)				\
-	__reset_clock_set((_td)->chip, tc956x_mac_reset_offset(_td),	\
-			  (u32)(_id), false)
-
-#define tc956x_chip_clock_enable(_chip, _id)				\
-	__reset_clock_set((_chip), CLKCTRL0_OFFSET, (u32)(_id), true)
-#define tc956x_chip_clock_disable(_chip, _id)				\
-	__reset_clock_set((_chip), CLKCTRL0_OFFSET, (u32)(_id), false)
-
-#define tc956x_mac_clock_offset(_td)					\
-	((_td)->pci_fn ? CLKCTRL1_OFFSET : CLKCTRL0_OFFSET)
-#define tc956x_mac_clock_enable(_td, _id)				\
-	__reset_clock_set((_td)->chip, tc956x_mac_clock_offset(_td),	\
-			  (u32)(_id), true)
-#define tc956x_mac_clock_disable(_td, _id)				\
-	__reset_clock_set((_td)->chip, tc956x_mac_clock_offset(_td),	\
-			  (u32)(_id), false)
-
-static int tc956x_reset_clock_init(struct tc956x_chip *chip)
+static int tc956x_reset_clock_init(struct tc9564_chip *chip)
 {
 	struct tc956x_data *td = chip->primary;
 	struct regmap *regmap;
@@ -571,7 +511,7 @@ static void tc956x_mac_pma_init(struct tc956x_data *td)
 	 * been deasserted. We must make sure the PMA reset is asserted before
 	 * we change the clock settings.
 	 */
-	tc956x_mac_reset_assert(td, MAC_RESET_PMA);
+	tc9564_mac_reset_assert(td->chip, td->pci_fn, MAC_RESET_PMA);
 
 	/* Power on CML buffer */
 	writel(0, pma_base + PMA_CML_GL_PM_CFG0);
@@ -598,7 +538,7 @@ static void tc956x_mac_pma_init(struct tc956x_data *td)
 	writel(0, pma_base + PMA_HWT_REFCK_R_EN_R4);
 	writel(0, pma_base + PMA_HWT_REFCK_TERM_EN_R4);
 
-	tc956x_mac_reset_deassert(td, MAC_RESET_PMA);
+	tc9564_mac_reset_deassert(td->chip, td->pci_fn, MAC_RESET_PMA);
 
 	emac_ctl_reg = td->sfr + (td->pci_fn ? NEMAC1CTL_OFFSET
 					     : NEMAC0CTL_OFFSET);
@@ -636,9 +576,9 @@ static int tc956x_chipcfg_mac_configure(struct tc956x_data *td, int speed)
 
 	/* Speeds up to 1Gbps require the 125 MHz clock to be enabled */
 	if (speed < SPEED_2500)
-		tc956x_mac_clock_enable(td, MAC_CLOCK_125M);
+		tc9564_mac_clock_enable(td->chip, td->pci_fn, MAC_CLOCK_125M);
 	else
-		tc956x_mac_clock_disable(td, MAC_CLOCK_125M);
+		tc9564_mac_clock_disable(td->chip, td->pci_fn, MAC_CLOCK_125M);
 
 	emac_ctl_reg = td->sfr + (td->pci_fn ? NEMAC1CTL_OFFSET
 					     : NEMAC0CTL_OFFSET);
@@ -723,43 +663,43 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 	if (td == td->chip->primary)
 		tc956x_config_tamap(td);
 
-	tc956x_mac_clock_enable(td, MAC_CLOCK_TX);
-	tc956x_mac_clock_enable(td, MAC_CLOCK_RX);
-	tc956x_mac_clock_enable(td, MAC_CLOCK_ALL);
+	tc9564_mac_clock_enable(td->chip, td->pci_fn, MAC_CLOCK_TX);
+	tc9564_mac_clock_enable(td->chip, td->pci_fn, MAC_CLOCK_RX);
+	tc9564_mac_clock_enable(td->chip, td->pci_fn, MAC_CLOCK_ALL);
 	if (td->pci_fn)
-		tc956x_mac_clock_enable(td, MAC_CLOCK_RMII);
+		tc9564_mac_clock_enable(td->chip, td->pci_fn, MAC_CLOCK_RMII);
 
 	/* Set the speed related registers */
 	ret = tc956x_chipcfg_mac_configure(td, plat->max_speed);
 	if (ret)
 		return ret;
 
-	tc956x_mac_reset_deassert(td, MAC_RESET_MAC);
+	tc9564_mac_reset_deassert(td->chip, td->pci_fn, MAC_RESET_MAC);
 
 	tc956x_mac_pma_init(td);
 
-	tc956x_mac_reset_deassert(td, MAC_RESET_XPCS);
+	tc9564_mac_reset_deassert(td->chip, td->pci_fn, MAC_RESET_XPCS);
 
 	return 0;
 }
 
 static void tc956x_stop_mac(struct tc956x_data *td)
 {
-	tc956x_mac_reset_assert(td, MAC_RESET_MAC);
-	tc956x_mac_reset_assert(td, MAC_RESET_PMA);
-	tc956x_mac_reset_assert(td, MAC_RESET_XPCS);
+	tc9564_mac_reset_assert(td->chip, td->pci_fn, MAC_RESET_MAC);
+	tc9564_mac_reset_assert(td->chip, td->pci_fn, MAC_RESET_PMA);
+	tc9564_mac_reset_assert(td->chip, td->pci_fn, MAC_RESET_XPCS);
 
-	tc956x_mac_clock_disable(td, MAC_CLOCK_ALL);
-	tc956x_mac_clock_disable(td, MAC_CLOCK_RX);
-	tc956x_mac_clock_disable(td, MAC_CLOCK_TX);
-	tc956x_mac_clock_disable(td, MAC_CLOCK_125M);
+	tc9564_mac_clock_disable(td->chip, td->pci_fn, MAC_CLOCK_ALL);
+	tc9564_mac_clock_disable(td->chip, td->pci_fn, MAC_CLOCK_RX);
+	tc9564_mac_clock_disable(td->chip, td->pci_fn, MAC_CLOCK_TX);
+	tc9564_mac_clock_disable(td->chip, td->pci_fn, MAC_CLOCK_125M);
 	if (td->pci_fn)
-		tc956x_mac_clock_disable(td, MAC_CLOCK_RMII);
+		tc9564_mac_clock_disable(td->chip, td->pci_fn, MAC_CLOCK_RMII);
 }
 
 static void tc956x_mac_init_state(struct tc956x_data *td)
 {
-	tc956x_mac_clock_disable(td, MAC_CLOCK_312_5M);
+	tc9564_mac_clock_disable(td->chip, td->pci_fn, MAC_CLOCK_312_5M);
 
 	tc956x_stop_mac(td);
 }
@@ -1240,43 +1180,43 @@ static struct tc956x_data *tc956x_devm_data_create(struct pci_dev *pdev)
 	return td;
 }
 
-static void tc956x_stop_chip(struct tc956x_chip *chip)
+static void tc956x_stop_chip(struct tc9564_chip *chip)
 {
-	tc956x_chip_reset_assert(chip, CHIP_RESET_MSIGEN);
+	tc9564_chip_reset_assert(chip, CHIP_RESET_MSIGEN);
 
-	tc956x_chip_clock_disable(chip, CHIP_CLOCK_MSIGEN);
+	tc9564_chip_clock_disable(chip, CHIP_CLOCK_MSIGEN);
 }
 
-static void tc956x_chip_init_state(struct tc956x_chip *chip)
+static void tc9564_chip_init_state(struct tc9564_chip *chip)
 {
-	tc956x_chip_reset_assert(chip, CHIP_RESET_MCU);
-	tc956x_chip_reset_assert(chip, CHIP_RESET_MCU1);
-	tc956x_chip_reset_assert(chip, CHIP_RESET_INTC);
-	tc956x_chip_reset_assert(chip, CHIP_RESET_UART0);
+	tc9564_chip_reset_assert(chip, CHIP_RESET_MCU);
+	tc9564_chip_reset_assert(chip, CHIP_RESET_MCU1);
+	tc9564_chip_reset_assert(chip, CHIP_RESET_INTC);
+	tc9564_chip_reset_assert(chip, CHIP_RESET_UART0);
 
-	tc956x_chip_clock_disable(chip, CHIP_CLOCK_MCU);
-	tc956x_chip_clock_disable(chip, CHIP_CLOCK_SRAM);
-	tc956x_chip_clock_disable(chip, CHIP_CLOCK_PLL);
-	tc956x_chip_clock_disable(chip, CHIP_CLOCK_SGMII);
-	tc956x_chip_clock_disable(chip, CHIP_CLOCK_REFCLK);
-	tc956x_chip_clock_disable(chip, CHIP_CLOCK_INTC);
-	tc956x_chip_clock_disable(chip, CHIP_CLOCK_UART0);
+	tc9564_chip_clock_disable(chip, CHIP_CLOCK_MCU);
+	tc9564_chip_clock_disable(chip, CHIP_CLOCK_SRAM);
+	tc9564_chip_clock_disable(chip, CHIP_CLOCK_PLL);
+	tc9564_chip_clock_disable(chip, CHIP_CLOCK_SGMII);
+	tc9564_chip_clock_disable(chip, CHIP_CLOCK_REFCLK);
+	tc9564_chip_clock_disable(chip, CHIP_CLOCK_INTC);
+	tc9564_chip_clock_disable(chip, CHIP_CLOCK_UART0);
 
 	tc956x_stop_chip(chip);
 }
 
-static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
+static struct tc9564_chip *tc9564_chip_get(struct tc956x_data *td)
 {
 	struct device *dev = td->dev;
 	struct pci_dev *pdev = to_pci_dev(dev);
 	u8 pci_bus_num = PCI_BUS_NUM(pdev->devfn);
 	u8 pci_slot = PCI_SLOT(pdev->devfn);
-	struct tc956x_chip *chip;
+	struct tc9564_chip *chip;
 	u32 val;
 	int ret;
 
 	/* Use the existing chip structure if it's already been created */
-	list_for_each_entry(chip, &tc956x_chips, links) {
+	list_for_each_entry(chip, &tc9564_chips, links) {
 		if (chip->pci_bus_num != pci_bus_num)
 			continue;
 		if (chip->pci_slot != pci_slot)
@@ -1313,19 +1253,19 @@ static struct tc956x_chip *tc956x_chip_get(struct tc956x_data *td)
 		return ERR_PTR(ret);
 
 	/* Put chip resets and clocks into a known initial state */
-	tc956x_chip_init_state(chip);
+	tc9564_chip_init_state(chip);
 
-	tc956x_chip_clock_enable(chip, CHIP_CLOCK_MSIGEN);
-	tc956x_chip_reset_deassert(chip, CHIP_RESET_MSIGEN);
+	tc9564_chip_clock_enable(chip, CHIP_CLOCK_MSIGEN);
+	tc9564_chip_reset_deassert(chip, CHIP_RESET_MSIGEN);
 
-	list_add(&chip->links, &tc956x_chips);
+	list_add(&chip->links, &tc9564_chips);
 
 	return chip;
 }
 
-static void tc956x_chip_put(struct tc956x_data *td)
+static void tc9564_chip_put(struct tc956x_data *td)
 {
-	struct tc956x_chip *chip = td->chip;
+	struct tc9564_chip *chip = td->chip;
 
 	td->chip = NULL;
 
@@ -1340,7 +1280,7 @@ static void tc956x_chip_put(struct tc956x_data *td)
 	 * device links to guarantee that... so if this warning fires then
 	 * things have gone pretty badly wrong!
 	 */
-	WARN(chip->secondary, "tc956x_chip_put() calls are incorrectly ordered");
+	WARN(chip->secondary, "tc9564_chip_put() calls are incorrectly ordered");
 
 	list_del(&chip->links);
 
@@ -1384,9 +1324,9 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 	 * because we cannot fully commit to being the primary until right at
 	 * end of the probe function.
 	 */
-	guard(mutex)(&tc956x_chips_lock);
+	guard(mutex)(&tc9564_chips_lock);
 
-	td->chip = tc956x_chip_get(td);
+	td->chip = tc9564_chip_get(td);
 	if (IS_ERR(td->chip))
 		return dev_err_probe(dev, PTR_ERR(td->chip), "cannot get chip\n");
 
@@ -1477,7 +1417,7 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 err:
 	tc956x_stop_mac(td);
 	(void)tc956x_phy_power_off(td);
-	tc956x_chip_put(td);
+	tc9564_chip_put(td);
 
 	return ret;
 }
@@ -1488,9 +1428,9 @@ static void tc956x_xgmac3_remove(struct tc956x_data *td)
 	(void)tc956x_phy_power_off(td);
 	tc956x_stop_mac(td);
 
-	scoped_guard(mutex, &tc956x_chips_lock)
+	scoped_guard(mutex, &tc9564_chips_lock)
 	{
-		tc956x_chip_put(td);
+		tc9564_chip_put(td);
 	}
 }
 
