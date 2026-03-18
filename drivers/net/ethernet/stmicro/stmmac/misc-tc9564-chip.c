@@ -83,13 +83,11 @@ struct tc9564_chip {
  * struct tc9564_function - Information related to the embedded GPIO controller
  * @pdev:		PCI device structure
  * @sfr:		Mapped SFR region (BAR 4)
- * @pci_fn:		Which PCI function this is (0 or 1)
  */
 struct tc9564_function {
 	struct pci_dev *pdev;
 	void __iomem *sfr;
 	struct regmap *reset_clock_regmap;
-	u8 pci_fn;			/* XXX Redundant if we keep pdev */
 };
 
 static const struct regmap_config gpio_regmap_config = {
@@ -174,7 +172,7 @@ static int adev_device_add(struct tc9564_function *function, const char *name,
 	adev->dev.release = adev_release;
 	adev->dev.of_node = dev->of_node;
 	adev->dev.platform_data = regmap;
-	adev->id = function->pci_fn;
+	adev->id = PCI_FUNC(function->pdev->devfn);
 
 	ret = auxiliary_device_init(adev);
 	if (ret)
@@ -234,7 +232,6 @@ static int tc9564_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
 	struct tc9564_function *function;
 	struct device *dev = &pdev->dev;
-	u8 pci_fn;
 	int ret;
 
 	printk(" === %s\n", __func__);
@@ -242,16 +239,11 @@ static int tc9564_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (!dev->of_node)
 		return -EINVAL;
 
-	pci_fn = PCI_FUNC(pdev->devfn);
-	if (WARN_ON(pci_fn > 1))
-		return -EINVAL;
-
 	function = devm_kzalloc(dev, sizeof(*function), GFP_KERNEL);
 	if (!function)
 		return -ENOMEM;
 
 	function->pdev = pdev;
-	function->pci_fn = pci_fn;
 
 	function->sfr = pcim_iomap_region(pdev, PCI_BAR_SFR, DRIVER_NAME);
 	if (IS_ERR(function->sfr))
@@ -270,18 +262,14 @@ static int tc9564_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	dev_set_drvdata(dev, function);
 
-	printk(" === %s function %u has probed successfully\n", __func__,
-		function->pci_fn);
+	dev_info(dev, " === %s success\n", __func__);
 
 	return 0;
 }
 
 static void tc9564_remove(struct pci_dev *pdev)
 {
-	struct tc9564_function *function = dev_get_drvdata(&pdev->dev);
-
-	printk(" === %s function %u has been removed successfully\n", __func__,
-		function->pci_fn);
+	dev_info(&pdev->dev, " === %s success\n", __func__);
 }
 
 static const struct pci_device_id tc9564_id_table[] = {
