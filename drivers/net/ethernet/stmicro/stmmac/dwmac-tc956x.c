@@ -1161,10 +1161,15 @@ static struct tc956x_data *tc956x_devm_data_create(struct pci_dev *pdev)
 	return td;
 }
 
+static void tc956x_start_chip(struct tc9564_chip *chip)
+{
+	tc9564_chip_reset_deassert(chip, CHIP_RESET_MSIGEN);
+	tc9564_chip_clock_enable(chip, CHIP_CLOCK_MSIGEN);
+}
+
 static void tc956x_stop_chip(struct tc9564_chip *chip)
 {
 	tc9564_chip_reset_assert(chip, CHIP_RESET_MSIGEN);
-
 	tc9564_chip_clock_disable(chip, CHIP_CLOCK_MSIGEN);
 }
 
@@ -1233,11 +1238,8 @@ static struct tc9564_chip *tc9564_chip_get(struct tc956x_data *td)
 	if (ret)
 		return ERR_PTR(ret);
 
-	/* Put chip resets and clocks into a known initial state */
 	tc9564_chip_init_state(chip);
-
-	tc9564_chip_clock_enable(chip, CHIP_CLOCK_MSIGEN);
-	tc9564_chip_reset_deassert(chip, CHIP_RESET_MSIGEN);
+	tc956x_start_chip(chip);
 
 	list_add(&chip->links, &tc9564_chips);
 
@@ -1479,13 +1481,20 @@ MODULE_DEVICE_TABLE(pci, tc956x_id_table);
  */
 static int tc956x_suspend(struct device *dev)
 {
+	struct net_device *ndev = dev_get_drvdata(dev);
 	int ret;
 
 	/* If we are a GPIO-only device then there will be no device data */
-	if (dev_get_drvdata(dev)) {
+	if (ndev) {
+		struct stmmac_priv *priv = netdev_priv(ndev);
+		struct tc956x_data *td = priv->plat->bsp_priv;
+
 		ret = stmmac_suspend(dev);
 		if (ret)
 			return ret;
+
+		if (td == td->chip->primary)
+			tc956x_stop_chip(td->chip);
 	}
 
 	return stmmac_pci_plat_suspend(dev, NULL);
@@ -1493,13 +1502,23 @@ static int tc956x_suspend(struct device *dev)
 
 static int tc956x_resume(struct device *dev)
 {
-	int ret = stmmac_pci_plat_resume(dev, NULL);
+	struct net_device *ndev = dev_get_drvdata(dev);
+	int ret;
+
+	ret = stmmac_pci_plat_resume(dev, NULL);
 	if (ret)
 		return ret;
 
 	/* If we are a GPIO-only device then there will be no device data */
-	if (dev_get_drvdata(dev))
+	if (ndev) {
+		struct stmmac_priv *priv = netdev_priv(ndev);
+		struct tc956x_data *td = priv->plat->bsp_priv;
+
+		if (td == td->chip->primary)
+			tc956x_start_chip(td->chip);
+
 		return stmmac_resume(dev);
+	}
 
 	return 0;
 }
