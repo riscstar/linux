@@ -168,6 +168,10 @@ static int tc9564_gpio_probe(struct auxiliary_device *adev,
 	gc->ngpio = TC956X_GPIO_COUNT;
 	gc->can_sleep = false;
 
+	dev_set_drvdata(dev, gpio);
+
+	printk(" === %s finishing\n", __func__);
+
 	return devm_gpiochip_add_data(dev, gc, gpio);
 }
 
@@ -177,10 +181,31 @@ static const struct auxiliary_device_id tc964_gpio_ids[] = {
 };
 MODULE_DEVICE_TABLE(auxiliary, tc964_gpio_ids);
 
+static int tc9564_gpio_suspend(struct device *dev)
+{
+	printk(" === %s\n", __func__);
+	return 0;
+}
+
+static int tc9564_gpio_resume(struct device *dev)
+{
+	printk(" === %s\n", __func__);
+	return 0;
+}
+
+static SIMPLE_DEV_PM_OPS(tc9564_gpio_pm_ops, tc9564_gpio_suspend,
+			 tc9564_gpio_resume);
+
 static struct auxiliary_driver tc9564_gpio_driver = {
 	.name		= DRIVER_NAME,
 	.probe          = tc9564_gpio_probe,
 	.id_table       = tc964_gpio_ids,
+	.driver = {
+		.name		= DRIVER_NAME,
+		.pm		= &tc9564_gpio_pm_ops,
+		/* .owner	= THIS_MODULE, */
+		/* .probe_type	= PROBE_PREFER_ASYNCHRONOUS, */
+	},
 };
 module_auxiliary_driver(tc9564_gpio_driver);
 
