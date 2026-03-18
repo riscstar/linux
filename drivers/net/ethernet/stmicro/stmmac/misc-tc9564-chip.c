@@ -75,16 +75,12 @@
 #define CLKCTRL0_OFFSET			0x0004
 #define CLKCTRL1_OFFSET			0x000c
 
-/* For now we'll just make this be an alias for the tc9564_function structure */
-struct tc9564_chip {
-};
-
 /*
- * struct tc9564_function - Information related to the embedded GPIO controller
+ * struct tc9564_chip - Common information related to the TC9564 chip
  * @pdev:		PCI device structure
  * @sfr:		Mapped SFR region (BAR 4)
  */
-struct tc9564_function {
+struct tc9564_chip {
 	struct pci_dev *pdev;
 	void __iomem *sfr;
 	struct regmap *reset_clock_regmap;
@@ -108,11 +104,6 @@ static const struct regmap_config reset_clock_regmap_config = {
 	.max_register	= 0x1010,	/* Register NRSTCTRL1 */
 };
 
-static struct tc9564_function *chip_to_function(struct tc9564_chip *chip)
-{
-	return (struct tc9564_function *)chip;
-}
-
 static void regmap_log(const char *name, const struct regmap_config *config)
 {
 #if IS_ENABLED(CONFIG_TRACE_MMIO_ACCESS)
@@ -134,11 +125,10 @@ void tc9564_chip_reset_clock_set(struct tc9564_chip *chip, bool reset,
 {
 	u32 offset = reset ? reg0 ? RSTCTRL0_OFFSET : RSTCTRL1_OFFSET
 			   : reg0 ? CLKCTRL0_OFFSET : CLKCTRL1_OFFSET;
-	struct tc9564_function *function = chip_to_function(chip);
 	u32 mask = BIT(bit);
 
 	/* Note: no need to check for errors on read/write for MMIO regmap */
-	(void)regmap_update_bits(function->reset_clock_regmap, offset, mask,
+	(void)regmap_update_bits(chip->reset_clock_regmap, offset, mask,
 				 set ? mask : 0);
 }
 EXPORT_SYMBOL_GPL(tc9564_chip_reset_clock_set);
@@ -156,10 +146,10 @@ static void adev_remove(void *data)
 	auxiliary_device_uninit(adev);
 }
 
-static int adev_device_add(struct tc9564_function *function, const char *name,
+static int adev_device_add(struct tc9564_chip *chip, const char *name,
 			   struct regmap *regmap)
 {
-	struct device *dev = &function->pdev->dev;
+	struct device *dev = &chip->pdev->dev;
 	struct auxiliary_device *adev;
 	int ret;
 
@@ -172,7 +162,7 @@ static int adev_device_add(struct tc9564_function *function, const char *name,
 	adev->dev.release = adev_release;
 	adev->dev.of_node = dev->of_node;
 	adev->dev.platform_data = regmap;
-	adev->id = PCI_FUNC(function->pdev->devfn);
+	adev->id = PCI_FUNC(chip->pdev->devfn);
 
 	ret = auxiliary_device_init(adev);
 	if (ret)
@@ -188,10 +178,10 @@ static int adev_device_add(struct tc9564_function *function, const char *name,
 }
 
 /* The embedded GPIO controller has an auxiliary device driver */
-static int gpio_auxiliary_device_add(struct tc9564_function *function)
+static int gpio_auxiliary_device_add(struct tc9564_chip *chip)
 {
-	struct device *dev = &function->pdev->dev;
-	void __iomem *base = function->sfr;
+	struct device *dev = &chip->pdev->dev;
+	void __iomem *base = chip->sfr;
 	struct regmap *regmap;
 
 	/*
@@ -209,19 +199,19 @@ static int gpio_auxiliary_device_add(struct tc9564_function *function)
 
 	regmap_log("misc-gpio", &gpio_regmap_config);
 
-	return adev_device_add(function, GPIO_DEVICE_NAME, regmap);
+	return adev_device_add(chip, GPIO_DEVICE_NAME, regmap);
 }
 
-static int reset_clock_init(struct tc9564_function *function)
+static int reset_clock_init(struct tc9564_chip *chip)
 {
-	struct device *dev = &function->pdev->dev;
-	void __iomem *base = function->sfr;
+	struct device *dev = &chip->pdev->dev;
+	void __iomem *base = chip->sfr;
 	struct regmap *regmap;
 
 	regmap = devm_regmap_init_mmio(dev, base, &reset_clock_regmap_config);
 	if (IS_ERR(regmap))
 		return PTR_ERR(regmap);
-	function->reset_clock_regmap = regmap;
+	chip->reset_clock_regmap = regmap;
 
 	regmap_log("misc-reset-clock", &reset_clock_regmap_config);
 
@@ -230,8 +220,8 @@ static int reset_clock_init(struct tc9564_function *function)
 
 static int tc9564_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
-	struct tc9564_function *function;
 	struct device *dev = &pdev->dev;
+	struct tc9564_chip *chip;
 	int ret;
 
 	printk(" === %s\n", __func__);
@@ -239,28 +229,28 @@ static int tc9564_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (!dev->of_node)
 		return -EINVAL;
 
-	function = devm_kzalloc(dev, sizeof(*function), GFP_KERNEL);
-	if (!function)
+	chip = devm_kzalloc(dev, sizeof(*chip), GFP_KERNEL);
+	if (!chip)
 		return -ENOMEM;
 
-	function->pdev = pdev;
+	chip->pdev = pdev;
 
-	function->sfr = pcim_iomap_region(pdev, PCI_BAR_SFR, DRIVER_NAME);
-	if (IS_ERR(function->sfr))
-		return dev_err_probe(dev, PTR_ERR(function->sfr),
+	chip->sfr = pcim_iomap_region(pdev, PCI_BAR_SFR, DRIVER_NAME);
+	if (IS_ERR(chip->sfr))
+		return dev_err_probe(dev, PTR_ERR(chip->sfr),
 				     "failed to map sfr region\n");
 
-	ret = reset_clock_init(function);
+	ret = reset_clock_init(chip);
 	if (ret)
 		return dev_err_probe(dev, ret,
 				     "failed to initialize reset/clock\n");
 
-	ret = gpio_auxiliary_device_add(function);
+	ret = gpio_auxiliary_device_add(chip);
 	if (ret)
 		return dev_err_probe(dev, ret,
 				     "failed to add GPIO device\n");
 
-	dev_set_drvdata(dev, function);
+	dev_set_drvdata(dev, chip);
 
 	dev_info(dev, " === %s success\n", __func__);
 
