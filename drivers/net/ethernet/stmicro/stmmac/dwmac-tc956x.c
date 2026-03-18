@@ -641,10 +641,6 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 	struct plat_stmmacenet_data *plat = td->plat;
 	int ret;
 
-	/* Configure TA map registers whenever the primary MAC is initialized */
-	if (td == td->chip->primary)
-		tc956x_config_tamap(td);
-
 	tc9564_mac_clock_enable(td->chip, td->pci_fn, MAC_CLOCK_TX);
 	tc9564_mac_clock_enable(td->chip, td->pci_fn, MAC_CLOCK_RX);
 	tc9564_mac_clock_enable(td->chip, td->pci_fn, MAC_CLOCK_ALL);
@@ -995,6 +991,10 @@ static int tc956x_xgmac3_resume(struct device *dev, void *bsp_priv)
 	struct stmmac_priv *priv = netdev_priv(ndev);
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	int ret;
+
+	/* Configure TA map registers whenever the primary MAC is initialized */
+	if (td == td->chip->primary)
+		tc956x_config_tamap(td);
 
 	if (priv->wolopts) {
 		ret = disable_irq_wake(priv->wol_irq);
@@ -1378,6 +1378,10 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 	ret = tc956x_reset_gpio_get(td);
 	if (ret)
 		goto err;
+
+	/* Configure TA map registers whenever the primary MAC is initialized */
+	if (td == td->chip->primary)
+		tc956x_config_tamap(td);
 
 	ret = tc956x_phy_power_on(td);
 	if (ret) {
