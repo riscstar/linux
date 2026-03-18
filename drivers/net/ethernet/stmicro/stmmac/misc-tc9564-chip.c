@@ -77,11 +77,12 @@
 
 /*
  * struct tc9564_chip - Common information related to the TC9564 chip
- * @pdev:		PCI device structure
+ * @dev:		Device structure
  * @sfr:		Mapped SFR region (BAR 4)
+ * @reset_clock_regmap:	Regmap used for resets and clocks
  */
 struct tc9564_chip {
-	struct pci_dev *pdev;
+	struct device *dev;
 	void __iomem *sfr;
 	struct regmap *reset_clock_regmap;
 };
@@ -136,7 +137,7 @@ EXPORT_SYMBOL_GPL(tc9564_chip_reset_clock_set);
 /* The embedded GPIO controller has an auxiliary device driver */
 static int gpio_auxiliary_device_add(struct tc9564_chip *chip)
 {
-	struct device *dev = &chip->pdev->dev;
+	struct device *dev = chip->dev;
 	void __iomem *base = chip->sfr;
 	struct regmap *regmap;
 
@@ -163,7 +164,7 @@ static int gpio_auxiliary_device_add(struct tc9564_chip *chip)
 
 static int reset_clock_init(struct tc9564_chip *chip)
 {
-	struct device *dev = &chip->pdev->dev;
+	struct device *dev = chip->dev;
 	void __iomem *base = chip->sfr;
 	struct regmap *regmap;
 
@@ -192,7 +193,7 @@ static int tc9564_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (!chip)
 		return -ENOMEM;
 
-	chip->pdev = pdev;
+	chip->dev = dev;
 
 	chip->sfr = pcim_iomap_region(pdev, PCI_BAR_SFR, DRIVER_NAME);
 	if (IS_ERR(chip->sfr))
