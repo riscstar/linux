@@ -308,7 +308,7 @@ static void tc956x_msigen_irq_handler(struct irq_desc *desc)
 	 * If any interrupts are still asserted then clearing this flag will
 	 * cause the (edge-triggered) MSI to be regenerated.
 	 */
-	irq_reg_writel(gc, 1, MSI_MASK_CLR_OFFSET);
+	irq_reg_writel(gc, BIT(0), MSI_MASK_CLR_OFFSET);
 
 	chained_irq_exit(chip, desc);
 }
