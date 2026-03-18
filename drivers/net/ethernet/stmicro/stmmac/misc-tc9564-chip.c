@@ -158,8 +158,8 @@ static void adev_remove(void *data)
 	auxiliary_device_uninit(adev);
 }
 
-static int devm_adev_device_add(struct tc9564_function *function,
-				const char *name, struct regmap *regmap)
+static int adev_device_add(struct tc9564_function *function, const char *name,
+			   struct regmap *regmap)
 {
 	struct device *dev = &function->pdev->dev;
 	struct auxiliary_device *adev;
@@ -190,7 +190,7 @@ static int devm_adev_device_add(struct tc9564_function *function,
 }
 
 /* The embedded GPIO controller has an auxiliary device driver */
-static int devm_gpio_auxiliary_device_add(struct tc9564_function *function)
+static int gpio_auxiliary_device_add(struct tc9564_function *function)
 {
 	struct device *dev = &function->pdev->dev;
 	void __iomem *base = function->sfr;
@@ -211,7 +211,7 @@ static int devm_gpio_auxiliary_device_add(struct tc9564_function *function)
 
 	regmap_log("misc-gpio", &gpio_regmap_config);
 
-	return devm_adev_device_add(function, GPIO_DEVICE_NAME, regmap);
+	return adev_device_add(function, GPIO_DEVICE_NAME, regmap);
 }
 
 static int reset_clock_init(struct tc9564_function *function)
@@ -261,7 +261,7 @@ static int tc9564_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		return dev_err_probe(dev, ret,
 				     "failed to initialize reset/clock\n");
 
-	ret = devm_gpio_auxiliary_device_add(function);
+	ret = gpio_auxiliary_device_add(function);
 	if (ret)
 		return dev_err_probe(dev, ret,
 				     "failed to add GPIO device\n");
