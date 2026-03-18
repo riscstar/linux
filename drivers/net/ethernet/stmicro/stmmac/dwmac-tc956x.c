@@ -127,8 +127,8 @@ enum tc956x_msigen_hwirq {
 #define XGMAC_BASE(td)	((td)->sfr + ((td)->pci_fn ? 0x48000 : 0x40000))
 
 /* The next two are relative to XGMAC_BASE() */
-#define XPCS_XGMAC_OFFSET  			0x3a00
-#define PMA_XGMAC_OFFSET   			0x4000
+#define XPCS_XGMAC_OFFSET			0x3a00
+#define PMA_XGMAC_OFFSET			0x4000
 
 /* All PMA registers are relative to PMA_XGMAC_OFFSET */
 #define PMA_CML_GL_PM_CFG0			0x01b8
@@ -476,7 +476,7 @@ static int tc956x_reset_gpio_get(struct tc956x_data *td)
 
 /**
  * tc956x_mac_pma_init() - Initialize PMA
- * @td:    bsp_priv pointer
+ * @td:	bsp_priv pointer
  *
  * Initialize (or re-initialize) the PMA, configure the clocks and wait for the
  * MAC to be ready.
@@ -494,13 +494,14 @@ static void tc956x_mac_pma_init(struct tc956x_data *td)
 	 */
 	tc9564_mac_reset_assert(td->chip, td->pci_fn, MAC_RESET_PMA);
 
-	/* Power on CML buffer */
+	/* Power on CML buffer (0 = normal mode, 1 = power down) */
 	writel(0, pma_base + PMA_CML_GL_PM_CFG0);
 
+	/* XXX Any documentation on what these values (4 in particular) do? */
 	/* Switch clock from C0_REFCK to CLK_REF_I */
-	val = u32_encode_bits(0xf7, COMM_CFG_WRITE_MASK_MASK) |
-	      COMM_CFG_ENABLE |
-	      u32_encode_bits(4, COMM_CFG_WRITE_DATA_MASK);
+	val = u32_encode_bits(0xf7, COMM_CFG_WRITE_MASK_MASK);
+	val |= COMM_CFG_ENABLE;
+	val |= u32_encode_bits(4, COMM_CFG_WRITE_DATA_MASK);
 	writel(val, pma_base + PMA_COMM_CFG_0_1_R0);
 	writel(val, pma_base + PMA_COMM_CFG_0_1_R1);
 	writel(val, pma_base + PMA_COMM_CFG_0_1_R2);
@@ -595,7 +596,7 @@ static void tc956x_config_tamap(struct tc956x_data *td)
 	 * AXI4 slave 0 translation table 0
 	 * We only use the first AXI4 slave translation table entry:
 	 *	EDMA address region:	0x10 0000 0000 - 0x1f ffff ffff
-	 * 	is translated to:	0x00 0000 0000 - 0x0f ffff ffff
+	 *	is translated to:	0x00 0000 0000 - 0x0f ffff ffff
 	 */
 	BUILD_BUG_ON(SLV00_ATR_SIZE < 11);
 	BUILD_BUG_ON(!!u32_get_bits(lower_32_bits(SLV00_SRC_ADDR),
@@ -1533,7 +1534,7 @@ static struct pci_driver tc956x_pci_driver = {
 	.driver		= {
 		.name	= DRIVER_NAME,
 		.owner	= THIS_MODULE,
-		.pm     = &tc956x_pm_ops,
+		.pm	= &tc956x_pm_ops,
 	},
 };
 
