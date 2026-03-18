@@ -47,6 +47,7 @@
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/module.h>
+#include <linux/of.h>
 #include <linux/pci.h>
 #include <linux/printk.h>
 #include <linux/property.h>
@@ -134,6 +135,56 @@ void tc9564_chip_reset_clock_set(struct tc9564_chip *chip, bool reset,
 }
 EXPORT_SYMBOL_GPL(tc9564_chip_reset_clock_set);
 
+static void adev_release(struct device *dev)
+{
+	struct auxiliary_device *adev = to_auxiliary_dev(dev);
+
+	of_node_put(adev->dev.of_node);
+	kfree(adev);
+}
+
+static void adev_remove(void *data)
+{
+	struct auxiliary_device *adev = data;
+
+	auxiliary_device_delete(adev);
+	auxiliary_device_uninit(adev);
+}
+
+static int adev_device_add(struct tc9564_chip *chip, const char *name, u32 id,
+			   void *platform_data)
+{
+	struct device *dev = chip->dev;
+	struct auxiliary_device *adev;
+	int ret;
+
+	adev = kzalloc_obj(*adev);
+	if (!adev)
+		return -ENOMEM;
+
+	adev->id = id;
+	adev->name = name;
+	adev->dev.parent = dev;
+	adev->dev.platform_data = platform_data;
+	adev->dev.release = adev_release;
+	device_set_of_node_from_dev(&adev->dev, dev);
+
+	ret = auxiliary_device_init(adev);
+	if (ret) {
+		of_node_put(adev->dev.of_node);
+		kfree(adev);
+		return ret;
+	}
+
+	ret = auxiliary_device_add(adev);
+	if (ret) {
+		auxiliary_device_uninit(adev);
+		return ret;
+	}
+
+	return devm_add_action_or_reset(dev, adev_remove, adev);
+}
+
 /* The embedded GPIO controller has an auxiliary device driver */
 static int gpio_auxiliary_device_add(struct tc9564_chip *chip)
 {
@@ -156,10 +207,7 @@ static int gpio_auxiliary_device_add(struct tc9564_chip *chip)
 
 	regmap_log("misc-gpio", &gpio_regmap_config);
 
-	if (!devm_auxiliary_device_create(dev, GPIO_DEVICE_NAME, regmap))
-		return -ENOMEM;
-
-	return 0;
+	return adev_device_add(chip, GPIO_DEVICE_NAME, 0, regmap);
 }
 
 static int reset_clock_init(struct tc9564_chip *chip)
