@@ -178,39 +178,103 @@ static int reset_clock_init(struct tc9564_chip *chip)
 	return 0;
 }
 
-static int tc9564_probe(struct pci_dev *pdev, const struct pci_device_id *id)
+/*
+ * Function 1 will first look up its peer device (function 0).  If
+ * its driver data is NULL, it hasn't yet probed, so function 1
+ * will return -EPROBE_DEFER.  Otherwise function 0's driver data
+ * pointer is returned.
+ *
+ * Returns a chip structure pointer, or a pointer-coded error.
+ */
+static void chip_link_del(void *data)
+{
+	struct device_link *link = data;
+
+	device_link_del(link);
+}
+
+static struct tc9564_chip *chip_get_function1(struct pci_dev *pdev)
+{
+	struct device *dev = &pdev->dev;
+	struct tc9564_chip *chip;
+	struct device_link *link;
+	struct pci_dev *peer;
+	unsigned int devfn;
+
+	/* Look up the PCI device for function 0 */
+	devfn = PCI_DEVFN(PCI_SLOT(pdev->devfn), 0);
+	peer = pci_get_slot(pdev->bus, devfn);
+	if (!peer)
+		return ERR_PTR(-ENXIO);
+
+	chip = dev_get_drvdata(&peer->dev);
+	if (!chip)
+		return ERR_PTR(-EPROBE_DEFER);
+
+	/* XXX Can't we DL_FLAG_AUTOREMOVE_SUPPLIER instead? */
+	/* Mark this device as dependent on function 0 */
+	link = device_link_add(dev, &peer->dev, DL_FLAG_AUTOREMOVE_SUPPLIER);
+	if (link) {
+		devm_add_action_or_reset(&peer->dev, chip_link_del, link);
+
+		dev_set_drvdata(dev, chip);
+	}
+
+	return link ? chip : ERR_PTR(-ENODEV);
+}
+
+/*
+ * Function 0 will allocate the chip structure that is shared by both
+ * functions.  Once it has allocated the structure it assigns it as
+ * the PCI device driver data.
+ *
+ * Returns a chip structure pointer, or a pointer-coded error.
+ */
+static struct tc9564_chip *chip_get(struct pci_dev *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct tc9564_chip *chip;
 	int ret;
+
+	if (PCI_FUNC(pdev->devfn))
+		return chip_get_function1(pdev);
+
+	chip = kzalloc_obj(*chip);
+	if (!chip)
+		return ERR_PTR(-ENOMEM);
+
+	chip->dev = dev;
+
+	chip->sfr = pcim_iomap_region(pdev, PCI_BAR_SFR, DRIVER_NAME);
+	if (IS_ERR(chip->sfr))
+		return ERR_CAST(chip->sfr);
+
+	ret = reset_clock_init(chip);
+	if (ret)
+		return ERR_PTR(ret);
+
+	ret = gpio_auxiliary_device_add(chip);
+	if (ret)
+		return ERR_PTR(ret);
+
+	dev_set_drvdata(dev, chip);
+
+	return chip;
+}
+
+static int tc9564_probe(struct pci_dev *pdev, const struct pci_device_id *id)
+{
+	struct device *dev = &pdev->dev;
+	struct tc9564_chip *chip;
 
 	printk(" === %s\n", __func__);
 
 	if (!dev->of_node)
 		return -EINVAL;
 
-	chip = devm_kzalloc(dev, sizeof(*chip), GFP_KERNEL);
-	if (!chip)
-		return -ENOMEM;
-
-	chip->dev = dev;
-
-	chip->sfr = pcim_iomap_region(pdev, PCI_BAR_SFR, DRIVER_NAME);
-	if (IS_ERR(chip->sfr))
-		return dev_err_probe(dev, PTR_ERR(chip->sfr),
-				     "failed to map sfr region\n");
-
-	ret = reset_clock_init(chip);
-	if (ret)
-		return dev_err_probe(dev, ret,
-				     "failed to initialize reset/clock\n");
-
-	ret = gpio_auxiliary_device_add(chip);
-	if (ret)
-		return dev_err_probe(dev, ret,
-				     "failed to add GPIO device\n");
-
-	dev_set_drvdata(dev, chip);
+	chip = chip_get(pdev);
+	if (IS_ERR(chip))
+		return dev_err_probe(dev, PTR_ERR(chip), "failed to get chip\n");
 
 	dev_info(dev, " === %s success\n", __func__);
 
