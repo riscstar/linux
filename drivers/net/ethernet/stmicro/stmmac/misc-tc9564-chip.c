@@ -178,6 +178,22 @@ static int reset_clock_init(struct tc9564_chip *chip)
 	return 0;
 }
 
+static void chip_stop(void *data)
+{
+	struct tc9564_chip *chip = data;
+
+	tc9564_chip_reset_assert(chip, CHIP_RESET_MSIGEN);
+	tc9564_chip_clock_disable(chip, CHIP_CLOCK_MSIGEN);
+}
+
+static void chip_start(struct tc9564_chip *chip)
+{
+	tc9564_chip_reset_deassert(chip, CHIP_RESET_MSIGEN);
+	tc9564_chip_clock_enable(chip, CHIP_CLOCK_MSIGEN);
+
+	devm_add_action_or_reset(chip->dev, chip_stop, chip);
+}
+
 /*
  * Function 1 will first look up its peer device (function 0).  If
  * its driver data is NULL, it hasn't yet probed, so function 1
@@ -258,6 +274,8 @@ static struct tc9564_chip *chip_get(struct pci_dev *pdev)
 		return ERR_PTR(ret);
 
 	dev_set_drvdata(dev, chip);
+
+	chip_start(chip);
 
 	return chip;
 }
