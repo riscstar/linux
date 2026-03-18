@@ -322,26 +322,8 @@ static int tc956x_msigen_chip_init(struct irq_chip_generic *gc)
 	gc->chip_types[0].chip.irq_mask = irq_gc_mask_clr_bit;
 	gc->chip_types[0].chip.irq_unmask = irq_gc_mask_set_bit;
 
-	/* Ensure no interrupts are raised */
+	/* Disable all interrupts */
 	irq_reg_writel(gc, 0, MSI_OUT_EN_OFFSET);
-	irq_reg_writel(gc, 1, SW_MSI_CLR);
-
-	/*
-	 * Enable only those MSI vectors that are routed by the VECT_SETx
-	 * settings below (currently only vector #0 is used).
-	 */
-	irq_reg_writel(gc, ~0, MSI_MASK_SET_OFFSET);
-	irq_reg_writel(gc, BIT(0), MSI_MASK_CLR_OFFSET);
-
-	/* Assign everything to vector #0 */
-	irq_reg_writel(gc, 0, MSI_VECT_SET_OFFSET(0));
-	irq_reg_writel(gc, 0, MSI_VECT_SET_OFFSET(1));
-	irq_reg_writel(gc, 0, MSI_VECT_SET_OFFSET(2));
-	irq_reg_writel(gc, 0, MSI_VECT_SET_OFFSET(3));
-	irq_reg_writel(gc, 0, MSI_VECT_SET_OFFSET(4));
-	irq_reg_writel(gc, 0, MSI_VECT_SET_OFFSET(5));
-	irq_reg_writel(gc, 0, MSI_VECT_SET_OFFSET(6));
-	irq_reg_writel(gc, 0, MSI_VECT_SET_OFFSET(7));
 
 	return 0;
 }
@@ -349,7 +331,6 @@ static int tc956x_msigen_chip_init(struct irq_chip_generic *gc)
 static void tc956x_msigen_chip_exit(struct irq_chip_generic *gc)
 {
 	irq_reg_writel(gc, 0, MSI_OUT_EN_OFFSET);
-	irq_reg_writel(gc, 1, MSI_MASK_CLR_OFFSET);
 }
 
 static int tc956x_msigen_domain_init(struct irq_domain *d)
