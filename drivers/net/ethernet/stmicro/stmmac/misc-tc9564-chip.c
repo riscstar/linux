@@ -292,6 +292,22 @@ static const struct pci_device_id tc9564_id_table[] = {
 };
 MODULE_DEVICE_TABLE(pci, tc9564_id_table);
 
+static int tc9564_suspend(struct device *dev)
+{
+	dev_info(dev, " === %s\n", __func__);
+
+	return 0;
+}
+
+static int tc9564_resume(struct device *dev)
+{
+	dev_info(dev, " === %s\n", __func__);
+
+	return 0;
+}
+
+static SIMPLE_DEV_PM_OPS(tc9564_pm_ops, tc9564_suspend, tc9564_resume);
+
 static struct pci_driver tc9564_pci_driver = {
 	.name		= DRIVER_NAME,
 	.id_table	= tc9564_id_table,
@@ -300,6 +316,7 @@ static struct pci_driver tc9564_pci_driver = {
 	.driver		= {
 		.name	= DRIVER_NAME,
 		.owner	= THIS_MODULE,
+		.pm     = &tc9564_pm_ops,
 	},
 };
 
