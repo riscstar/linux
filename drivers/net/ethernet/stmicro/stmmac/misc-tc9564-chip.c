@@ -268,7 +268,7 @@ static int tc9564_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		return dev_err_probe(dev, ret,
 				     "failed to add GPIO device\n");
 
-	pci_set_drvdata(pdev, function);
+	dev_set_drvdata(dev, function);
 
 	printk(" === %s function %u has probed successfully\n", __func__,
 		function->pci_fn);
@@ -278,7 +278,7 @@ static int tc9564_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 static void tc9564_remove(struct pci_dev *pdev)
 {
-	struct tc9564_function *function = pci_get_drvdata(pdev);
+	struct tc9564_function *function = dev_get_drvdata(&pdev->dev);
 
 	printk(" === %s function %u has been removed successfully\n", __func__,
 		function->pci_fn);
