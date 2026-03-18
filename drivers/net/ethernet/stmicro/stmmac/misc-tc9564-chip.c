@@ -234,6 +234,7 @@ static int tc9564_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
 	struct tc9564_function *function;
 	struct device *dev = &pdev->dev;
+	u8 pci_fn;
 	int ret;
 
 	printk(" === %s\n", __func__);
@@ -241,15 +242,16 @@ static int tc9564_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (!dev->of_node)
 		return -EINVAL;
 
+	pci_fn = PCI_FUNC(pdev->devfn);
+	if (WARN_ON(pci_fn > 1))
+		return -EINVAL;
+
 	function = devm_kzalloc(dev, sizeof(*function), GFP_KERNEL);
 	if (!function)
 		return -ENOMEM;
 
 	function->pdev = pdev;
-
-	function->pci_fn = PCI_FUNC(pdev->devfn);
-	if (WARN_ON(function->pci_fn > 1))
-		return -EINVAL;
+	function->pci_fn = pci_fn;
 
 	function->sfr = pcim_iomap_region(pdev, PCI_BAR_SFR, DRIVER_NAME);
 	if (IS_ERR(function->sfr))
