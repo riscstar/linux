@@ -16,6 +16,7 @@
  */
 
 #include <linux/auxiliary_bus.h>
+#include <linux/dev_printk.h>
 #include <linux/gpio/driver.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
@@ -138,6 +139,7 @@ static int tc9564_gpio_probe(struct auxiliary_device *adev,
 	struct tc9564_gpio *gpio;
 	struct gpio_chip *gc;
 
+	dev_info(dev, " === %s starting\n", __func__);
 	if (!dev->platform_data)
 		return -EINVAL;
 
@@ -170,7 +172,7 @@ static int tc9564_gpio_probe(struct auxiliary_device *adev,
 
 	dev_set_drvdata(dev, gpio);
 
-	printk(" === %s finishing\n", __func__);
+	dev_info(dev, " === %s finishing\n", __func__);
 
 	return devm_gpiochip_add_data(dev, gc, gpio);
 }
@@ -183,13 +185,13 @@ MODULE_DEVICE_TABLE(auxiliary, tc964_gpio_ids);
 
 static int tc9564_gpio_suspend(struct device *dev)
 {
-	printk(" === %s\n", __func__);
+	dev_info(dev, " === %s\n", __func__);
 	return 0;
 }
 
 static int tc9564_gpio_resume(struct device *dev)
 {
-	printk(" === %s\n", __func__);
+	dev_info(dev, " === %s\n", __func__);
 	return 0;
 }
 

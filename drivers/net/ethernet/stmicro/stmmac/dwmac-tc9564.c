@@ -9,9 +9,9 @@
  */
 
 #include <linux/auxiliary_bus.h>
+#include <linux/dev_printk.h>
 #include <linux/module.h>
 #include <linux/pm.h>
-#include <linux/printk.h>
 
 #define DRIVER_NAME		"dwmac-tc9564"
 
@@ -21,6 +21,7 @@
  */
 struct tc9564_dwmac {
 	void __iomem *addr;	/* Goes in stmmac_resources->addr */
+	void *chip;		/* Intentionally opaque */
 };
 
 static const struct auxiliary_device_id tc964_dwmac_ids[] = {
@@ -32,21 +33,39 @@ MODULE_DEVICE_TABLE(auxiliary, tc964_dwmac_ids);
 static int tc9564_dwmac_probe(struct auxiliary_device *adev,
 			      const struct auxiliary_device_id *id)
 {
-	printk(" === %s\n", __func__);
+	struct device *dev = &adev->dev;
+	struct tc9564_dwmac *dwmac;
+
+	dev_info(dev, " === %s\n", __func__);
+
+	if (!dev->platform_data)
+		return -EINVAL;
+
+	dwmac = devm_kzalloc(dev, sizeof(*dwmac), GFP_KERNEL);
+	if (!dwmac)
+		return -ENOMEM;
+
+	dwmac->addr = dev->platform_data;
+	dwmac->chip = dev_get_platdata(dev->parent);
+
+	dev_set_drvdata(dev, dwmac);
+
+	dev_info(dev, " === %s success (addr 0x%llx)\n", __func__,
+		 (unsigned long long)dwmac->addr);
 
 	return 0;
 }
 
 static int tc9564_dwmac_suspend(struct device *dev)
 {
-	printk(" === %s\n", __func__);
+	dev_info(dev, " === %s\n", __func__);
 
 	return 0;
 }
 
 static int tc9564_dwmac_resume(struct device *dev)
 {
-	printk(" === %s\n", __func__);
+	dev_info(dev, " === %s\n", __func__);
 
 	return 0;
 }

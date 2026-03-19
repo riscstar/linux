@@ -44,12 +44,12 @@
 
 #include <linux/auxiliary_bus.h>
 #include <linux/device.h>
+#include <linux/dev_printk.h>
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/pci.h>
-#include <linux/printk.h>
 #include <linux/property.h>
 #include <linux/regmap.h>
 #include <linux/types.h>
@@ -59,6 +59,7 @@
 #define DRIVER_NAME			"tc9564-chip"
 
 #define GPIO_DEVICE_NAME		"tc9564-gpio"
+#define XGMAC_DEVICE_NAME		"dwmac-tc9564"
 
 #define PCI_DEVICE_ID_TOSHIBA_TC9564	0x0220
 
@@ -210,6 +211,23 @@ static int gpio_auxiliary_device_add(struct tc9564_chip *chip)
 	return adev_device_add(chip, GPIO_DEVICE_NAME, 0, regmap);
 }
 
+/* The two embedded XGMAC controllers have an auxiliary device driver */
+static int xgmac_auxiliary_device_add(struct tc9564_chip *chip, bool mac0)
+{
+	void __iomem *base = chip->sfr + (mac0 ? 0x40000 : 0x48000);
+	int ret;
+
+	/* The stmmac code wants an I/O pointer, not a regmap */
+	ret = adev_device_add(chip, XGMAC_DEVICE_NAME, mac0 ? 0 : 1, base);
+	if (ret)
+		return ret;
+
+#if IS_ENABLED(CONFIG_TRACE_MMIO_ACCESS)
+	log_mmio_register_range(base, 0x8000, mac0 ? "xgmac0" : "xgmac1");
+#endif
+	return 0;
+}
+
 static int reset_clock_init(struct tc9564_chip *chip)
 {
 	struct device *dev = chip->dev;
@@ -271,7 +289,7 @@ static struct tc9564_chip *chip_get_function1(struct pci_dev *pdev)
 	if (!peer)
 		return ERR_PTR(-ENXIO);
 
-	chip = dev_get_drvdata(&peer->dev);
+	chip = dev_get_platdata(&peer->dev);
 	if (!chip)
 		return ERR_PTR(-EPROBE_DEFER);
 
@@ -281,7 +299,7 @@ static struct tc9564_chip *chip_get_function1(struct pci_dev *pdev)
 	if (link) {
 		devm_add_action_or_reset(&peer->dev, chip_link_del, link);
 
-		dev_set_drvdata(dev, chip);
+		dev->platform_data = chip;
 	}
 
 	return link ? chip : ERR_PTR(-ENODEV);
@@ -308,6 +326,7 @@ static struct tc9564_chip *chip_get(struct pci_dev *pdev)
 		return ERR_PTR(-ENOMEM);
 
 	chip->dev = dev;
+	dev->platform_data = chip;
 
 	chip->sfr = pcim_iomap_region(pdev, PCI_BAR_SFR, DRIVER_NAME);
 	if (IS_ERR(chip->sfr))
@@ -321,19 +340,19 @@ static struct tc9564_chip *chip_get(struct pci_dev *pdev)
 	if (ret)
 		return ERR_PTR(ret);
 
-	dev_set_drvdata(dev, chip);
-
 	chip_start(chip);
 
 	return chip;
 }
 
-static int tc9564_probe(struct pci_dev *pdev, const struct pci_device_id *id)
+static int
+tc9564_chip_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
 	struct device *dev = &pdev->dev;
 	struct tc9564_chip *chip;
+	int ret;
 
-	printk(" === %s\n", __func__);
+	dev_info(dev, " === %s\n", __func__);
 
 	if (!dev->of_node)
 		return -EINVAL;
@@ -342,51 +361,56 @@ static int tc9564_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (IS_ERR(chip))
 		return dev_err_probe(dev, PTR_ERR(chip), "failed to get chip\n");
 
+	ret = xgmac_auxiliary_device_add(chip, !PCI_FUNC(pdev->devfn));
+	if (ret)
+		return ret;
+
 	dev_info(dev, " === %s success\n", __func__);
 
 	return 0;
 }
 
-static void tc9564_remove(struct pci_dev *pdev)
+static void tc9564_chip_remove(struct pci_dev *pdev)
 {
 	dev_info(&pdev->dev, " === %s success\n", __func__);
 }
 
-static const struct pci_device_id tc9564_id_table[] = {
+static const struct pci_device_id tc9564_chip_id_table[] = {
 	{ PCI_DEVICE(PCI_VENDOR_ID_TOSHIBA, PCI_DEVICE_ID_TOSHIBA_TC9564), },
 	{ },
 };
-MODULE_DEVICE_TABLE(pci, tc9564_id_table);
+MODULE_DEVICE_TABLE(pci, tc9564_chip_id_table);
 
-static int tc9564_suspend(struct device *dev)
+static int tc9564_chip_suspend(struct device *dev)
 {
 	dev_info(dev, " === %s\n", __func__);
 
 	return 0;
 }
 
-static int tc9564_resume(struct device *dev)
+static int tc9564_chip_resume(struct device *dev)
 {
 	dev_info(dev, " === %s\n", __func__);
 
 	return 0;
 }
 
-static SIMPLE_DEV_PM_OPS(tc9564_pm_ops, tc9564_suspend, tc9564_resume);
+static SIMPLE_DEV_PM_OPS(tc9564_chip_pm_ops, tc9564_chip_suspend,
+			 tc9564_chip_resume);
 
-static struct pci_driver tc9564_pci_driver = {
+static struct pci_driver tc9564_chip_driver = {
 	.name		= DRIVER_NAME,
-	.id_table	= tc9564_id_table,
-	.probe		= tc9564_probe,
-	.remove		= tc9564_remove,
+	.id_table	= tc9564_chip_id_table,
+	.probe		= tc9564_chip_probe,
+	.remove		= tc9564_chip_remove,
 	.driver		= {
 		.name	= DRIVER_NAME,
 		.owner	= THIS_MODULE,
-		.pm     = &tc9564_pm_ops,
+		.pm     = &tc9564_chip_pm_ops,
 	},
 };
 
-module_pci_driver(tc9564_pci_driver);
+module_pci_driver(tc9564_chip_driver);
 
 MODULE_DESCRIPTION("Toshiba TC9564 PCIe Embedded Function Driver");
 MODULE_LICENSE("GPL");
