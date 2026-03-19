@@ -737,7 +737,7 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 	plat->flags |= STMMAC_FLAG_MULTI_MSI_EN | STMMAC_FLAG_TSO_EN;
 
 	plat->pdev = pdev;
-	plat->clk_ptp_rate = 50000000;
+	plat->clk_ptp_rate = 250000000;
 	plat->host_dma_width = 36;
 
 	/* For TC956X, clk_csr_i = 125MHz */
