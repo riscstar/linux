@@ -958,7 +958,10 @@ static void tc956x_fix_mac_speed(void *bsp_priv, int speed, unsigned int mode)
 {
 	struct tc956x_data *td = bsp_priv;
 
-	/* XXX Are we certain we need to provide this callback? */
+	/*
+	 * XXX Q: Are we certain we need to provide this callback?
+	 *     A: Yes.
+	 */
 	(void)tc956x_chipcfg_mac_configure(td, speed);
 	tc956x_mac_pma_init(td);
 }
