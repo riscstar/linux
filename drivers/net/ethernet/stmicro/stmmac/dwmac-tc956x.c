@@ -738,6 +738,7 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 
 	plat->pdev = pdev;
 	plat->clk_ptp_rate = 50000000;
+	plat->host_dma_width = 36;
 
 	/* For TC956X, clk_csr_i = 125MHz XXX any standard XGMAC values? */
 	if (td->pci_fn)			/* emac1: SGMII */
