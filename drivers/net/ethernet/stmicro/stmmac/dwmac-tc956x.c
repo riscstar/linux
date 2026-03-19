@@ -689,8 +689,8 @@ static void tc956x_get_interfaces(struct stmmac_priv *priv, void *bsp_priv,
 		return;
 
 	/*
-	 * To handle 2.5G PHYs via (overclocked) SGMII then we need set both
-	 * SGMII and 2500BASEX are supported interfaces.
+	 * To handle 2.5G PHYs via (overclocked) SGMII then we need to mark both
+	 * SGMII and 2500BASEX as supported interfaces.
 	 */
 	__set_bit(PHY_INTERFACE_MODE_SGMII, interfaces);
 	__set_bit(PHY_INTERFACE_MODE_2500BASEX, interfaces);
