@@ -305,6 +305,13 @@ static struct tc9564_chip *chip_get_function1(struct pci_dev *pdev)
 	return link ? chip : ERR_PTR(-ENODEV);
 }
 
+static void chip_remove(void *data)
+{
+	struct tc9564_chip *chip = data;
+
+	kfree(chip);
+}
+
 /*
  * Function 0 will allocate the chip structure that is shared by both
  * functions.  Once it has allocated the structure it assigns it as
@@ -328,21 +335,36 @@ static struct tc9564_chip *chip_get(struct pci_dev *pdev)
 	chip->dev = dev;
 	dev->platform_data = chip;
 
+	ret = devm_add_action_or_reset(dev, chip_remove, chip);
+	if (ret)
+		chip = ERR_PTR(ret);
+
+	return chip;
+}
+
+static int chip_init(struct tc9564_chip *chip, struct pci_dev *pdev)
+{
+	int ret;
+
+	/* Only function 1 does chip initialization */
+	if (PCI_FUNC(pdev->devfn))
+		return 0;
+
 	chip->sfr = pcim_iomap_region(pdev, PCI_BAR_SFR, DRIVER_NAME);
 	if (IS_ERR(chip->sfr))
-		return ERR_CAST(chip->sfr);
+		return PTR_ERR(chip->sfr);
 
 	ret = reset_clock_init(chip);
 	if (ret)
-		return ERR_PTR(ret);
+		return ret;
 
 	ret = gpio_auxiliary_device_add(chip);
 	if (ret)
-		return ERR_PTR(ret);
+		return ret;
 
 	chip_start(chip);
 
-	return chip;
+	return 0;
 }
 
 static int
@@ -361,9 +383,13 @@ tc9564_chip_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (IS_ERR(chip))
 		return dev_err_probe(dev, PTR_ERR(chip), "failed to get chip\n");
 
+	ret = chip_init(chip, pdev);
+	if (ret)
+		return dev_err_probe(dev, ret, "failed to initialize chip\n");
+
 	ret = xgmac_auxiliary_device_add(chip, !PCI_FUNC(pdev->devfn));
 	if (ret)
-		return ret;
+		return dev_err_probe(dev, ret, "failed to add xgmap device\n");
 
 	dev_info(dev, " === %s success\n", __func__);
 
