@@ -1389,8 +1389,6 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 
 	ret = tc956x_phy_power_on(td);
 	if (ret) {
-		/* XXX This was moved, but it's clear something's missing */
-		irq_set_irq_wake(td->wol_irq, 0);
 		dev_err(dev, "error %d powering on PHY\n", ret);
 		goto err;
 	}
