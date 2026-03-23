@@ -488,7 +488,7 @@ static void tc956x_mac_pma_init(struct tc956x_data *td)
 	u32 val;
 
 	/*
-	 * When we re-initialize the PMA then the reset is will already have
+	 * When we re-initialize the PMA then the reset will already have
 	 * been deasserted. We must make sure the PMA reset is asserted before
 	 * we change the clock settings.
 	 */
