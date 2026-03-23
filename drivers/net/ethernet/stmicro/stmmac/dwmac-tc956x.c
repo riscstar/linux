@@ -355,7 +355,7 @@ static struct irq_domain *devm_tc956x_msigen_register(struct pci_dev *pdev,
 {
 	struct irq_domain_chip_generic_info dgc_info = {
 		.name		= "tc956x-msigen",
-		.handler	= handle_simple_irq,
+		.handler	= handle_level_irq,
 		.irqs_per_chip	= TC956X_NR_HWIRQ,
 		.num_ct		= 1,
 		.init		= tc956x_msigen_chip_init,
