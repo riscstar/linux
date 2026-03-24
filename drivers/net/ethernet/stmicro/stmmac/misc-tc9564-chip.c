@@ -409,14 +409,24 @@ MODULE_DEVICE_TABLE(pci, tc9564_chip_id_table);
 
 static int tc9564_chip_suspend(struct device *dev)
 {
+	struct tc9564_chip *chip = dev_get_platdata(dev);
+
 	dev_info(dev, " === %s\n", __func__);
+
+	tc9564_chip_clock_disable(chip, CHIP_CLOCK_MSIGEN);
+	tc9564_chip_reset_assert(chip, CHIP_RESET_MSIGEN);
 
 	return 0;
 }
 
 static int tc9564_chip_resume(struct device *dev)
 {
+	struct tc9564_chip *chip = dev_get_platdata(dev);
+
 	dev_info(dev, " === %s\n", __func__);
+
+	tc9564_chip_reset_deassert(chip, CHIP_RESET_MSIGEN);
+	tc9564_chip_clock_enable(chip, CHIP_CLOCK_MSIGEN);
 
 	return 0;
 }
