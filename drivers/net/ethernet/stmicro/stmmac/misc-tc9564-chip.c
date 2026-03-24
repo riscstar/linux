@@ -107,7 +107,8 @@ static const struct regmap_config reset_clock_regmap_config = {
 	.max_register	= 0x1010,	/* Register NRSTCTRL1 */
 };
 
-static void regmap_log(const char *name, const struct regmap_config *config)
+static void
+regmap_log_mmio(const char *name, const struct regmap_config *config)
 {
 #if IS_ENABLED(CONFIG_TRACE_MMIO_ACCESS)
 	void __iomem *range_base;
@@ -206,7 +207,7 @@ static int gpio_auxiliary_device_add(struct tc9564_chip *chip)
 	if (IS_ERR(regmap))
 		return PTR_ERR(regmap);
 
-	regmap_log("misc-gpio", &gpio_regmap_config);
+	regmap_log_mmio("misc-gpio", &gpio_regmap_config);
 
 	return adev_device_add(chip, GPIO_DEVICE_NAME, 0, regmap);
 }
@@ -239,7 +240,7 @@ static int reset_clock_init(struct tc9564_chip *chip)
 		return PTR_ERR(regmap);
 	chip->reset_clock_regmap = regmap;
 
-	regmap_log("misc-reset-clock", &reset_clock_regmap_config);
+	regmap_log_mmio("misc-reset-clock", &reset_clock_regmap_config);
 
 	return 0;
 }
