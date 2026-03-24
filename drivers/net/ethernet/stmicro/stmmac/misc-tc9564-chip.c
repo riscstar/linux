@@ -379,6 +379,17 @@ static void function_start(struct pci_dev *pdev)
 	pci_set_master(pdev);
 }
 
+static int function_init(struct pci_dev *pdev)
+{
+	int ret;
+
+	ret = pci_alloc_irq_vectors(pdev, 1, 1, PCI_IRQ_MSI);
+	if (ret < 1)
+		return ret ? : -EIO;
+
+	return 0;
+}
+
 static void function_stop(struct pci_dev *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -533,6 +544,10 @@ tc9564_chip_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	ret = chip_init(chip, pdev);
 	if (ret)
 		return dev_err_probe(dev, ret, "failed to initialize chip\n");
+
+	ret = function_init(pdev);
+	if (ret)
+		return dev_err_probe(dev, ret, "failed to initialize function\n");
 
 	if (fn0)
 		chip_start(chip);
