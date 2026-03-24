@@ -411,7 +411,7 @@ static const struct pci_device_id tc9564_chip_id_table[] = {
 };
 MODULE_DEVICE_TABLE(pci, tc9564_chip_id_table);
 
-static int tc9564_chip_suspend(struct device *dev)
+static int tc9564_chip_suspend_noirq(struct device *dev)
 {
 	struct tc9564_chip *chip = dev_get_platdata(dev);
 
@@ -425,7 +425,7 @@ static int tc9564_chip_suspend(struct device *dev)
 	return 0;
 }
 
-static int tc9564_chip_resume(struct device *dev)
+static int tc9564_chip_resume_noirq(struct device *dev)
 {
 	struct tc9564_chip *chip = dev_get_platdata(dev);
 
@@ -439,8 +439,9 @@ static int tc9564_chip_resume(struct device *dev)
 	return 0;
 }
 
-static SIMPLE_DEV_PM_OPS(tc9564_chip_pm_ops, tc9564_chip_suspend,
-			 tc9564_chip_resume);
+static DEFINE_NOIRQ_DEV_PM_OPS(tc9564_chip_pm_ops,
+			       tc9564_chip_suspend_noirq,
+			       tc9564_chip_resume_noirq);
 
 static struct pci_driver tc9564_chip_driver = {
 	.name		= DRIVER_NAME,
@@ -450,7 +451,7 @@ static struct pci_driver tc9564_chip_driver = {
 	.driver		= {
 		.name	= DRIVER_NAME,
 		.owner	= THIS_MODULE,
-		.pm     = &tc9564_chip_pm_ops,
+		.pm	= pm_sleep_ptr(&tc9564_chip_pm_ops),
 	},
 };
 
