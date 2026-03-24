@@ -365,6 +365,18 @@ static void translation_config(struct tc9564_chip *chip)
 	}
 }
 
+static void function_start(struct pci_dev *pdev)
+{
+	dev_info(&pdev->dev, " === %s FN %u\n", __func__, PCI_FUNC(pdev->devfn));
+	pci_set_master(pdev);
+}
+
+static void function_stop(struct pci_dev *pdev)
+{
+	dev_info(&pdev->dev, " === %s FN %u\n", __func__, PCI_FUNC(pdev->devfn));
+	pci_clear_master(pdev);
+}
+
 static void chip_start(struct tc9564_chip *chip)
 {
 	translation_config(chip);
@@ -492,6 +504,7 @@ static int chip_init(struct tc9564_chip *chip, struct pci_dev *pdev)
 static int
 tc9564_chip_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
+	bool fn0 = !PCI_FUNC(pdev->devfn);
 	struct device *dev = &pdev->dev;
 	struct tc9564_chip *chip;
 	int ret;
@@ -509,12 +522,13 @@ tc9564_chip_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (ret)
 		return dev_err_probe(dev, ret, "failed to initialize chip\n");
 
-	ret = xgmac_auxiliary_device_add(chip, !PCI_FUNC(pdev->devfn));
+	if (fn0)
+		chip_start(chip);
+	function_start(pdev);
+
+	ret = xgmac_auxiliary_device_add(chip, fn0);
 	if (ret)
 		return dev_err_probe(dev, ret, "failed to add xgmap device\n");
-
-	if (!PCI_FUNC(pdev->devfn))
-		chip_start(chip);
 
 	dev_info(dev, " === %s success\n", __func__);
 
@@ -524,10 +538,12 @@ tc9564_chip_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 static void tc9564_chip_remove(struct pci_dev *pdev)
 {
 	struct tc9564_chip *chip = dev_get_platdata(&pdev->dev);
+	bool fn0 = &pdev->dev == chip->dev;
 
 	dev_info(&pdev->dev, " === %s success\n", __func__);
 
-	if (&pdev->dev == chip->dev)
+	function_stop(pdev);
+	if (fn0)
 		chip_stop(chip);
 }
 
@@ -540,13 +556,14 @@ MODULE_DEVICE_TABLE(pci, tc9564_chip_id_table);
 static int tc9564_chip_suspend_noirq(struct device *dev)
 {
 	struct tc9564_chip *chip = dev_get_platdata(dev);
-
-	if (dev != chip->dev)
-		return 0;
+	struct pci_dev *pdev = to_pci_dev(dev);
+	bool fn0 = dev == chip->dev;
 
 	dev_info(dev, " === %s\n", __func__);
 
-	chip_stop(chip);
+	function_stop(pdev);
+	if (fn0)
+		chip_stop(chip);
 
 	return 0;
 }
@@ -554,13 +571,14 @@ static int tc9564_chip_suspend_noirq(struct device *dev)
 static int tc9564_chip_resume_noirq(struct device *dev)
 {
 	struct tc9564_chip *chip = dev_get_platdata(dev);
-
-	if (dev != chip->dev)
-		return 0;
+	struct pci_dev *pdev = to_pci_dev(dev);
+	bool fn0 = dev == chip->dev;
 
 	dev_info(dev, " === %s\n", __func__);
 
-	chip_start(chip);
+	if (fn0)
+		chip_start(chip);
+	function_start(pdev);
 
 	return 0;
 }
