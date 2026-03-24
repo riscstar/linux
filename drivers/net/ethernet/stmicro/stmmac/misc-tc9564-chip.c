@@ -245,20 +245,16 @@ static int reset_clock_init(struct tc9564_chip *chip)
 	return 0;
 }
 
-static void chip_stop(void *data)
-{
-	struct tc9564_chip *chip = data;
-
-	tc9564_chip_reset_assert(chip, CHIP_RESET_MSIGEN);
-	tc9564_chip_clock_disable(chip, CHIP_CLOCK_MSIGEN);
-}
-
 static void chip_start(struct tc9564_chip *chip)
 {
-	tc9564_chip_reset_deassert(chip, CHIP_RESET_MSIGEN);
 	tc9564_chip_clock_enable(chip, CHIP_CLOCK_MSIGEN);
+	tc9564_chip_reset_deassert(chip, CHIP_RESET_MSIGEN);
+}
 
-	devm_add_action_or_reset(chip->dev, chip_stop, chip);
+static void chip_stop(struct tc9564_chip *chip)
+{
+	tc9564_chip_reset_assert(chip, CHIP_RESET_MSIGEN);
+	tc9564_chip_clock_disable(chip, CHIP_CLOCK_MSIGEN);
 }
 
 /*
@@ -364,8 +360,6 @@ static int chip_init(struct tc9564_chip *chip, struct pci_dev *pdev)
 	if (ret)
 		return ret;
 
-	chip_start(chip);
-
 	return 0;
 }
 
@@ -393,6 +387,8 @@ tc9564_chip_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (ret)
 		return dev_err_probe(dev, ret, "failed to add xgmap device\n");
 
+	chip_start(chip);
+
 	dev_info(dev, " === %s success\n", __func__);
 
 	return 0;
@@ -400,7 +396,11 @@ tc9564_chip_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 static void tc9564_chip_remove(struct pci_dev *pdev)
 {
+	struct tc9564_chip *chip = dev_get_platdata(&pdev->dev);
+
 	dev_info(&pdev->dev, " === %s success\n", __func__);
+
+	chip_stop(chip);
 }
 
 static const struct pci_device_id tc9564_chip_id_table[] = {
@@ -415,8 +415,7 @@ static int tc9564_chip_suspend(struct device *dev)
 
 	dev_info(dev, " === %s\n", __func__);
 
-	tc9564_chip_clock_disable(chip, CHIP_CLOCK_MSIGEN);
-	tc9564_chip_reset_assert(chip, CHIP_RESET_MSIGEN);
+	chip_stop(chip);
 
 	return 0;
 }
@@ -427,8 +426,7 @@ static int tc9564_chip_resume(struct device *dev)
 
 	dev_info(dev, " === %s\n", __func__);
 
-	tc9564_chip_reset_deassert(chip, CHIP_RESET_MSIGEN);
-	tc9564_chip_clock_enable(chip, CHIP_CLOCK_MSIGEN);
+	chip_start(chip);
 
 	return 0;
 }
