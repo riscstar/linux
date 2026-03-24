@@ -344,7 +344,7 @@ static int chip_init(struct tc9564_chip *chip, struct pci_dev *pdev)
 {
 	int ret;
 
-	/* Only function 1 does chip initialization */
+	/* Only function 0 does chip initialization */
 	if (PCI_FUNC(pdev->devfn))
 		return 0;
 
@@ -387,7 +387,8 @@ tc9564_chip_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (ret)
 		return dev_err_probe(dev, ret, "failed to add xgmap device\n");
 
-	chip_start(chip);
+	if (!PCI_FUNC(pdev->devfn))
+		chip_start(chip);
 
 	dev_info(dev, " === %s success\n", __func__);
 
@@ -400,7 +401,8 @@ static void tc9564_chip_remove(struct pci_dev *pdev)
 
 	dev_info(&pdev->dev, " === %s success\n", __func__);
 
-	chip_stop(chip);
+	if (&pdev->dev == chip->dev)
+		chip_stop(chip);
 }
 
 static const struct pci_device_id tc9564_chip_id_table[] = {
@@ -413,6 +415,9 @@ static int tc9564_chip_suspend(struct device *dev)
 {
 	struct tc9564_chip *chip = dev_get_platdata(dev);
 
+	if (dev != chip->dev)
+		return 0;
+
 	dev_info(dev, " === %s\n", __func__);
 
 	chip_stop(chip);
@@ -423,6 +428,9 @@ static int tc9564_chip_suspend(struct device *dev)
 static int tc9564_chip_resume(struct device *dev)
 {
 	struct tc9564_chip *chip = dev_get_platdata(dev);
+
+	if (dev != chip->dev)
+		return 0;
 
 	dev_info(dev, " === %s\n", __func__);
 
