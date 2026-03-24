@@ -263,7 +263,7 @@ static void chip_start(struct tc9564_chip *chip)
 /*
  * Function 1 will first look up its peer device (function 0).  If
  * its driver data is NULL, it hasn't yet probed, so function 1
- * will return -EPROBE_DEFER.  Otherwise function 0's driver data
+ * will return -EPROBE_DEFER.  Otherwise function 0's platform data
  * pointer is returned.
  *
  * Returns a chip structure pointer, or a pointer-coded error.
@@ -315,7 +315,7 @@ static void chip_remove(void *data)
 /*
  * Function 0 will allocate the chip structure that is shared by both
  * functions.  Once it has allocated the structure it assigns it as
- * the PCI device driver data.
+ * the PCI device platform data.
  *
  * Returns a chip structure pointer, or a pointer-coded error.
  */
@@ -333,11 +333,12 @@ static struct tc9564_chip *chip_get(struct pci_dev *pdev)
 		return ERR_PTR(-ENOMEM);
 
 	chip->dev = dev;
-	dev->platform_data = chip;
 
 	ret = devm_add_action_or_reset(dev, chip_remove, chip);
 	if (ret)
 		chip = ERR_PTR(ret);
+
+	dev->platform_data = chip;
 
 	return chip;
 }
