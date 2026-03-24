@@ -558,8 +558,13 @@ static int tc9564_chip_suspend_noirq(struct device *dev)
 	struct tc9564_chip *chip = dev_get_platdata(dev);
 	struct pci_dev *pdev = to_pci_dev(dev);
 	bool fn0 = dev == chip->dev;
+	int ret;
 
 	dev_info(dev, " === %s\n", __func__);
+
+	ret = pci_save_state(pdev);
+	if (ret)
+		return ret;
 
 	function_stop(pdev);
 	if (fn0)
@@ -579,6 +584,7 @@ static int tc9564_chip_resume_noirq(struct device *dev)
 	if (fn0)
 		chip_start(chip);
 	function_start(pdev);
+	pci_restore_state(pdev);
 
 	return 0;
 }
