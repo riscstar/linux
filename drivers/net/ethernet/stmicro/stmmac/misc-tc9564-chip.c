@@ -367,14 +367,26 @@ static void translation_config(struct tc9564_chip *chip)
 
 static void function_start(struct pci_dev *pdev)
 {
-	dev_info(&pdev->dev, " === %s FN %u\n", __func__, PCI_FUNC(pdev->devfn));
+	struct device *dev = &pdev->dev;
+	int ret;
+
+	dev_info(dev, " === %s FN %u\n", __func__, PCI_FUNC(pdev->devfn));
+	pci_set_power_state(pdev, PCI_D0);
+	pci_wake_from_d3(pdev, false);
+	ret = pci_enable_device(pdev);
+	if (ret)
+		dev_warn(dev, "failed to enable PCI device\n");
 	pci_set_master(pdev);
 }
 
 static void function_stop(struct pci_dev *pdev)
 {
-	dev_info(&pdev->dev, " === %s FN %u\n", __func__, PCI_FUNC(pdev->devfn));
+	struct device *dev = &pdev->dev;
+
+	dev_info(dev, " === %s FN %u\n", __func__, PCI_FUNC(pdev->devfn));
 	pci_clear_master(pdev);
+	pci_disable_device(pdev);
+	pci_wake_from_d3(pdev, true);
 }
 
 static void chip_start(struct tc9564_chip *chip)
