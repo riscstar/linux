@@ -64,6 +64,7 @@
 #define PCI_DEVICE_ID_TOSHIBA_TC9564	0x0220
 
 /* PCI BAR assignments */
+#define PCI_BAR_BRIDGE_CONFIG		0
 #define PCI_BAR_SFR			4
 
 /* Reset and clock register offsets.  Chip resets and clocks are controlled
@@ -77,6 +78,33 @@
 #define CLKCTRL0_OFFSET			0x0004
 #define CLKCTRL1_OFFSET			0x000c
 
+/* There are 4 AXI translation table entries each with 8 4-byte register */
+#define ATR_AXI4_SLV0_OFFSET		0x0800
+
+#define AXI4_TABLE_ENTRY_COUNT		4
+#define AXI4_ENTRY_BASE(id)		((id) * AXI4_TABLE_STRIDE)
+#define AXI4_TABLE_STRIDE               0x20
+
+/* Address translation space parameters (entry 0) */
+#define SLV00_ATR_SIZE			35	/* 2^36 (64 gigabytes) */
+#define SLV00_SRC_ADDR			0x0000001000000000ULL
+#define SLV00_TRSL_ADDR			0x0000000000000000ULL
+
+/* Address translation space parameters (entries 1-3); SRC and TRSL are 0x0 */
+#define SLV00_ATR_SIZE_DEFAULT		63	/* 2^64 (16 exabytes) */
+
+/* Translation entry registers, fields, and values used */
+#define SRC_ADDR_LO_OFFSET		0x0000
+#define ATR_IMPL			BIT(0)		/* 1 = enabled */
+#define ATR_SIZE_MASK			GENMASK(6, 1)	/* size 2^(ATR + 1) */
+#define SRC_ADDR_HI_OFFSET		0x0004
+#define TRSL_ADDR_LO_OFFSET		0x0008
+#define TRSL_ADDR_HI_OFFSET		0x000c
+#define TRSL_PARAM_OFFSET		0x0010
+#define TRSL_ID_MASK			GENMASK(3, 0)
+#define TRSL_ID_PCIE_TX_RX		0
+#define TRSF_PARAM_MASK			GENMASK(27, 16)
+
 /*
  * struct tc9564_chip - Common information related to the TC9564 chip
  * @dev:		Device structure
@@ -86,6 +114,7 @@
 struct tc9564_chip {
 	struct device *dev;
 	void __iomem *sfr;
+	void __iomem *bridge_config;
 	struct regmap *reset_clock_regmap;
 };
 
@@ -245,8 +274,101 @@ static int reset_clock_init(struct tc9564_chip *chip)
 	return 0;
 }
 
+static int translation_init(struct tc9564_chip *chip, struct pci_dev *pdev)
+{
+	void __iomem *base;
+
+	dev_info(chip->dev, " === %s\n", __func__);
+
+	base = pcim_iomap_region(pdev, PCI_BAR_BRIDGE_CONFIG, DRIVER_NAME);
+	if (IS_ERR(base))
+		return PTR_ERR(base);
+
+	chip->bridge_config = base + ATR_AXI4_SLV0_OFFSET;
+
+#if IS_ENABLED(CONFIG_TRACE_MMIO_ACCESS)
+	log_mmio_register_range(chip->bridge_config, 0x0080, "translation");
+#endif
+
+	return 0;
+}
+
+/**
+ * translation_config() - Configure the table address map registers
+ * @chip:	The TC9564 chip pointer
+ *
+ * Populate the registers used to convert the AXI bus accesses to PCI TLPs.
+ */
+static void translation_config(struct tc9564_chip *chip)
+{
+	void __iomem *table_base = chip->bridge_config;
+	void __iomem *entry_base;
+	u32 trsf_param_val;
+	u32 atr_size_val;
+	u32 val;
+	u32 i;
+
+	dev_info(chip->dev, " === %s\n", __func__);
+
+	/*
+	 * The lower bits of the source address must be zero, because the
+	 * SRC_ADDR_LO register encodes the address translation space size
+	 * and "implmented" bit there.  The size field defines the size of
+	 * the translation space (2^(ATR_SIZE + 1)).  The minimum size is
+	 * 4096 bytes, so ATR_SIZE value must be 11 or more.
+	 */
+	BUILD_BUG_ON(!!u32_get_bits(lower_32_bits(SLV00_SRC_ADDR),
+						  ATR_SIZE_MASK));
+	BUILD_BUG_ON(SLV00_SRC_ADDR & ATR_IMPL);
+	BUILD_BUG_ON(SLV00_ATR_SIZE < 11);
+
+	/*
+	 * We only use the first AXI4 slave translation table entry:
+	 *	EDMA address region:	0x10 0000 0000 - 0x1f ffff ffff
+	 *	is translated to:	0x00 0000 0000 - 0x0f ffff ffff
+	 */
+	entry_base = table_base + AXI4_ENTRY_BASE(0);
+
+	atr_size_val = u32_encode_bits(SLV00_ATR_SIZE, ATR_SIZE_MASK);
+	atr_size_val |= ATR_IMPL;
+
+	val = lower_32_bits(SLV00_SRC_ADDR) | atr_size_val;
+	writel(val, entry_base + SRC_ADDR_LO_OFFSET);
+
+	val = upper_32_bits(SLV00_SRC_ADDR);
+	writel(val, entry_base + SRC_ADDR_HI_OFFSET);
+
+	val = lower_32_bits(SLV00_TRSL_ADDR);
+	writel(val, entry_base + TRSL_ADDR_LO_OFFSET);
+
+	val = upper_32_bits(SLV00_TRSL_ADDR);
+	writel(val, entry_base + TRSL_ADDR_HI_OFFSET);
+
+	/* This is value assigned to *all* TRSL_PARAM registers */
+	trsf_param_val = u32_encode_bits(TRSL_ID_PCIE_TX_RX, TRSL_ID_MASK);
+	trsf_param_val |= u32_encode_bits(0, TRSF_PARAM_MASK);
+
+	writel(trsf_param_val, entry_base + TRSL_PARAM_OFFSET);
+
+	/* Set all other unused entries to default values (no translation) */
+	BUILD_BUG_ON(SLV00_ATR_SIZE_DEFAULT < 11);
+	atr_size_val = u32_encode_bits(SLV00_ATR_SIZE_DEFAULT, ATR_SIZE_MASK);
+	atr_size_val |= ATR_IMPL;
+	for (i = 1; i < AXI4_TABLE_ENTRY_COUNT; i++) {
+		entry_base = table_base + AXI4_ENTRY_BASE(i);
+
+		writel(0x0 | atr_size_val, entry_base + SRC_ADDR_LO_OFFSET);
+		writel(0x0, entry_base + SRC_ADDR_HI_OFFSET);
+		writel(0x0, entry_base + TRSL_ADDR_LO_OFFSET);
+		writel(0x0, entry_base + TRSL_ADDR_HI_OFFSET);
+		writel(trsf_param_val, entry_base + TRSL_PARAM_OFFSET);
+	}
+}
+
 static void chip_start(struct tc9564_chip *chip)
 {
+	translation_config(chip);
+
 	tc9564_chip_clock_enable(chip, CHIP_CLOCK_MSIGEN);
 	tc9564_chip_reset_deassert(chip, CHIP_RESET_MSIGEN);
 }
@@ -347,6 +469,10 @@ static int chip_init(struct tc9564_chip *chip, struct pci_dev *pdev)
 	/* Only function 0 does chip initialization */
 	if (PCI_FUNC(pdev->devfn))
 		return 0;
+
+	ret = translation_init(chip, pdev);
+	if (ret)
+		return ret;
 
 	chip->sfr = pcim_iomap_region(pdev, PCI_BAR_SFR, DRIVER_NAME);
 	if (IS_ERR(chip->sfr))
