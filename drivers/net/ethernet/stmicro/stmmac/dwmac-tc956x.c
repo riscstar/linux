@@ -682,20 +682,6 @@ static void tc956x_mac_init_state(struct tc956x_data *td)
 	tc956x_stop_mac(td);
 }
 
-static void tc956x_get_interfaces(struct stmmac_priv *priv, void *bsp_priv,
-				  unsigned long *interfaces)
-{
-	if (priv->plat->phy_interface != PHY_INTERFACE_MODE_SGMII)
-		return;
-
-	/*
-	 * To handle 2.5G PHYs via (overclocked) SGMII then we need to mark both
-	 * SGMII and 2500BASEX as supported interfaces.
-	 */
-	__set_bit(PHY_INTERFACE_MODE_SGMII, interfaces);
-	__set_bit(PHY_INTERFACE_MODE_2500BASEX, interfaces);
-}
-
 static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 				struct plat_stmmacenet_data *plat)
 {
@@ -745,8 +731,6 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 		plat->clk_csr = STMMAC_CSR_60_100M;
 	else				/* emac0: XFI */
 		plat->clk_csr = STMMAC_CSR_150_250M;	/* XXX set CRS bit? */
-
-	plat->get_interfaces = tc956x_get_interfaces;
 
 	plat->unicast_filter_entries = 32;
 
