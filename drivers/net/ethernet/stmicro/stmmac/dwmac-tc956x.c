@@ -1326,8 +1326,6 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 		goto err;
 	}
 
-	pci_write_config_dword(pdev, pdev->msi_cap + PCI_MSI_MASK_64, 0);
-
 	irq_domain = devm_tc956x_msigen_register(pdev, td);
 	if (IS_ERR(irq_domain)) {
 		ret = PTR_ERR(irq_domain);
