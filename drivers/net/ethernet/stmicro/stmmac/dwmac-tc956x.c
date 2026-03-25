@@ -1326,9 +1326,6 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 		goto err;
 	}
 
-	dev_dbg(dev, "%s : Allocated MSI Vectors : %d", __func__, ret);
-	dev_dbg(dev, "%s : pdev->irq %d  pci_irq_vector %d\n",
-		__func__, pdev->irq, pci_irq_vector(pdev, 0));
 	pci_write_config_dword(pdev, pdev->msi_cap + PCI_MSI_MASK_64, 0);
 
 	irq_domain = devm_tc956x_msigen_register(pdev, td);
