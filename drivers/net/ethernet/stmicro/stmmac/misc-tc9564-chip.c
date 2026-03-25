@@ -182,10 +182,9 @@ static void adev_remove(void *data)
 	auxiliary_device_uninit(adev);
 }
 
-static int adev_device_add(struct tc9564_chip *chip, const char *name, u32 id,
+static int adev_device_add(struct device *dev, const char *name, u32 id,
 			   void *platform_data)
 {
-	struct device *dev = chip->dev;
 	struct auxiliary_device *adev;
 	int ret;
 
@@ -238,7 +237,7 @@ static int gpio_adev_add(struct tc9564_chip *chip)
 
 	regmap_log_mmio("misc-gpio", &gpio_regmap_config);
 
-	return adev_device_add(chip, GPIO_DEVICE_NAME, 0, regmap);
+	return adev_device_add(dev, GPIO_DEVICE_NAME, 0, regmap);
 }
 
 /* The two embedded XGMAC controllers have an auxiliary device driver */
@@ -248,7 +247,7 @@ static int xgmac_adev_add(struct tc9564_chip *chip, bool mac0)
 	int ret;
 
 	/* The stmmac code wants an I/O pointer, not a regmap */
-	ret = adev_device_add(chip, XGMAC_DEVICE_NAME, mac0 ? 0 : 1, base);
+	ret = adev_device_add(chip->dev, XGMAC_DEVICE_NAME, mac0 ? 0 : 1, base);
 	if (ret)
 		return ret;
 
