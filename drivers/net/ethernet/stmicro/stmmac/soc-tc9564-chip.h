@@ -7,6 +7,8 @@
 #ifndef __SOC_TOSHIBA_TC9564_CHIP_H__
 #define __SOC_TOSHIBA_TC9564_CHIP_H__
 
+#include <linux/types.h>
+
 enum tc9564_chip_reset_id {
 	CHIP_RESET_MCU		= 0,
 	CHIP_RESET_MCU1		= 1,
@@ -42,6 +44,13 @@ enum tc9564_mac_clock_id {
 };
 
 struct tc9564_chip;
+
+/* Structure passed via platform data to the stmmac auxiliary devices */
+struct tc9564_dwmac_data {
+	void __iomem *dwmac_addr;
+	void __iomem *msigen_addr;
+	unsigned int msigen_irq;
+};
 
 extern void tc9564_chip_reset_clock_set(struct tc9564_chip *chip, bool reset,
 					bool reg0, bool set, u8 bit);

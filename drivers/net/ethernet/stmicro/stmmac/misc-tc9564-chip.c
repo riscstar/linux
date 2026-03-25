@@ -241,20 +241,40 @@ static int chip_gpio_adev_add(struct tc9564_chip *chip)
 }
 
 /* The two embedded XGMAC controllers have an auxiliary device driver */
-static int function_xgmac_adev_add(struct pci_dev *pdev, void __iomem *base)
+static int function_xgmac_adev_add(struct pci_dev *pdev, void __iomem *base,
+				   unsigned int irq)
 {
 	bool fn0 = !PCI_FUNC(pdev->devfn);
+	struct device *dev = &pdev->dev;
+	struct tc9564_dwmac_data *data;
 	int ret;
-
-	base += fn0 ? 0x40000 : 0x48000;
+	u32 id;
 
 	/* The stmmac code wants an I/O pointer, not a regmap */
-	ret = adev_device_add(&pdev->dev, XGMAC_DEVICE_NAME, fn0 ? 0 : 1, base);
+	data = devm_kzalloc(dev, sizeof(*data), GFP_KERNEL);
+	if (!data)
+		return -ENOMEM;
+
+	if (fn0) {
+		data->dwmac_addr = base + 0x40000;
+		data->msigen_addr = base + 0xf000;
+		id = 0;
+	} else {
+		data->dwmac_addr = base + 0x48000;
+		data->msigen_addr = base + 0xf100;
+		id = 1;
+	}
+	data->msigen_irq = irq;
+
+	ret = adev_device_add(dev, XGMAC_DEVICE_NAME, id, data);
 	if (ret)
 		return ret;
 
 #if IS_ENABLED(CONFIG_TRACE_MMIO_ACCESS)
-	log_mmio_register_range(base, 0x8000, fnc0 ? "xgmac0" : "xgmac1");
+	log_mmio_register_range(data->dwmac_addr, 0x8000,
+				fn0 ? "xgmac0" : "xgmac1");
+	log_mmio_register_range(data->msigen_addr, 0x0100,
+				fn0 ? "msigen0" : "msigen1");
 #endif
 	return 0;
 }
@@ -374,7 +394,7 @@ static int function_init(struct pci_dev *pdev)
 	if (ret < 1)
 		return ret ? : -EIO;
 
-	return 0;
+	return pci_irq_vector(pdev, 0);
 }
 
 static void function_start(struct pci_dev *pdev)
@@ -385,7 +405,7 @@ static void function_start(struct pci_dev *pdev)
 	dev_info(dev, " === %s FN %u\n", __func__, PCI_FUNC(pdev->devfn));
 	pci_set_power_state(pdev, PCI_D0);
 	pci_wake_from_d3(pdev, false);
-	ret = pci_enable_device(pdev);
+	ret = pcim_enable_device(pdev);
 	if (ret)
 		dev_warn(dev, "failed to enable PCI device\n");
 	pci_set_master(pdev);
@@ -531,6 +551,7 @@ tc9564_chip_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	bool fn0 = !PCI_FUNC(pdev->devfn);
 	struct device *dev = &pdev->dev;
 	struct tc9564_chip *chip;
+	int irq;
 	int ret;
 
 	dev_info(dev, " === %s\n", __func__);
@@ -546,15 +567,15 @@ tc9564_chip_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (ret)
 		return dev_err_probe(dev, ret, "failed to initialize chip\n");
 
-	ret = function_init(pdev);
-	if (ret)
+	irq = function_init(pdev);
+	if (irq < 0)
 		return dev_err_probe(dev, ret, "failed to initialize function\n");
 
 	if (fn0)
 		chip_start(chip);
 	function_start(pdev);
 
-	ret = function_xgmac_adev_add(pdev, chip->sfr);
+	ret = function_xgmac_adev_add(pdev, chip->sfr, irq);
 	if (ret)
 		return dev_err_probe(dev, ret, "failed to add xgmap device\n");
 

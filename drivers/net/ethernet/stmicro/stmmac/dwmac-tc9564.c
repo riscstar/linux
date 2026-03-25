@@ -13,15 +13,18 @@
 #include <linux/module.h>
 #include <linux/pm.h>
 
+#include "soc-tc9564-chip.h"
+
 #define DRIVER_NAME		"dwmac-tc9564"
 
 /*
  * struct tc9564_dwmac - Information related to an embedded XGMAC
- * @addr:		I/O mapped memory used by the stmmac core
+ * @data:		Pointer to data passed from the parent
+ * @chip:		Handle used for common chip operations
  */
 struct tc9564_dwmac {
-	void __iomem *addr;	/* Goes in stmmac_resources->addr */
-	void *chip;		/* Intentionally opaque */
+	struct tc9564_dwmac_data *data;
+	void *chip;				/* Intentionally opaque */
 };
 
 static const struct auxiliary_device_id tc964_dwmac_ids[] = {
@@ -45,13 +48,10 @@ static int tc9564_dwmac_probe(struct auxiliary_device *adev,
 	if (!dwmac)
 		return -ENOMEM;
 
-	dwmac->addr = dev->platform_data;
 	dwmac->chip = dev_get_platdata(dev->parent);
+	dwmac->data = dev_get_platdata(dev);
 
 	dev_set_drvdata(dev, dwmac);
-
-	dev_info(dev, " === %s success (addr 0x%llx)\n", __func__,
-		 (unsigned long long)dwmac->addr);
 
 	return 0;
 }
