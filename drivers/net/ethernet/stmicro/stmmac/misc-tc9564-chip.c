@@ -217,7 +217,7 @@ static int adev_device_add(struct tc9564_chip *chip, const char *name, u32 id,
 }
 
 /* The embedded GPIO controller has an auxiliary device driver */
-static int gpio_auxiliary_device_add(struct tc9564_chip *chip)
+static int gpio_adev_add(struct tc9564_chip *chip)
 {
 	struct device *dev = chip->dev;
 	void __iomem *base = chip->sfr;
@@ -242,7 +242,7 @@ static int gpio_auxiliary_device_add(struct tc9564_chip *chip)
 }
 
 /* The two embedded XGMAC controllers have an auxiliary device driver */
-static int xgmac_auxiliary_device_add(struct tc9564_chip *chip, bool mac0)
+static int xgmac_adev_add(struct tc9564_chip *chip, bool mac0)
 {
 	void __iomem *base = chip->sfr + (mac0 ? 0x40000 : 0x48000);
 	int ret;
@@ -517,7 +517,7 @@ static int chip_init(struct tc9564_chip *chip, struct pci_dev *pdev)
 	if (ret)
 		return ret;
 
-	ret = gpio_auxiliary_device_add(chip);
+	ret = gpio_adev_add(chip);
 	if (ret)
 		return ret;
 
@@ -553,7 +553,7 @@ tc9564_chip_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		chip_start(chip);
 	function_start(pdev);
 
-	ret = xgmac_auxiliary_device_add(chip, fn0);
+	ret = xgmac_adev_add(chip, fn0);
 	if (ret)
 		return dev_err_probe(dev, ret, "failed to add xgmap device\n");
 
