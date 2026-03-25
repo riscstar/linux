@@ -258,7 +258,7 @@ static int xgmac_adev_add(struct tc9564_chip *chip, bool mac0)
 	return 0;
 }
 
-static int reset_clock_init(struct tc9564_chip *chip)
+static int chip_reset_clock_init(struct tc9564_chip *chip)
 {
 	struct device *dev = chip->dev;
 	void __iomem *base = chip->sfr;
@@ -274,7 +274,7 @@ static int reset_clock_init(struct tc9564_chip *chip)
 	return 0;
 }
 
-static int translation_init(struct tc9564_chip *chip, struct pci_dev *pdev)
+static int chip_translation_init(struct tc9564_chip *chip, struct pci_dev *pdev)
 {
 	void __iomem *base;
 
@@ -505,7 +505,7 @@ static int chip_init(struct tc9564_chip *chip, struct pci_dev *pdev)
 	if (PCI_FUNC(pdev->devfn))
 		return 0;
 
-	ret = translation_init(chip, pdev);
+	ret = chip_translation_init(chip, pdev);
 	if (ret)
 		return ret;
 
@@ -513,7 +513,7 @@ static int chip_init(struct tc9564_chip *chip, struct pci_dev *pdev)
 	if (IS_ERR(chip->sfr))
 		return PTR_ERR(chip->sfr);
 
-	ret = reset_clock_init(chip);
+	ret = chip_reset_clock_init(chip);
 	if (ret)
 		return ret;
 
