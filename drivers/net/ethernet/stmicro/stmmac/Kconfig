@@ -385,7 +385,6 @@ config DWMAC_MOTORCOMM
 
 config DWMAC_TC956X
 	tristate "Toshiba TC956x DWMAC support"
-	default ARCH_QCOM
 	depends on PCI
 	depends on COMMON_CLK
 	select STMMAC_LIBPCI
