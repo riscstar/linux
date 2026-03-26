@@ -1454,7 +1454,8 @@ static const struct pci_device_id tc956x_id_table[] = {
 
 // TODO: During development it is very convenient to avoid auto-loading the
 //       module if the vendor driver is also enabled.
-#if !IS_ENABLED(CONFIG_TC956X_NET)
+#if !(IS_ENABLED(CONFIG_TC956X_NET) || IS_ENABLED(CONFIG_DWMAC_TC9564))
+/* Only autoload if neither of these other drivers is enabled */
 MODULE_DEVICE_TABLE(pci, tc956x_id_table);
 #endif
 
