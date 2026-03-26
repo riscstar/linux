@@ -315,12 +315,12 @@ static int chip_translation_init(struct tc9564_chip *chip, struct pci_dev *pdev)
 }
 
 /**
- * translation_config() - Configure the table address map registers
+ * chip_translation_config() - Configure the table address map registers
  * @chip:	The TC9564 chip pointer
  *
  * Populate the registers used to convert the AXI bus accesses to PCI TLPs.
  */
-static void translation_config(struct tc9564_chip *chip)
+static void chip_translation_config(struct tc9564_chip *chip)
 {
 	void __iomem *table_base = chip->bridge_config;
 	void __iomem *entry_base;
@@ -388,7 +388,7 @@ static void translation_config(struct tc9564_chip *chip)
 
 static void chip_start(struct tc9564_chip *chip)
 {
-	translation_config(chip);
+	chip_translation_config(chip);
 
 	tc9564_chip_clock_enable(chip, CHIP_CLOCK_MSIGEN);
 	tc9564_chip_reset_deassert(chip, CHIP_RESET_MSIGEN);
@@ -445,13 +445,6 @@ static struct tc9564_chip *chip_get_function1(struct pci_dev *pdev)
 	return link ? chip : ERR_PTR(-ENODEV);
 }
 
-static void chip_remove(void *data)
-{
-	struct tc9564_chip *chip = data;
-
-	kfree(chip);
-}
-
 /*
  * Function 0 will allocate the chip structure that is shared by both
  * functions.  Once it has allocated the structure it assigns it as
@@ -463,21 +456,15 @@ static struct tc9564_chip *chip_get(struct pci_dev *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct tc9564_chip *chip;
-	int ret;
 
 	if (PCI_FUNC(pdev->devfn))
 		return chip_get_function1(pdev);
 
-	chip = kzalloc_obj(*chip);
+	chip = devm_kzalloc(dev, sizeof(*chip), GFP_KERNEL);
 	if (!chip)
 		return ERR_PTR(-ENOMEM);
 
 	chip->dev = dev;
-
-	ret = devm_add_action_or_reset(dev, chip_remove, chip);
-	if (ret)
-		chip = ERR_PTR(ret);
-
 	dev->platform_data = chip;
 
 	return chip;
