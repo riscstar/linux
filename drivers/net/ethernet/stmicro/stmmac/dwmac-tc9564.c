@@ -162,11 +162,20 @@ static struct irq_domain *msigen_domain_instantiate(struct tc9564_dwmac *dwmac)
 static int plat_data_init(struct tc9564_dwmac *dwmac)
 {
 	struct plat_stmmacenet_data *plat;
+	phy_interface_t phy_interface;
+	int ret;
+
+	ret = device_get_phy_mode(dwmac->dev);
+	if (ret < 0)
+		return ret;
+	phy_interface = ret;
 
 	/* The platform structure is allocated with devm_kzalloc() */
 	plat = stmmac_plat_dat_alloc(dwmac->dev);
 	if (!plat)
 		return -ENOMEM;
+
+	plat->phy_interface = phy_interface;
 
 	/* The probed_phy_irq field is set in tc956x_xgmac3_probe() */
 	plat->mdio_bus_data = &dwmac->mdio_bus_data;
