@@ -3802,7 +3802,7 @@ err_out_enb_failed:
 
 }
 
-/**
+/*
  * tc956x_pci_remove
  *
  * \brief API to release all the resources from the driver.
@@ -4568,7 +4568,7 @@ static void tc956x_pcie_shutdown(struct pci_dev *pdev)
 	DBGPR_FUNC(&(pdev->dev), "<--%s\n", __func__);
 }
 
-/**
+/*
  * tc956x_pcie_error_detected
  *
  * \brief Function is called when PCI AER kernel module detects an error.
@@ -4590,7 +4590,7 @@ static pci_ers_result_t tc956x_pcie_error_detected(struct pci_dev *pdev,
 	return PCI_ERS_RESULT_DISCONNECT;
 }
 
-/**
+/*
  * tc956x_pcie_slot_reset
  *
  * \brief Function is called when PCI AER kernel module issues an slot reset.
@@ -4610,7 +4610,7 @@ static pci_ers_result_t tc956x_pcie_slot_reset(struct pci_dev *pdev)
 }
 
 #if defined(TC956X_SRIOV_PF) && !defined(TC956X_AUTOMOTIVE_CONFIG) && !defined(TC956X_ENABLE_MAC2MAC_BRIDGE) && !defined(TC956X_CPE_CONFIG)
-/**
+/*
  * tc956x_pcie_reset_prepare
  *
  * \brief Function is called when PCI FLR issued
@@ -4640,7 +4640,7 @@ static void tc956x_pcie_reset_prepare(struct pci_dev *pdev)
 #endif
 }
 
-/**
+/*
  * tc956x_pcie_reset_done
  *
  * \brief Function is called when PCI FLR issued
@@ -4670,7 +4670,7 @@ static void tc956x_pcie_reset_done(struct pci_dev *pdev)
 
 #endif
 
-/**
+/*
  * tc956x_pcie_io_resume
  *
  * \brief Function is called when PCI AER kernel module requests for
