@@ -388,8 +388,16 @@ static void translation_config(struct tc9564_chip *chip)
 
 static int function_init(struct pci_dev *pdev)
 {
+	struct device *dev = &pdev->dev;
 	int ret;
 
+	ret = pcim_enable_device(pdev);
+	if (ret)
+		return ret;
+
+	pci_set_master(pdev);
+
+	/* pcim_enable_device() causes this to be freed automatically */
 	ret = pci_alloc_irq_vectors(pdev, 1, 1, PCI_IRQ_MSI);
 	if (ret < 1)
 		return ret ? : -EIO;
@@ -400,25 +408,9 @@ static int function_init(struct pci_dev *pdev)
 static void function_start(struct pci_dev *pdev)
 {
 	struct device *dev = &pdev->dev;
-	int ret;
 
 	dev_info(dev, " === %s FN %u\n", __func__, PCI_FUNC(pdev->devfn));
 	pci_set_power_state(pdev, PCI_D0);
-	pci_wake_from_d3(pdev, false);
-	ret = pcim_enable_device(pdev);
-	if (ret)
-		dev_warn(dev, "failed to enable PCI device\n");
-	pci_set_master(pdev);
-}
-
-static void function_stop(struct pci_dev *pdev)
-{
-	struct device *dev = &pdev->dev;
-
-	dev_info(dev, " === %s FN %u\n", __func__, PCI_FUNC(pdev->devfn));
-	pci_clear_master(pdev);
-	pci_disable_device(pdev);
-	pci_wake_from_d3(pdev, true);
 }
 
 static void chip_start(struct tc9564_chip *chip)
@@ -591,7 +583,8 @@ static void tc9564_chip_remove(struct pci_dev *pdev)
 
 	dev_info(&pdev->dev, " === %s success\n", __func__);
 
-	function_stop(pdev);
+	pci_clear_master(pdev);
+
 	if (fn0)
 		chip_stop(chip);
 }
@@ -618,7 +611,8 @@ static int tc9564_chip_suspend_noirq(struct device *dev)
 	if (ret)
 		return ret;
 
-	function_stop(pdev);
+	pci_wake_from_d3(pdev, true);
+
 	if (fn0)
 		chip_stop(chip);
 
@@ -635,6 +629,9 @@ static int tc9564_chip_resume_noirq(struct device *dev)
 
 	if (fn0)
 		chip_start(chip);
+
+	pci_wake_from_d3(pdev, false);
+
 	function_start(pdev);
 	pci_restore_state(pdev);
 
