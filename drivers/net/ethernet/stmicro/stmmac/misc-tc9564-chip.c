@@ -386,25 +386,6 @@ static void translation_config(struct tc9564_chip *chip)
 	}
 }
 
-static int function_init(struct pci_dev *pdev)
-{
-	struct device *dev = &pdev->dev;
-	int ret;
-
-	ret = pcim_enable_device(pdev);
-	if (ret)
-		return ret;
-
-	pci_set_master(pdev);
-
-	/* pcim_enable_device() causes this to be freed automatically */
-	ret = pci_alloc_irq_vectors(pdev, 1, 1, PCI_IRQ_MSI);
-	if (ret < 1)
-		return ret ? : -EIO;
-
-	return pci_irq_vector(pdev, 0);
-}
-
 static void chip_start(struct tc9564_chip *chip)
 {
 	translation_config(chip);
@@ -535,7 +516,7 @@ tc9564_chip_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	bool fn0 = !PCI_FUNC(pdev->devfn);
 	struct device *dev = &pdev->dev;
 	struct tc9564_chip *chip;
-	int irq;
+	unsigned int irq;
 	int ret;
 
 	dev_info(dev, " === %s\n", __func__);
@@ -551,9 +532,22 @@ tc9564_chip_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (ret)
 		return dev_err_probe(dev, ret, "failed to initialize chip\n");
 
-	irq = function_init(pdev);
-	if (irq < 0)
-		return dev_err_probe(dev, ret, "failed to initialize function\n");
+	ret = pcim_enable_device(pdev);
+	if (ret)
+		return ret;
+
+	pci_set_master(pdev);
+
+	/* pcim_enable_device() causes this to be freed automatically */
+	ret = pci_alloc_irq_vectors(pdev, 1, 1, PCI_IRQ_MSI);
+	if (ret < 1)
+		return dev_err_probe(dev, ret ? : -EIO,
+				     "failed to allocate IRQ vectors\n");
+
+	ret = pci_irq_vector(pdev, 0);
+	if (ret < 1)
+		return dev_err_probe(dev, ret ? : -EIO, "failed to get IRQ\n");
+	irq = ret;
 
 	if (fn0)
 		chip_start(chip);
