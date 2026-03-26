@@ -405,14 +405,6 @@ static int function_init(struct pci_dev *pdev)
 	return pci_irq_vector(pdev, 0);
 }
 
-static void function_start(struct pci_dev *pdev)
-{
-	struct device *dev = &pdev->dev;
-
-	dev_info(dev, " === %s FN %u\n", __func__, PCI_FUNC(pdev->devfn));
-	pci_set_power_state(pdev, PCI_D0);
-}
-
 static void chip_start(struct tc9564_chip *chip)
 {
 	translation_config(chip);
@@ -565,7 +557,6 @@ tc9564_chip_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	if (fn0)
 		chip_start(chip);
-	function_start(pdev);
 
 	ret = function_xgmac_adev_add(pdev, chip->sfr, irq);
 	if (ret)
@@ -632,7 +623,7 @@ static int tc9564_chip_resume_noirq(struct device *dev)
 
 	pci_wake_from_d3(pdev, false);
 
-	function_start(pdev);
+	pci_set_power_state(pdev, PCI_D0);
 	pci_restore_state(pdev);
 
 	return 0;
