@@ -248,7 +248,6 @@ static int function_xgmac_adev_add(struct pci_dev *pdev, void __iomem *base,
 	struct device *dev = &pdev->dev;
 	struct tc9564_dwmac_data *data;
 	int ret;
-	u32 id;
 
 	/* The stmmac code wants an I/O pointer, not a regmap */
 	data = devm_kzalloc(dev, sizeof(*data), GFP_KERNEL);
@@ -258,15 +257,15 @@ static int function_xgmac_adev_add(struct pci_dev *pdev, void __iomem *base,
 	if (fn0) {
 		data->dwmac_addr = base + 0x40000;
 		data->msigen_addr = base + 0xf000;
-		id = 0;
+		data->id = 0;
 	} else {
 		data->dwmac_addr = base + 0x48000;
 		data->msigen_addr = base + 0xf100;
-		id = 1;
+		data->id = 1;
 	}
 	data->msigen_irq = irq;
 
-	ret = adev_device_add(dev, XGMAC_DEVICE_NAME, id, data);
+	ret = adev_device_add(dev, XGMAC_DEVICE_NAME, data->id, data);
 	if (ret)
 		return ret;
 

@@ -45,11 +45,20 @@ enum tc9564_mac_clock_id {
 
 struct tc9564_chip;
 
-/* Structure passed via platform data to the stmmac auxiliary devices */
+/**
+ * struct tc9564_dwmac_data - Structure passed to stmmac auxiliary devices.
+ * @dwmac_addr:		I/O mapped address used by dwmac
+ * @msigen_addr:	I/O mapped address used by MSIGEN
+ * @msigen_irq:		IRQ number used by MSIGEN
+ * @id:			Unique device ID
+ *
+ * This structure is passed via platform data to the stmmac auxiliary devices.
+ */
 struct tc9564_dwmac_data {
 	void __iomem *dwmac_addr;
 	void __iomem *msigen_addr;
 	unsigned int msigen_irq;
+	u32 id;
 };
 
 extern void tc9564_chip_reset_clock_set(struct tc9564_chip *chip, bool reset,
