@@ -159,32 +159,127 @@ static struct irq_domain *msigen_domain_instantiate(struct tc9564_dwmac *dwmac)
 	return devm_irq_domain_instantiate(dwmac->dev, &info);
 }
 
+/* XXX This should be populated further, and represented symbolically */
+static int plat_clk_csr_value(phy_interface_t phy_interface)
+{
+	switch (phy_interface) {
+	case PHY_INTERFACE_MODE_SGMII:
+		return 0;		/* STMMAC_CSR_60_100M? */
+
+	case PHY_INTERFACE_MODE_10GBASER:	/* XXX set CRS bit? */
+		return 4;		/* STMMAC_CSR_150_250M? */
+
+	default:
+		return -EINVAL;
+	}
+}
+
+/* XXX Is there no existing function that does this translation? */
+static int plat_speed(phy_interface_t phy_interface)
+{
+	switch (phy_interface) {
+	case PHY_INTERFACE_MODE_10GBASER:
+		return SPEED_10000;
+
+	case PHY_INTERFACE_MODE_SGMII:
+	case PHY_INTERFACE_MODE_2500BASEX:
+		return SPEED_2500;
+
+	default:
+		return -ENOTSUPP;
+	}
+}
+
 static int plat_data_init(struct tc9564_dwmac *dwmac)
 {
 	struct plat_stmmacenet_data *plat;
 	phy_interface_t phy_interface;
+	u32 clk_csr;
+	u32 speed;
 	int ret;
+	u32 i;
 
 	ret = device_get_phy_mode(dwmac->dev);
 	if (ret < 0)
 		return ret;
 	phy_interface = ret;
 
+	ret = plat_clk_csr_value(phy_interface);
+	if (ret < 0)
+		return ret;
+	clk_csr = ret;
+
+	ret = plat_speed(phy_interface);
+	if (ret < 0)
+		return ret;
+	speed = ret;
+
 	/* The platform structure is allocated with devm_kzalloc() */
 	plat = stmmac_plat_dat_alloc(dwmac->dev);
 	if (!plat)
 		return -ENOMEM;
 
+	plat->core_type = DWMAC_CORE_XGMAC;
+	plat->bus_id = dwmac->data->id;
 	plat->phy_interface = phy_interface;
-
-	/* The probed_phy_irq field is set in tc956x_xgmac3_probe() */
+	/* mdio_bus_data->probed_phy_irq is set in stmmac_resources_init() */
 	plat->mdio_bus_data = &dwmac->mdio_bus_data;
-
-	/* Initialized in tc956x_xgmac3_default_data() and tc956x_dma_init() */
 	plat->dma_cfg = &dwmac->dma_cfg;
+	plat->dma_cfg->pbl = 32;
+	plat->dma_cfg->pblx8 = true;
+	plat->clk_csr = clk_csr;
+	plat->force_sf_dma_mode = 1;
+	plat->max_speed = speed;
+	plat->unicast_filter_entries = 32;
+	/* XXX tx_fifo_size and tx_fifo_size need some attention */
+	plat->host_dma_width = 36;
+
+	/* XXX
+	 * TC956x has 8 RX queues but we observe significantly reduced RX
+	 * bandwidth if we don't have at least 8k FIFO space per queue, so
+	 * by default we avoid using all the queues.
+	 */
+	plat->rx_queues_to_use = 4;
+
+	/* XXX
+	 * TX956x has 8 TX queues. However failures are observed (DHCP does not
+	 * get an IP address or ping does fails) if tx_queues_to_use >3
+	 */
+	plat->tx_queues_to_use = 3;
+
+	plat->rx_sched_algorithm = MTL_RX_ALGORITHM_SP;
+	plat->tx_sched_algorithm = MTL_TX_ALGORITHM_WRR;
+
+	for (i = 0; i < plat->rx_queues_to_use; i++)
+		plat->rx_queues_cfg[i].mode_to_use = MTL_QUEUE_DCB;
+
+	for (i = 0; i < plat->tx_queues_to_use; i++) {
+		plat->tx_queues_cfg[i].weight = 12;
+		plat->tx_queues_cfg[i].mode_to_use = MTL_QUEUE_DCB;
+
+		/* Tx Queues 0 - 4 don't support TBS on TC956x */
+		if (i >= 5)
+			plat->tx_queues_cfg[i].tbs_en = true;
+	}
+	/* XXX Add tc956x_fix_mac_speed() */
+	/* XXX Add tc956x_xgmac3_suspend() */
+	/* XXX Add tc956x_xgmac3_resume() */
+	/* XXX Add tc956x_mac_setup() */
+	/* XXX Add tc956x_pcs_init() */
+	/* XXX Add tc956x_select_pcs() */
+	plat->bsp_priv = dwmac;
+	plat->clk_ptp_rate = 250000000;	/* XXX Confirmed? */
 
 	/* Initialized in tc956x_xgmac3_default_data() */
 	plat->axi = &dwmac->axi;
+	plat->axi->axi_lpi_en = 1;
+	plat->axi->axi_wr_osr_lmt = 31;
+	plat->axi->axi_rd_osr_lmt = 31;
+	/* All sizes (2^2..2^8) are supported */
+	plat->axi->axi_blen_regval = field_max(DMA_AXI_BLEN_MASK);
+	plat->mac_port_sel_speed = speed;
+	plat->max_speed = speed;
+	plat->flags = STMMAC_FLAG_MULTI_MSI_EN | STMMAC_FLAG_TSO_EN;
 
 	dwmac->plat = plat;
 
@@ -196,8 +291,12 @@ static int stmmac_resources_init(struct stmmac_resources *res,
 {
 	struct tc9564_dwmac *dwmac = domain->host_data;
 	struct device *dev = dwmac->dev;
+	unsigned int irq;
 	int ret;
 	u32 i;
+
+	irq = irq_create_mapping(domain, HWIRQ_ETH_INT);
+	dwmac->plat->mdio_bus_data->probed_phy_irq = irq;
 
 	res->addr = dwmac->data->dwmac_addr;
 
