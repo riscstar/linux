@@ -18,6 +18,7 @@
 #include <linux/pm.h>
 
 #include "soc-tc9564-chip.h"
+#include "stmmac.h"
 
 #define DRIVER_NAME		"dwmac-tc9564"
 
@@ -44,13 +45,22 @@ enum tc956x_msigen_hwirq {
 /*
  * struct tc9564_dwmac - Information related to an embedded XGMAC
  * @dev:		Device pointer
+ * @plat:		Pointer to stmmac platform data
  * @data:		Pointer to data passed from the parent
  * @chip:		Handle used for common chip operations
+ * @dma_cfg:		DMA config buffer used by plat_stmmacenet_data
+ * @mdio_bus_data:	MDIO bus data used by plat_stmmacenet_data
+ * @axi:		AXI parameters used by plat_stmmacenet_data
  */
 struct tc9564_dwmac {
 	struct device *dev;
-	void *chip;				/* Intentionally opaque */
+	struct plat_stmmacenet_data *plat;
 	struct tc9564_dwmac_data *data;
+	void *chip;				/* Intentionally opaque */
+	/* Remaining fields are used by the plat_stmmacenet_data structure */
+	struct stmmac_dma_cfg dma_cfg;
+	struct stmmac_mdio_bus_data mdio_bus_data;
+	struct stmmac_axi axi;
 };
 
 static const struct auxiliary_device_id tc964_dwmac_ids[] = {
@@ -148,12 +158,36 @@ static struct irq_domain *msigen_domain_instantiate(struct tc9564_dwmac *dwmac)
 	return devm_irq_domain_instantiate(dwmac->dev, &info);
 }
 
+static int plat_data_init(struct tc9564_dwmac *dwmac)
+{
+	struct plat_stmmacenet_data *plat;
+
+	/* The platform structure is allocated with devm_kzalloc() */
+	plat = stmmac_plat_dat_alloc(dwmac->dev);
+	if (!plat)
+		return -ENOMEM;
+
+	/* The probed_phy_irq field is set in tc956x_xgmac3_probe() */
+	plat->mdio_bus_data = &dwmac->mdio_bus_data;
+
+	/* Initialized in tc956x_xgmac3_default_data() and tc956x_dma_init() */
+	plat->dma_cfg = &dwmac->dma_cfg;
+
+	/* Initialized in tc956x_xgmac3_default_data() */
+	plat->axi = &dwmac->axi;
+
+	dwmac->plat = plat;
+
+	return 0;
+}
+
 static int tc9564_dwmac_probe(struct auxiliary_device *adev,
 			      const struct auxiliary_device_id *id)
 {
 	struct device *dev = &adev->dev;
 	struct tc9564_dwmac *dwmac;
 	struct irq_domain *domain;
+	int ret;
 
 	dev_info(dev, " === %s\n", __func__);
 
@@ -167,6 +201,11 @@ static int tc9564_dwmac_probe(struct auxiliary_device *adev,
 	dwmac->dev = dev;
 	dwmac->chip = dev_get_platdata(dev->parent);
 	dwmac->data = dev_get_platdata(dev);
+
+	ret = plat_data_init(dwmac);
+	if (ret)
+		return dev_err_probe(dev, ret,
+				     "failed to initialize platform data\n");
 
 	domain = msigen_domain_instantiate(dwmac);
 	if (IS_ERR(domain))
