@@ -15,6 +15,7 @@
 #include <linux/irqdesc.h>
 #include <linux/irqdomain.h>
 #include <linux/module.h>
+#include <linux/of_irq.h>
 #include <linux/pm.h>
 
 #include "soc-tc9564-chip.h"
@@ -181,9 +182,39 @@ static int plat_data_init(struct tc9564_dwmac *dwmac)
 	return 0;
 }
 
+static int stmmac_resources_init(struct stmmac_resources *res,
+				 struct irq_domain *domain)
+{
+	struct tc9564_dwmac *dwmac = domain->host_data;
+	struct device *dev = dwmac->dev;
+	int ret;
+	u32 i;
+
+	res->addr = dwmac->data->dwmac_addr;
+
+	ret = of_irq_get_byname(dev_of_node(dev), "wake-on-lan");
+	if (ret < 1) {
+		dev_err(dev, "error %d getting wake-on-lan property\n", ret);
+                return ret ? : -EINVAL;
+	}
+	res->wol_irq = ret;
+
+	/* Problems creating mappings will be reported by stmmac_dvr_probe */
+	res->irq = irq_create_mapping(domain, HWIRQ_EVENT);
+
+	for (i = 0; i < MTL_MAX_TX_QUEUES; i++)
+		res->tx_irq[i] = irq_create_mapping(domain, HWIRQ_TX0 + i);
+
+	for (i = 0; i < MTL_MAX_RX_QUEUES; i++)
+		res->rx_irq[i] = irq_create_mapping(domain, HWIRQ_RX0 + i);
+
+	return 0;
+}
+
 static int tc9564_dwmac_probe(struct auxiliary_device *adev,
 			      const struct auxiliary_device_id *id)
 {
+	struct stmmac_resources stmmac_res = { };
 	struct device *dev = &adev->dev;
 	struct tc9564_dwmac *dwmac;
 	struct irq_domain *domain;
@@ -211,6 +242,11 @@ static int tc9564_dwmac_probe(struct auxiliary_device *adev,
 	if (IS_ERR(domain))
 		return dev_err_probe(dev, PTR_ERR(domain),
 				     "failed to instantiate MSIGEN domain\n");
+
+	ret = stmmac_resources_init(&stmmac_res, domain);
+	if (ret)
+		return dev_err_probe(dev, ret,
+				     "failed to initialize resources\n");
 
 	dev_set_drvdata(dev, dwmac);
 
