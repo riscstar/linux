@@ -365,6 +365,17 @@ static void translation_config(struct tc9564_chip *chip)
 	}
 }
 
+static int function_init(struct pci_dev *pdev)
+{
+	int ret;
+
+	ret = pci_alloc_irq_vectors(pdev, 1, 1, PCI_IRQ_MSI);
+	if (ret < 1)
+		return ret ? : -EIO;
+
+	return 0;
+}
+
 static void function_start(struct pci_dev *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -377,17 +388,6 @@ static void function_start(struct pci_dev *pdev)
 	if (ret)
 		dev_warn(dev, "failed to enable PCI device\n");
 	pci_set_master(pdev);
-}
-
-static int function_init(struct pci_dev *pdev)
-{
-	int ret;
-
-	ret = pci_alloc_irq_vectors(pdev, 1, 1, PCI_IRQ_MSI);
-	if (ret < 1)
-		return ret ? : -EIO;
-
-	return 0;
 }
 
 static void function_stop(struct pci_dev *pdev)
