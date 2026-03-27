@@ -434,7 +434,7 @@ static struct tc9564_chip *chip_get_function1(struct pci_dev *pdev)
 
 	/* XXX Can't we DL_FLAG_AUTOREMOVE_SUPPLIER instead? */
 	/* Mark this device as dependent on function 0 */
-	link = device_link_add(dev, &peer->dev, DL_FLAG_AUTOREMOVE_SUPPLIER);
+	link = device_link_add(dev, &peer->dev, DL_FLAG_STATELESS);
 	if (link) {
 		devm_add_action_or_reset(&peer->dev, chip_link_del, link);
 
