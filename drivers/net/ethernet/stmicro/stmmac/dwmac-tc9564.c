@@ -174,7 +174,6 @@ static int plat_clk_csr_value(phy_interface_t phy_interface)
 	}
 }
 
-/* XXX Is there no existing function that does this translation? */
 static int plat_speed(phy_interface_t phy_interface)
 {
 	switch (phy_interface) {
@@ -230,6 +229,8 @@ static int plat_data_init(struct tc9564_dwmac *dwmac)
 	plat->clk_csr = clk_csr;
 	plat->force_sf_dma_mode = 1;
 	plat->max_speed = speed;
+	/* XXX 9000 is default; Toshiba rounds up to 9024 bytes */
+	plat->maxmtu = ALIGN(9000, SMP_CACHE_BYTES);
 	plat->unicast_filter_entries = 32;
 	/* XXX tx_fifo_size and tx_fifo_size need some attention */
 	plat->host_dma_width = 36;
