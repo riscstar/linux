@@ -10,6 +10,7 @@
 
 #include <linux/auxiliary_bus.h>
 #include <linux/dev_printk.h>
+#include <linux/gpio/consumer.h>
 #include <linux/irq.h>
 #include <linux/irqchip/chained_irq.h>
 #include <linux/irqdesc.h>
@@ -17,6 +18,7 @@
 #include <linux/module.h>
 #include <linux/of_irq.h>
 #include <linux/pm.h>
+#include <linux/regulator/consumer.h>
 
 #include "soc-tc9564-chip.h"
 #include "stmmac.h"
@@ -54,6 +56,9 @@ enum tc956x_msigen_hwirq {
  * @dev:		Device pointer
  * @plat:		Pointer to stmmac platform data
  * @data:		Pointer to data passed from the parent
+ * @phy_supply:		PHY supply regulator
+ * @phy_reset:		Descriptor for GPIO used for PHY reset
+ * @phy_reset_delay:	Delay (milliseconds) after PHY reset
  * @chip:		Handle used for common chip operations
  * @dma_cfg:		DMA config buffer used by plat_stmmacenet_data
  * @mdio_bus_data:	MDIO bus data used by plat_stmmacenet_data
@@ -63,7 +68,11 @@ struct tc9564_dwmac {
 	struct device *dev;
 	struct plat_stmmacenet_data *plat;
 	struct tc9564_dwmac_data *data;
+	struct regulator *phy_supply;
+	struct gpio_desc *phy_reset;
+	u32 phy_reset_delay;
 	void *chip;				/* Intentionally opaque */
+
 	/* Remaining fields are used by the plat_stmmacenet_data structure */
 	struct stmmac_dma_cfg dma_cfg;
 	struct stmmac_mdio_bus_data mdio_bus_data;
@@ -75,6 +84,36 @@ static const struct auxiliary_device_id tc964_dwmac_ids[] = {
 	{ }
 };
 MODULE_DEVICE_TABLE(auxiliary, tc964_dwmac_ids);
+
+static int dwmac_phy_init(struct tc9564_dwmac *dwmac)
+{
+	struct device *dev = dwmac->dev;
+	int ret;
+
+	ret = of_property_read_u32(dev_of_node(dev), "qcom,phy-reset-delay",
+				   &dwmac->phy_reset_delay);
+	if (ret) {
+		dev_err(dev, "failed to get qcom,phy-reset-delay property\n");
+
+		return ret;
+	}
+
+	dwmac->phy_supply = devm_regulator_get(dev, "phy");
+	if (IS_ERR(dwmac->phy_supply)) {
+		dev_err(dev, "failed to get phy-supply property\n");
+
+		return PTR_ERR(dwmac->phy_supply);
+	}
+
+	dwmac->phy_reset = devm_gpiod_get(dev, "phy-reset", GPIOD_OUT_LOW);
+	if (IS_ERR(dwmac->phy_reset)) {
+		dev_err(dev, "failed to get phy-reset property\n");
+
+		return PTR_ERR(dwmac->phy_reset);
+	}
+
+	return 0;
+}
 
 static void msigen_irq_handler(struct irq_desc *desc)
 {
@@ -357,6 +396,11 @@ static int tc9564_dwmac_probe(struct auxiliary_device *adev,
 		return dev_err_probe(dev, ret,
 				     "failed to initialize platform data\n");
 
+	ret = dwmac_phy_init(dwmac);
+	if (ret)
+		return dev_err_probe(dev, ret,
+				     "failed to initialize PHY resources\n");
+
 	domain = msigen_domain_instantiate(dwmac);
 	if (IS_ERR(domain))
 		return dev_err_probe(dev, PTR_ERR(domain),
@@ -365,7 +409,7 @@ static int tc9564_dwmac_probe(struct auxiliary_device *adev,
 	ret = stmmac_resources_init(&stmmac_res, domain);
 	if (ret)
 		return dev_err_probe(dev, ret,
-				     "failed to initialize resources\n");
+				     "failed to initialize stmmac resources\n");
 
 	dev_set_drvdata(dev, dwmac);
 
