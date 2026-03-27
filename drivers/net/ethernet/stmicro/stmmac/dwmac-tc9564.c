@@ -23,6 +23,12 @@
 
 #define DRIVER_NAME		"dwmac-tc9564"
 
+#define TC9564_RX_QUEUE_COUNT	8
+#define TC9564_RX_FIFO_KB	46	/* Shared by all RX queues */
+
+#define TC9564_TX_QUEUE_COUNT	8
+#define TC9564_TX_FIFO_KB	46	/* Shared by all TX queues */
+
 /* Bits in MSI_OUT_EN and MSI_INT_STS are defined by tc956x_msigen_hwirq */
 #define MSI_OUT_EN_OFFSET               0x0000	/* 1: interrupt enabled */
 /* Bits in MSI_MASK_CLR correspond to MSIs 0..31 */
@@ -232,19 +238,23 @@ static int plat_data_init(struct tc9564_dwmac *dwmac)
 	/* XXX 9000 is default; Toshiba rounds up to 9024 bytes */
 	plat->maxmtu = ALIGN(9000, SMP_CACHE_BYTES);
 	plat->unicast_filter_entries = 32;
-	/* XXX tx_fifo_size and tx_fifo_size need some attention */
+	/* XXX Daniel had these reduced to 8KB per queue */
+	plat->rx_fifo_size = TC9564_RX_FIFO_KB;
+	plat->tx_fifo_size = TC9564_TX_FIFO_KB;
 	plat->host_dma_width = 36;
 
 	/* XXX
 	 * TC956x has 8 RX queues but we observe significantly reduced RX
 	 * bandwidth if we don't have at least 8k FIFO space per queue, so
 	 * by default we avoid using all the queues.
+	 * 	plat->rx_queues_to_use = TC9564_RX_QUEUE_COUNT;
 	 */
 	plat->rx_queues_to_use = 4;
 
 	/* XXX
 	 * TX956x has 8 TX queues. However failures are observed (DHCP does not
 	 * get an IP address or ping does fails) if tx_queues_to_use >3
+	 * 	plat->tx_queues_to_use = TC9564_TX_QUEUE_COUNT;
 	 */
 	plat->tx_queues_to_use = 3;
 
