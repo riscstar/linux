@@ -286,39 +286,22 @@
 		regulator-enable-ramp-delay = <10000>;
 	};
 
-	/*
-	 * TODO: Name needs review... it's copied from a v6.6 .dtsi file and
-	 * has not been checked (many other regulators were renamed during
-	 * upstreaming).
-	 */
-	qep_vreg: qep_vreg {
+	qep_1p8: regulator-qep-1p8 {
 		compatible = "regulator-fixed";
-		regulator-name = "qep_vreg";
-		gpio = <&pm7325_gpios 8 0>;
+		regulator-name = "qep_1p8";
+		gpio = <&pm7325_gpios 8 GPIO_ACTIVE_HIGH>;
 		regulator-min-microvolt = <1800000>;
 		regulator-max-microvolt = <1800000>;
 		enable-active-high;
-
-		/* TODO: we'd like the QPS615 to manage this properly */
-		regulator-always-on;
 	};
 
-	/*
-	 * TODO: Name needs review... it's copied from a v6.6 .dtsi file and
-	 * has not been checked (many other regulators were renamed during
-	 * upstreaming).
-	 */
-	aqr_vreg: aqr_vreg {
+	vreg_aqr_1p8: regulator-vreg-aqr-1p8 {
 		compatible = "regulator-fixed";
-		regulator-name = "aqr_vreg";
-		gpio = <&pm7250b_gpios 4 0>;
+		regulator-name = "vreg_aqr_1p8";
+		gpio = <&pm7250b_gpios 4 GPIO_ACTIVE_HIGH>;
 		regulator-min-microvolt = <1800000>;
 		regulator-max-microvolt = <1800000>;
 		enable-active-high;
-
-		/* TODO: we'd like the QPS615 to manage this properly */
-		regulator-always-on;
-
 	};
 
 	wcn6750-pmu {
@@ -928,16 +911,16 @@
 				reset-controller;
 				#reset-cells = <1>;
 
+				phy-mode = "10gbase-r";
+				phy-supply = <&vreg_aqr_1p8>;
 				phy-reset-gpios = <&primary 0 GPIO_ACTIVE_HIGH>;
-
-				// phy-mode = "10gbase-r";
+				qcom,phy-reset-delay = <221>;
 
 				pinctrl-names = "default";
 				pinctrl-0 = <&aqr_intn_wol_sig>;
 				interrupts-extended = <&tlmm 141 IRQ_TYPE_EDGE_FALLING>;
 				interrupt-names = "wake-on-lan";
-				//phy-supply = <&aqr_vreg>;
-				qcom,phy-reset-delay = <221>;
+
 				//#address-cells = <1>;
 				//#size-cells = <1>;
 			};
@@ -968,16 +951,16 @@
 					 <&primary 10>;
 				reset-names = "MAC", "PMA", "XPCS";
 
-				phy-reset-gpios = <&primary 1 GPIO_ACTIVE_HIGH>;
-
 				phy-mode = "sgmii";
+				phy-supply = <&qep_1p8>;
+				phy-reset-gpios = <&primary 1 GPIO_ACTIVE_HIGH>;
+				qcom,phy-reset-delay = <20>;
 
 				pinctrl-names = "default";
 				pinctrl-0 = <&napa_intn_wol_sig>;
 				interrupts-extended = <&tlmm 101 IRQ_TYPE_EDGE_FALLING>;
 				interrupt-names = "wake-on-lan";
-				//phy-supply = <&qep_vreg>;
-				qcom,phy-reset-delay = <20>;
+
 				//#address-cells = <1>;
 				//#size-cells = <1>;
 			};
