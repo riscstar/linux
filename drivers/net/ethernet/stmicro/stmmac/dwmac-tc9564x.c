@@ -583,8 +583,8 @@ static void tc956x_mac_init_state(struct tc956x_data *td)
 	tc956x_stop_mac(td);
 }
 
-static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
-				struct plat_stmmacenet_data *plat)
+static int tc956x_xgmac3_default_data(struct device *dev,
+				      struct plat_stmmacenet_data *plat)
 {
 	struct tc956x_data *td = plat->bsp_priv;
 	int speed;
@@ -599,12 +599,12 @@ static int tc956x_xgmac3_default_data(struct pci_dev *pdev,
 		speed = SPEED_2500;
 		break;
 	default:
-		dev_err(&pdev->dev, "Unexpected PHY interface mode\n");
+		dev_err(dev, "Unexpected PHY interface mode\n");
 		return -ENOTSUPP;
 	}
 
 	/* AXI Configuration */
-	plat->axi = devm_kzalloc(&pdev->dev, sizeof(*plat->axi), GFP_KERNEL);
+	plat->axi = devm_kzalloc(dev, sizeof(*plat->axi), GFP_KERNEL);
 	if (!plat->axi)
 		return -ENOMEM;
 
@@ -926,10 +926,9 @@ tc956x_plat_dat_alloc(struct tc956x_data *td, struct device *dev)
 
 static int tc956x_xgmac3_probe(struct tc956x_data *td)
 {
-	struct device *dev = td->dev;
-	struct pci_dev *pdev = to_pci_dev(dev);
 	struct stmmac_resources res = { };
 	struct irq_domain *irq_domain;
+	struct device *dev = td->dev;
 	struct pinctrl *pinctrl;
 	int ret;
 	u32 i;
@@ -958,7 +957,7 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 	td->plat->phy_interface = td->pci_fn ? PHY_INTERFACE_MODE_SGMII
 					     : PHY_INTERFACE_MODE_10GBASER;
 
-	ret = tc956x_xgmac3_default_data(pdev, td->plat);
+	ret = tc956x_xgmac3_default_data(dev, td->plat);
 	if (ret)
 		goto err;
 
