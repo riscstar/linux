@@ -72,11 +72,6 @@
 
 #define CM3_TAMAP_COUNT			4
 
-/* Configuration Register Address */
-#define NCID_OFFSET			0x0000
-#define NCID_REV_ID_MASK		GENMASK(7, 0)
-#define NCID_CHIP_ID_MASK		GENMASK(15, 8)
-
 #define NCTLSTS_OFFSET			0x1000
 /* The next four are relative to the base of the clock/reset regmap (NCTLSTS) */
 #define RSTCTRL0_OFFSET			0x0008
@@ -166,6 +161,7 @@ enum tc956x_msigen_hwirq {
  * @phy_reset_delay:	Delay (milliseconds) after PHY reset
  * @wol_irq:		Wake-on-LAN IRQ number
  * @chip:		Pointer to the containing chip information
+ * @rev_id:		Revision ID
  * @dma_cfg:		DMA config buffer used by plat_stmmacenet_data
  * @mdio_bus_data:	MDIO bus data used by plat_stmmacenet_data
  */
@@ -180,6 +176,7 @@ struct tc956x_data {
 	u32 phy_reset_delay;
 	int wol_irq;
 	struct tc9564_chip *chip;
+	u8 rev_id;
 
 	/* Remaining fields are used by the plat_stmmacenet_data structure */
 	struct stmmac_dma_cfg dma_cfg;
@@ -193,7 +190,6 @@ struct tc956x_data {
  * @secondary:		Device link between secondary (consumer) and primary
  * @pci_bus_num:	PCI bus this chip is on
  * @pci_slot:		PCI slot on its bus this chip fills
- * @rev_id:		Revision ID
  * @chip_id:		Chip ID
  * @links:		Links in the list of all chips
  *
@@ -215,8 +211,6 @@ struct tc9564_chip {
 
 	u8 pci_bus_num;
 	u8 pci_slot;
-	u8 rev_id;
-	u8 chip_id;
 
 	struct list_head links;		/* Protected by tc9564_chips_lock */
 };
@@ -832,7 +826,7 @@ static void tc956x_dma_init_rx_chan(struct stmmac_priv *priv,
 	 * Reduce the number of outstanding write requests to 3.  Needed
 	 * for XGMAC 3.01a errata (value 0 means 4 outstanding writes).
 	 */
-	setting = td->chip->rev_id == 1 ? 3 : 0;
+	setting = td->rev_id == 1 ? 3 : 0;
 	value = readl(ioaddr + XGMAC_DMA_CH_RX_CONTROL2(chan));
 	value = u32_replace_bits(value, setting, XGMAC_OWRQ);
 	writel(value, ioaddr + XGMAC_DMA_CH_RX_CONTROL2(chan));
@@ -1132,7 +1126,6 @@ static struct tc9564_chip *tc9564_chip_get(struct tc956x_data *td)
 	u8 pci_bus_num = PCI_BUS_NUM(pdev->devfn);
 	u8 pci_slot = PCI_SLOT(pdev->devfn);
 	struct tc9564_chip *chip;
-	u32 val;
 	int ret;
 
 	/* Use the existing chip structure if it's already been created */
@@ -1161,12 +1154,6 @@ static struct tc9564_chip *tc9564_chip_get(struct tc956x_data *td)
 	chip->pci_bus_num = pci_bus_num;
 	chip->pci_slot = pci_slot;
 	chip->primary = td;
-
-	/* Get the chip and revision IDs */
-	val = readl(td->sfr + NCID_OFFSET);
-	chip->rev_id = u32_get_bits(val, NCID_REV_ID_MASK);
-	chip->chip_id = u32_get_bits(val, NCID_CHIP_ID_MASK);
-	dev_dbg(dev, "NCID Register value: %x\n", val);
 
 	ret = tc956x_reset_clock_init(chip);
 	if (ret)
@@ -1370,6 +1357,7 @@ static int tc9564x_dwmac_probe(struct auxiliary_device *adev,
 	td->dev = dev;
 	td->pci_fn = data->id;
 	td->sfr = data->sfr;
+	td->rev_id = data->rev_id;
 	/* XXX And this might come from the data pointer */
 	td->chip = dev_get_platdata(dev->parent);
 

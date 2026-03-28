@@ -67,6 +67,10 @@
 #define PCI_BAR_BRIDGE_CONFIG		0
 #define PCI_BAR_SFR			4
 
+/* Chip and revision ID register */
+#define NCID_OFFSET			0x0000
+#define NCID_REV_ID_MASK		GENMASK(7, 0)
+
 /* Reset and clock register offsets.  Chip resets and clocks are controlled
  * by bits in register 0.  MAC resets and clocks are controlled by bits in
  * register 0 for MAC0, register 1 for MAC1.
@@ -108,12 +112,15 @@
 /*
  * struct tc9564_chip - Common information related to the TC9564 chip
  * @dev:		Device structure
+ * @rev_id:		Chip revision ID (for quirks)
  * @sfr:		Mapped SFR region (BAR 4)
+ * @bridge_config:	Regmap used for bridge configuration
  * @reset_clock_regmap:	Regmap used for resets and clocks
  */
 struct tc9564_chip {
 	struct device *dev;
 	void __iomem *sfr;
+	u8 rev_id;
 	void __iomem *bridge_config;
 	struct regmap *reset_clock_regmap;
 };
@@ -241,11 +248,13 @@ static int chip_gpio_adev_add(struct tc9564_chip *chip)
 }
 
 /* The two embedded XGMAC controllers have an auxiliary device driver */
-static int function_xgmac_adev_add(struct pci_dev *pdev, void __iomem *base,
+static int function_xgmac_adev_add(struct pci_dev *pdev,
+				   struct tc9564_chip *chip,
 				   unsigned int irq)
 {
 	bool fn0 = !PCI_FUNC(pdev->devfn);
 	struct device *dev = &pdev->dev;
+	void __iomem *base = chip->sfr;
 	struct tc9564_dwmac_data *data;
 	int ret;
 
@@ -255,6 +264,7 @@ static int function_xgmac_adev_add(struct pci_dev *pdev, void __iomem *base,
 		return -ENOMEM;
 
 	data->sfr = base;
+	data->rev_id = chip->rev_id;
 	if (fn0) {
 		data->dwmac_addr = base + 0x40000;
 		data->msigen_addr = base + 0xf000;
@@ -472,6 +482,7 @@ static struct tc9564_chip *chip_get(struct pci_dev *pdev)
 
 static int chip_init(struct tc9564_chip *chip, struct pci_dev *pdev)
 {
+	u32 val;
 	int ret;
 
 	/* Only function 0 does chip initialization */
@@ -485,6 +496,10 @@ static int chip_init(struct tc9564_chip *chip, struct pci_dev *pdev)
 	chip->sfr = pcim_iomap_region(pdev, PCI_BAR_SFR, DRIVER_NAME);
 	if (IS_ERR(chip->sfr))
 		return PTR_ERR(chip->sfr);
+
+	/* Get the revision ID */
+	val = readl(chip->sfr + NCID_OFFSET);
+	chip->rev_id = u32_get_bits(val, NCID_REV_ID_MASK);
 
 	ret = chip_reset_clock_init(chip);
 	if (ret)

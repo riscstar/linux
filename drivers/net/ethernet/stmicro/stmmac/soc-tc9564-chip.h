@@ -51,6 +51,7 @@ struct tc9564_chip;
  * @dwmac_addr:		I/O mapped address used by dwmac
  * @msigen_addr:	I/O mapped address used by MSIGEN
  * @msigen_irq:		IRQ number used by MSIGEN
+ * @rev_id:		Chip revision ID (for quirks)
  * @id:			Unique device ID
  *
  * This structure is passed via platform data to the stmmac auxiliary devices.
@@ -60,6 +61,7 @@ struct tc9564_dwmac_data {
 	void __iomem *dwmac_addr;
 	void __iomem *msigen_addr;
 	unsigned int msigen_irq;
+	u32 rev_id;
 	u32 id;
 };
 
