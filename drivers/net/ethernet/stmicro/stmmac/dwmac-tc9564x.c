@@ -897,10 +897,9 @@ static int tc956x_xgmac3_resume(struct device *dev, void *bsp_priv)
 }
 
 static struct plat_stmmacenet_data *
-tc956x_plat_dat_alloc(struct tc956x_data *td, struct pci_dev *pdev)
+tc956x_plat_dat_alloc(struct tc956x_data *td, struct device *dev)
 {
 	struct plat_stmmacenet_data *plat;
-	struct device *dev = &pdev->dev;
 
 	/* The platform structure is allocated with devm_kzalloc() */
 	plat = stmmac_plat_dat_alloc(dev);
@@ -908,7 +907,7 @@ tc956x_plat_dat_alloc(struct tc956x_data *td, struct pci_dev *pdev)
 		return NULL;
 
 	plat->bsp_priv = td;
-	plat->bus_id = pci_dev_id(pdev);
+	plat->bus_id = td->pci_fn;
 	plat->mac_setup = tc956x_mac_setup;
 	plat->fix_mac_speed = tc956x_fix_mac_speed;
 	plat->pcs_init = tc956x_pcs_init;
@@ -935,7 +934,7 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 	int ret;
 	u32 i;
 
-	td->plat = tc956x_plat_dat_alloc(td, pdev);
+	td->plat = tc956x_plat_dat_alloc(td, dev);
 	if (!td->plat)
 		return -ENOMEM;
 
