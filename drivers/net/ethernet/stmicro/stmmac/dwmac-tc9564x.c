@@ -1095,61 +1095,6 @@ tc956x_plat_dat_alloc(struct tc956x_data *td, struct pci_dev *pdev)
 	return plat;
 }
 
-static struct tc956x_data *tc956x_devm_data_create(struct pci_dev *pdev)
-{
-	struct device *dev = &pdev->dev;
-	struct tc956x_data *td;
-	unsigned int pci_fn;
-	void __iomem *base;
-	int ret;
-
-	pci_fn = PCI_FUNC(pdev->devfn);
-	if (WARN_ON(pci_fn > 1))
-		return ERR_PTR(-EINVAL);
-
-	td = devm_kzalloc(dev, sizeof(*td), GFP_KERNEL);
-	if (!td)
-		return ERR_PTR(-ENOMEM);
-
-	td->dev = dev;
-	td->pci_fn = pci_fn;
-
-	ret = pcim_enable_device(pdev);
-	if (ret) {
-		dev_err(dev, "%s: ERROR: failed to enable device\n", __func__);
-		return ERR_PTR(ret);
-	}
-
-	/* Request the PCI IO Memory for the device */
-	base = pcim_iomap_region(pdev, PCI_BAR_BRIDGE_CONFIG, DRIVER_NAME);
-	if (IS_ERR(base)) {
-		dev_err(dev, "failed to map bridge config region\n");
-		return ERR_CAST(base);
-	}
-	td->bridge_config = base;
-
-	base = pcim_iomap_region(pdev, PCI_BAR_SFR, DRIVER_NAME);
-	if (IS_ERR(base)) {
-		dev_err(dev, "failed to map sfr region\n");
-		return ERR_CAST(base);
-	}
-	td->sfr = base;
-
-#if IS_ENABLED(CONFIG_TRACE_MMIO_ACCESS)
-	/*
-	 *  TODO: This is the filtering/tagging support for MMIO tracing.
-	 *
-	 * Eventually it needs to be removed but not yet... it's too useful
-	 * for feature development!
-	 */
-	log_mmio_register_range(td->bridge_config, pci_resource_len(pdev, 0),
-				"bridge_cfg");
-	log_mmio_register_range(td->sfr, pci_resource_len(pdev, 4), "sfr");
-#endif
-
-	return td;
-}
-
 static void tc956x_start_chip(struct tc9564_chip *chip)
 {
 	tc9564_chip_reset_deassert(chip, CHIP_RESET_MSIGEN);
@@ -1406,17 +1351,27 @@ static void tc956x_xgmac3_remove(struct tc956x_data *td)
 static int tc9564x_dwmac_probe(struct auxiliary_device *adev,
 			       const struct auxiliary_device_id *id)
 {
+	struct device *dev = &adev->dev;
+	struct tc9564_dwmac_data *data;
 	int has_gpio_controller;
 	struct tc956x_data *td;
 	int ret;
 
-	if (!dev_of_node(&adev->dev))
+	if (!dev_of_node(dev))
 		return -EINVAL;
 
-	td = tc956x_devm_data_create(pdev);	/* XXX */
-	if (IS_ERR(td))
-		return dev_err_probe(td->dev, PTR_ERR(td),
-				     "cannot create data\n");
+	/* XXX This will come from adev->driver_data instead */
+	data = dev_get_platdata(dev);
+
+	td = devm_kzalloc(dev, sizeof(*td), GFP_KERNEL);
+	if (!td)
+		return dev_err_probe(dev, -ENOMEM, "cannot create data\n");
+
+	td->dev = dev;
+	td->pci_fn = data->id;
+	td->sfr = data->sfr;
+	/* XXX And this might come from the data pointer */
+	td->chip = dev_get_platdata(dev->parent);
 
 	has_gpio_controller = tc956x_devm_gpio_device_add(td);
 	if (has_gpio_controller < 0)

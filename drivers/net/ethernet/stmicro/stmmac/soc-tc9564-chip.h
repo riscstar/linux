@@ -47,6 +47,7 @@ struct tc9564_chip;
 
 /**
  * struct tc9564_dwmac_data - Structure passed to stmmac auxiliary devices.
+ * @sfr:		I/O mapped address of entire SFR region
  * @dwmac_addr:		I/O mapped address used by dwmac
  * @msigen_addr:	I/O mapped address used by MSIGEN
  * @msigen_irq:		IRQ number used by MSIGEN
@@ -55,6 +56,7 @@ struct tc9564_chip;
  * This structure is passed via platform data to the stmmac auxiliary devices.
  */
 struct tc9564_dwmac_data {
+	void __iomem *sfr;		/* XXX This should go away */
 	void __iomem *dwmac_addr;
 	void __iomem *msigen_addr;
 	unsigned int msigen_irq;

@@ -254,6 +254,7 @@ static int function_xgmac_adev_add(struct pci_dev *pdev, void __iomem *base,
 	if (!data)
 		return -ENOMEM;
 
+	data->sfr = base;
 	if (fn0) {
 		data->dwmac_addr = base + 0x40000;
 		data->msigen_addr = base + 0xf000;
