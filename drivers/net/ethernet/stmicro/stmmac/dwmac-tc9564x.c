@@ -963,19 +963,6 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 	if (ret)
 		goto err;
 
-	pci_set_master(pdev);
-
-	/*
-	 * Enable MSI and Allocate Vectors. Despite the spelling (no pcim) the
-	 * free will be handled by devres due to the prior pcim_enable_device()
-	 */
-	ret = pci_alloc_irq_vectors(pdev, 1, 1, PCI_IRQ_MSI);
-
-	if (ret < 1) {
-		dev_err(dev, "%s:Enable MSI error\n", DRIVER_NAME);
-		goto err;
-	}
-
 	irq_domain = devm_tc956x_msigen_register(td);
 	if (IS_ERR(irq_domain)) {
 		ret = PTR_ERR(irq_domain);
