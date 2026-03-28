@@ -53,5 +53,6 @@ obj-$(CONFIG_DWMAC_TC956X)	+= dwmac-tc956x.o
 obj-$(CONFIG_DWMAC_TC956X)	+= dwmac-tc956x-gpio.o
 obj-$(CONFIG_DWMAC_TC9564)	+= misc-tc9564-chip.o
 obj-$(CONFIG_DWMAC_TC9564)	+= dwmac-tc956x-gpio.o
-obj-$(CONFIG_DWMAC_TC9564)	+= dwmac-tc9564.o
+#obj-$(CONFIG_DWMAC_TC9564)	+= dwmac-tc9564.o
+obj-$(CONFIG_DWMAC_TC9564)	+= dwmac-tc9564x.o
 stmmac-pci-objs:= stmmac_pci.o

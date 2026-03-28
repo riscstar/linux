@@ -1403,16 +1403,17 @@ static void tc956x_xgmac3_remove(struct tc956x_data *td)
 	}
 }
 
-static int tc956x_probe(struct pci_dev *pdev, const struct pci_device_id *id)
+static int tc9564x_dwmac_probe(struct auxiliary_device *adev,
+			       const struct auxiliary_device_id *id)
 {
 	int has_gpio_controller;
 	struct tc956x_data *td;
 	int ret;
 
-	if (!dev_of_node(&pdev->dev))
+	if (!dev_of_node(&adev->dev))
 		return -EINVAL;
 
-	td = tc956x_devm_data_create(pdev);
+	td = tc956x_devm_data_create(pdev);	/* XXX */
 	if (IS_ERR(td))
 		return dev_err_probe(td->dev, PTR_ERR(td),
 				     "cannot create data\n");
@@ -1434,9 +1435,9 @@ static int tc956x_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	return has_gpio_controller ? 0 : ret;
 }
 
-static void tc956x_remove(struct pci_dev *pdev)
+static void tc9564x_dwmac_remove(struct auxiliary_device *adev)
 {
-	struct device *dev = &pdev->dev;
+	struct device *dev = &adev->dev;
 	struct net_device *ndev = dev_get_drvdata(dev);
 
 	if (ndev) {
@@ -1447,16 +1448,13 @@ static void tc956x_remove(struct pci_dev *pdev)
 	}
 }
 
-static const struct pci_device_id tc956x_id_table[] = {
-	{ PCI_DEVICE(PCI_VENDOR_ID_TOSHIBA, PCI_DEVICE_ID_TOSHIBA_TC956X), },
-	{ },
+static const struct auxiliary_device_id tc964x_dwmac_ids[] = {
+	{ .name = "misc_tc9564_chip." DRIVER_NAME, },
+	{ }
 };
 
-// TODO: During development it is very convenient to avoid auto-loading the
-//       module if the vendor driver is also enabled.
 #if !(IS_ENABLED(CONFIG_TC956X_NET) || IS_ENABLED(CONFIG_DWMAC_TC9564))
-/* Only autoload if neither of these other drivers is enabled */
-MODULE_DEVICE_TABLE(pci, tc956x_id_table);
+MODULE_DEVICE_TABLE(auxiliary, tc9564x_dwmac_ids);
 #endif
 
 /**
@@ -1510,21 +1508,21 @@ static int tc956x_resume(struct device *dev)
 	return 0;
 }
 
-static SIMPLE_DEV_PM_OPS(tc956x_pm_ops, tc956x_suspend, tc956x_resume);
+static SIMPLE_DEV_PM_OPS(tc9564x_pm_ops, tc956x_suspend, tc956x_resume);
 
-static struct pci_driver tc956x_pci_driver = {
+static struct auxiliary_driver tc9564x_dwmac_driver = {
 	.name		= DRIVER_NAME,
-	.id_table	= tc956x_id_table,
-	.probe		= tc956x_probe,
-	.remove		= tc956x_remove,
-	.driver		= {
+	.probe		= tc9564x_dwmac_probe,
+	.remove		= tc9564x_dwmac_remove,
+	.id_table	= tc964x_dwmac_ids,
+	.driver = {
 		.name	= DRIVER_NAME,
+		.pm	= &tc9564x_pm_ops,
 		.owner	= THIS_MODULE,
-		.pm	= &tc956x_pm_ops,
+		/* .probe_type	= PROBE_PREFER_ASYNCHRONOUS, */
 	},
 };
-
-module_pci_driver(tc956x_pci_driver);
+module_auxiliary_driver(tc9564x_dwmac_driver);
 
 MODULE_DESCRIPTION("Toshiba TC956x PCIe Ethernet Network Driver");
 MODULE_LICENSE("GPL");
