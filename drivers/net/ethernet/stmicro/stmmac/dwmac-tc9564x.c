@@ -159,6 +159,7 @@ enum tc956x_msigen_hwirq {
  * @phy_supply:		PHY supply regulator
  * @phy_reset:		Descriptor for GPIO used for PHY reset
  * @phy_reset_delay:	Delay (milliseconds) after PHY reset
+ * @msigen_irq:		MSIGEN IRQ number
  * @wol_irq:		Wake-on-LAN IRQ number
  * @chip:		Pointer to the containing chip information
  * @rev_id:		Revision ID
@@ -174,6 +175,7 @@ struct tc956x_data {
 	struct regulator *phy_supply;
 	struct gpio_desc *phy_reset;
 	u32 phy_reset_delay;
+	unsigned int msigen_irq;
 	int wol_irq;
 	struct tc9564_chip *chip;
 	u8 rev_id;
@@ -341,7 +343,7 @@ static struct irq_domain *devm_tc956x_msigen_register(struct pci_dev *pdev,
 		return ERR_PTR(-ENOMEM);
 
 	tc956x_msigen->regs = td->sfr + TC956X_MSIGEN_BASE(td->pci_fn);
-	tc956x_msigen->irq = pdev->irq;
+	tc956x_msigen->irq = td->msigen_irq;
 	d_info.host_data = tc956x_msigen;
 
 	domain = devm_irq_domain_instantiate(dev, &d_info);
@@ -1064,6 +1066,7 @@ static int tc9564x_dwmac_probe(struct auxiliary_device *adev,
 	td->dev = dev;
 	td->pci_fn = data->id;
 	td->sfr = data->sfr;
+	td->msigen_irq = data->msigen_irq;
 	td->rev_id = data->rev_id;
 	/* XXX And this might come from the data pointer */
 	td->chip = dev_get_platdata(dev->parent);
