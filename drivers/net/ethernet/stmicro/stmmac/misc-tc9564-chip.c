@@ -410,6 +410,24 @@ static void chip_stop(struct tc9564_chip *chip)
 	tc9564_chip_clock_disable(chip, CHIP_CLOCK_MSIGEN);
 }
 
+static void chip_init_state(struct tc9564_chip *chip)
+{
+	tc9564_chip_reset_assert(chip, CHIP_RESET_MCU);
+	tc9564_chip_reset_assert(chip, CHIP_RESET_MCU1);
+	tc9564_chip_reset_assert(chip, CHIP_RESET_INTC);
+	tc9564_chip_reset_assert(chip, CHIP_RESET_UART0);
+
+	tc9564_chip_clock_disable(chip, CHIP_CLOCK_MCU);
+	tc9564_chip_clock_disable(chip, CHIP_CLOCK_SRAM);
+	tc9564_chip_clock_disable(chip, CHIP_CLOCK_PLL);
+	tc9564_chip_clock_disable(chip, CHIP_CLOCK_SGMII);
+	tc9564_chip_clock_disable(chip, CHIP_CLOCK_REFCLK);
+	tc9564_chip_clock_disable(chip, CHIP_CLOCK_INTC);
+	tc9564_chip_clock_disable(chip, CHIP_CLOCK_UART0);
+
+	chip_stop(chip);
+}
+
 /*
  * Function 1 will first look up its peer device (function 0).  If
  * its driver data is NULL, it hasn't yet probed, so function 1
@@ -504,6 +522,8 @@ static int chip_init(struct tc9564_chip *chip, struct pci_dev *pdev)
 	ret = chip_reset_clock_init(chip);
 	if (ret)
 		return ret;
+
+	chip_init_state(chip);
 
 	ret = chip_gpio_adev_add(chip);
 	if (ret)
