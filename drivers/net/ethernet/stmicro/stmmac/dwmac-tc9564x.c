@@ -314,8 +314,7 @@ static void tc956x_msigen_domain_exit(struct irq_domain *d)
 	irq_set_chained_handler_and_data(tc956x_msigen->irq, NULL, NULL);
 }
 
-static struct irq_domain *devm_tc956x_msigen_register(struct pci_dev *pdev,
-						      struct tc956x_data *td)
+static struct irq_domain *devm_tc956x_msigen_register(struct tc956x_data *td)
 {
 	struct irq_domain_chip_generic_info dgc_info = {
 		.name		= "tc956x-msigen",
@@ -335,7 +334,7 @@ static struct irq_domain *devm_tc956x_msigen_register(struct pci_dev *pdev,
 		.exit		= tc956x_msigen_domain_exit,
 	};
 	struct tc956x_msigen_data *tc956x_msigen;
-	struct device *dev = &pdev->dev;
+	struct device *dev = td->dev;
 	struct irq_domain *domain;
 
 	tc956x_msigen = devm_kmalloc(dev, sizeof(*tc956x_msigen), GFP_KERNEL);
@@ -977,7 +976,7 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 		goto err;
 	}
 
-	irq_domain = devm_tc956x_msigen_register(pdev, td);
+	irq_domain = devm_tc956x_msigen_register(td);
 	if (IS_ERR(irq_domain)) {
 		ret = PTR_ERR(irq_domain);
 		goto err;
