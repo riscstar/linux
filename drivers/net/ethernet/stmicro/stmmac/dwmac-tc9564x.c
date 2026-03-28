@@ -233,24 +233,6 @@ static struct tc956x_mac_speed tc956x_chipcfg_mac_speed[] = {
 static LIST_HEAD(tc9564_chips);		/* List of TC956x chips */
 static DEFINE_MUTEX(tc9564_chips_lock); /* Don't rely on synchronous probing */
 
-static const struct regmap_config tc956x_gpio_regmap_config = {
-	.name		= "tc956x-gpio",
-	.reg_bits	= 32,
-	.reg_stride	= 4,
-	.reg_base	= 0x1200,	/* Register GPIOI0 */
-	.val_bits	= 32,
-	.max_register	= 0x1214,	/* Register GPIOO1 */
-};
-
-static const struct regmap_config tc956x_reset_clock_regmap_config = {
-	.name		= "tc956x-clk-reset",
-	.reg_bits	= 32,
-	.reg_stride	= 4,
-	.reg_base	= 0x1000,	/* Register NCTLSTS */
-	.val_bits	= 32,
-	.max_register	= 0x1010,	/* Register NRSTCTRL1 */
-};
-
 void tc9564_chip_reset_clock_set(struct tc9564_chip *chip, bool reset,
 				 bool reg0, bool set, u8 bit)
 {
@@ -261,20 +243,6 @@ void tc9564_chip_reset_clock_set(struct tc9564_chip *chip, bool reset,
 	/* Note: no need to check for errors on read/write for MMIO regmap */
 	(void)regmap_update_bits(chip->reset_clock_regmap, offset, mask,
 				 set ? mask : 0);
-}
-
-static int tc956x_reset_clock_init(struct tc9564_chip *chip)
-{
-	struct tc956x_data *td = chip->primary;
-	struct regmap *regmap;
-
-	regmap = devm_regmap_init_mmio(td->dev, td->sfr,
-				       &tc956x_reset_clock_regmap_config);
-	if (IS_ERR(regmap))
-		return PTR_ERR(regmap);
-	chip->reset_clock_regmap = regmap;
-
-	return 0;
 }
 
 struct tc956x_msigen_data {
@@ -566,68 +534,6 @@ static int tc956x_chipcfg_mac_configure(struct tc956x_data *td, int speed)
 	writel(val, emac_ctl_reg);
 
 	return 0;
-}
-
-/**
- * tc956x_config_tamap() - Populate the table address map registers
- * @td:		TC956x driver private data pointer
- *
- * Populate the registers used to convert the AXI bus access to PCI TLP.
- */
-static void tc956x_config_tamap(struct tc956x_data *td)
-{
-	void __iomem *base;
-	u32 trsf_param_val;
-	u32 atr_size_val;
-	u32 val;
-	u32 i;
-
-	/* This is value assigned to *all* TRSL_PARAM registers */
-	trsf_param_val = u32_encode_bits(TRSL_ID_PCIE_TX_RX, TRSL_ID_MASK);
-	trsf_param_val |= u32_encode_bits(0, TRSF_PARAM_MASK);
-
-	/*
-	 * AXI4 slave 0 translation table 0
-	 * We only use the first AXI4 slave translation table entry:
-	 *	EDMA address region:	0x10 0000 0000 - 0x1f ffff ffff
-	 *	is translated to:	0x00 0000 0000 - 0x0f ffff ffff
-	 */
-	BUILD_BUG_ON(SLV00_ATR_SIZE < 11);
-	BUILD_BUG_ON(!!u32_get_bits(lower_32_bits(SLV00_SRC_ADDR),
-						  ATR_SIZE_MASK));
-	BUILD_BUG_ON(SLV00_SRC_ADDR & ATR_IMPL);
-
-	base = td->bridge_config + AXI4_SLV_BASE(0);
-
-	atr_size_val = u32_encode_bits(SLV00_ATR_SIZE, ATR_SIZE_MASK);
-	atr_size_val |= ATR_IMPL;
-
-	val = lower_32_bits(SLV00_SRC_ADDR) | atr_size_val;
-	writel(val, base + SRC_ADDR_LO_OFFSET);
-
-	val = upper_32_bits(SLV00_SRC_ADDR);
-	writel(val, base + SRC_ADDR_HI_OFFSET);
-
-	val = lower_32_bits(SLV00_TRSL_ADDR);
-	writel(val, base + TRSL_ADDR_LO_OFFSET);
-
-	val = upper_32_bits(SLV00_TRSL_ADDR);
-	writel(val, base + TRSL_ADDR_HI_OFFSET);
-
-	writel(trsf_param_val, base + TRSL_PARAM_OFFSET);
-
-	/* Set all other unused entries to default values */
-	BUILD_BUG_ON(SLV00_ATR_SIZE_DEFAULT < 11);
-	atr_size_val = u32_encode_bits(SLV00_ATR_SIZE_DEFAULT, ATR_SIZE_MASK);
-	atr_size_val |= ATR_IMPL;
-	for (i = 1; i < CM3_TAMAP_COUNT; i++) {
-		base = td->bridge_config + AXI4_SLV_BASE(i);
-		writel(atr_size_val, base + SRC_ADDR_LO_OFFSET);
-		writel(0x0, base + SRC_ADDR_HI_OFFSET);
-		writel(0x0, base + TRSL_ADDR_LO_OFFSET);
-		writel(0x0, base + TRSL_ADDR_HI_OFFSET);
-		writel(trsf_param_val, base + TRSL_PARAM_OFFSET);
-	}
 }
 
 static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
@@ -974,10 +880,6 @@ static int tc956x_xgmac3_resume(struct device *dev, void *bsp_priv)
 	struct tc956x_data *td = priv->plat->bsp_priv;
 	int ret;
 
-	/* Configure TA map registers whenever the primary MAC is initialized */
-	if (td == td->chip->primary)
-		tc956x_config_tamap(td);
-
 	if (priv->wolopts) {
 		ret = disable_irq_wake(priv->wol_irq);
 		if (ret)
@@ -992,72 +894,6 @@ static int tc956x_xgmac3_resume(struct device *dev, void *bsp_priv)
 	}
 
 	return tc956x_chipcfg_mac_init(td);
-}
-
-static void tc956x_adev_release(struct device *dev)
-{
-	kfree(to_auxiliary_dev(dev));
-}
-
-static void tc956x_adev_remove(void *data)
-{
-	struct auxiliary_device *adev = data;
-
-	auxiliary_device_delete(adev);
-	auxiliary_device_uninit(adev);
-}
-
-static int tc956x_devm_adev_device_add(struct tc956x_data *td,
-				       const char *name, struct regmap *regmap)
-{
-	struct auxiliary_device *adev;
-	struct device *dev = td->dev;
-	int ret;
-
-	adev = devm_kzalloc(dev, sizeof(*adev), GFP_KERNEL);
-	if (!adev)
-		return -ENOMEM;
-
-	adev->name = name;
-	adev->dev.parent = dev;
-	adev->dev.release = tc956x_adev_release;
-	adev->dev.of_node = dev->of_node;
-	adev->dev.platform_data = regmap;
-	adev->id = PCI_FUNC(to_pci_dev(dev)->devfn);
-
-	ret = auxiliary_device_init(adev);
-	if (ret)
-		return ret;
-
-	ret = auxiliary_device_add(adev);
-	if (ret) {
-		auxiliary_device_uninit(adev);
-		return ret;
-	}
-
-	ret = devm_add_action_or_reset(dev, tc956x_adev_remove, adev);
-	if (ret)
-		return ret;
-
-	return 1;
-}
-
-/* The embedded GPIO controller has an auxiliary device driver */
-static int tc956x_devm_gpio_device_add(struct tc956x_data *td)
-{
-	struct device *dev = td->dev;
-	void __iomem *base = td->sfr;
-	struct regmap *regmap;
-
-	/* XXX It might be nice to preclude both MACs defining this */
-	if (!device_property_present(dev, "gpio-controller"))
-		return 0;
-
-	regmap = devm_regmap_init_mmio(dev, base, &tc956x_gpio_regmap_config);
-	if (IS_ERR(regmap))
-		return PTR_ERR(regmap);
-
-	return tc956x_devm_adev_device_add(td, GPIO_DEVICE_NAME, regmap);
 }
 
 static struct plat_stmmacenet_data *
@@ -1089,112 +925,6 @@ tc956x_plat_dat_alloc(struct tc956x_data *td, struct pci_dev *pdev)
 	return plat;
 }
 
-static void tc956x_start_chip(struct tc9564_chip *chip)
-{
-	tc9564_chip_reset_deassert(chip, CHIP_RESET_MSIGEN);
-	tc9564_chip_clock_enable(chip, CHIP_CLOCK_MSIGEN);
-}
-
-static void tc956x_stop_chip(struct tc9564_chip *chip)
-{
-	tc9564_chip_reset_assert(chip, CHIP_RESET_MSIGEN);
-	tc9564_chip_clock_disable(chip, CHIP_CLOCK_MSIGEN);
-}
-
-static void tc9564_chip_init_state(struct tc9564_chip *chip)
-{
-	tc9564_chip_reset_assert(chip, CHIP_RESET_MCU);
-	tc9564_chip_reset_assert(chip, CHIP_RESET_MCU1);
-	tc9564_chip_reset_assert(chip, CHIP_RESET_INTC);
-	tc9564_chip_reset_assert(chip, CHIP_RESET_UART0);
-
-	tc9564_chip_clock_disable(chip, CHIP_CLOCK_MCU);
-	tc9564_chip_clock_disable(chip, CHIP_CLOCK_SRAM);
-	tc9564_chip_clock_disable(chip, CHIP_CLOCK_PLL);
-	tc9564_chip_clock_disable(chip, CHIP_CLOCK_SGMII);
-	tc9564_chip_clock_disable(chip, CHIP_CLOCK_REFCLK);
-	tc9564_chip_clock_disable(chip, CHIP_CLOCK_INTC);
-	tc9564_chip_clock_disable(chip, CHIP_CLOCK_UART0);
-
-	tc956x_stop_chip(chip);
-}
-
-static struct tc9564_chip *tc9564_chip_get(struct tc956x_data *td)
-{
-	struct device *dev = td->dev;
-	struct pci_dev *pdev = to_pci_dev(dev);
-	u8 pci_bus_num = PCI_BUS_NUM(pdev->devfn);
-	u8 pci_slot = PCI_SLOT(pdev->devfn);
-	struct tc9564_chip *chip;
-	int ret;
-
-	/* Use the existing chip structure if it's already been created */
-	list_for_each_entry(chip, &tc9564_chips, links) {
-		if (chip->pci_bus_num != pci_bus_num)
-			continue;
-		if (chip->pci_slot != pci_slot)
-			continue;
-
-		/* Make sure the secondary hasn't already been recorded */
-		if (WARN_ON(chip->secondary))
-			return ERR_PTR(-EINVAL);
-
-		chip->secondary = device_link_add(td->dev, chip->primary->dev, DL_FLAG_STATELESS);
-		if (!chip->secondary)
-			return ERR_PTR(-ENODEV);
-
-		return chip;
-	}
-
-	/* We're operating on the primary MAC, and need a new chip structure */
-	chip = devm_kzalloc(dev, sizeof(*chip), GFP_KERNEL);
-	if (!chip)
-		return ERR_PTR(-ENOMEM);
-
-	chip->pci_bus_num = pci_bus_num;
-	chip->pci_slot = pci_slot;
-	chip->primary = td;
-
-	ret = tc956x_reset_clock_init(chip);
-	if (ret)
-		return ERR_PTR(ret);
-
-	tc9564_chip_init_state(chip);
-	tc956x_start_chip(chip);
-
-	list_add(&chip->links, &tc9564_chips);
-
-	return chip;
-}
-
-static void tc9564_chip_put(struct tc956x_data *td)
-{
-	struct tc9564_chip *chip = td->chip;
-
-	td->chip = NULL;
-
-	if (chip->secondary && td->dev == chip->secondary->consumer) {
-		device_link_del(chip->secondary);
-		chip->secondary = NULL;
-		return;
-	}
-
-	/*
-	 * The primary interface needs to be the last to go. The driver uses
-	 * device links to guarantee that... so if this warning fires then
-	 * things have gone pretty badly wrong!
-	 */
-	WARN(chip->secondary, "tc9564_chip_put() calls are incorrectly ordered");
-
-	list_del(&chip->links);
-
-	tc956x_stop_chip(chip);
-
-	chip->primary = NULL;
-	chip->pci_slot = 0;
-	chip->pci_bus_num = 0;
-}
-
 static int tc956x_xgmac3_probe(struct tc956x_data *td)
 {
 	struct device *dev = td->dev;
@@ -1221,18 +951,6 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 		dev_err(dev, "failed to get phy-supply\n");
 		return PTR_ERR(td->phy_supply);
 	}
-
-	/*
-	 * We must hold the chips lock until we have decided whether or not we
-	 * will be the primary device. This is a relatively long held lock
-	 * because we cannot fully commit to being the primary until right at
-	 * end of the probe function.
-	 */
-	guard(mutex)(&tc9564_chips_lock);
-
-	td->chip = tc9564_chip_get(td);
-	if (IS_ERR(td->chip))
-		return dev_err_probe(dev, PTR_ERR(td->chip), "cannot get chip\n");
 
 	/* Put the MAC in a known initial state */
 	tc956x_mac_init_state(td);
@@ -1294,10 +1012,6 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 	if (ret)
 		goto err;
 
-	/* Configure TA map registers whenever the primary MAC is initialized */
-	if (td == td->chip->primary)
-		tc956x_config_tamap(td);
-
 	ret = tc956x_phy_power_on(td);
 	if (ret) {
 		dev_err(dev, "error %d powering on PHY\n", ret);
@@ -1318,7 +1032,6 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 err:
 	tc956x_stop_mac(td);
 	(void)tc956x_phy_power_off(td);
-	tc9564_chip_put(td);
 
 	return ret;
 }
@@ -1328,11 +1041,6 @@ static void tc956x_xgmac3_remove(struct tc956x_data *td)
 	stmmac_dvr_remove(td->dev);
 	(void)tc956x_phy_power_off(td);
 	tc956x_stop_mac(td);
-
-	scoped_guard(mutex, &tc9564_chips_lock)
-	{
-		tc9564_chip_put(td);
-	}
 }
 
 static int tc9564x_dwmac_probe(struct auxiliary_device *adev,
@@ -1361,21 +1069,13 @@ static int tc9564x_dwmac_probe(struct auxiliary_device *adev,
 	/* XXX And this might come from the data pointer */
 	td->chip = dev_get_platdata(dev->parent);
 
-	has_gpio_controller = tc956x_devm_gpio_device_add(td);
-	if (has_gpio_controller < 0)
-		return dev_err_probe(td->dev, has_gpio_controller, "GPIO add failed\n");
-
 	ret = tc956x_xgmac3_probe(td);
 	if (ret)
 		dev_warn(td->dev, "Cannot initialize xgmac3 (%pe)%s\n",
 			 ERR_PTR(ret),
 			 has_gpio_controller ? " but GPIO will be kept" : "");
 
-	/*
-	 * If we created a GPIO controller then the probe has succeeded even if
-	 * we cannot initialize the eMAC.
-	 */
-	return has_gpio_controller ? 0 : ret;
+	return ret;
 }
 
 static void tc9564x_dwmac_remove(struct auxiliary_device *adev)
@@ -1414,15 +1114,9 @@ static int tc956x_suspend(struct device *dev)
 
 	/* If we are a GPIO-only device then there will be no device data */
 	if (ndev) {
-		struct stmmac_priv *priv = netdev_priv(ndev);
-		struct tc956x_data *td = priv->plat->bsp_priv;
-
 		ret = stmmac_suspend(dev);
 		if (ret)
 			return ret;
-
-		if (td == td->chip->primary)
-			tc956x_stop_chip(td->chip);
 	}
 
 	return stmmac_pci_plat_suspend(dev, NULL);
@@ -1438,15 +1132,8 @@ static int tc956x_resume(struct device *dev)
 		return ret;
 
 	/* If we are a GPIO-only device then there will be no device data */
-	if (ndev) {
-		struct stmmac_priv *priv = netdev_priv(ndev);
-		struct tc956x_data *td = priv->plat->bsp_priv;
-
-		if (td == td->chip->primary)
-			tc956x_start_chip(td->chip);
-
+	if (ndev)
 		return stmmac_resume(dev);
-	}
 
 	return 0;
 }
