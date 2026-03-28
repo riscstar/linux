@@ -897,12 +897,12 @@ static int tc956x_xgmac3_resume(struct device *dev, void *bsp_priv)
 }
 
 static struct plat_stmmacenet_data *
-tc956x_plat_dat_alloc(struct tc956x_data *td, struct device *dev)
+tc956x_plat_dat_alloc(struct tc956x_data *td)
 {
 	struct plat_stmmacenet_data *plat;
 
 	/* The platform structure is allocated with devm_kzalloc() */
-	plat = stmmac_plat_dat_alloc(dev);
+	plat = stmmac_plat_dat_alloc(td->dev);
 	if (!plat)
 		return NULL;
 
@@ -933,7 +933,7 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 	int ret;
 	u32 i;
 
-	td->plat = tc956x_plat_dat_alloc(td, dev);
+	td->plat = tc956x_plat_dat_alloc(td);
 	if (!td->plat)
 		return -ENOMEM;
 
