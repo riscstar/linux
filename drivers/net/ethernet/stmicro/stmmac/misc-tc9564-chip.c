@@ -545,7 +545,7 @@ static int chip_init(struct tc9564_chip *chip, struct pci_dev *pdev)
 }
 
 static int
-tc9564_chip_probe(struct pci_dev *pdev, const struct pci_device_id *id)
+tc9564_function_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
 	bool fn0 = !PCI_FUNC(pdev->devfn);
 	struct device *dev = &pdev->dev;
@@ -595,7 +595,7 @@ tc9564_chip_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	return 0;
 }
 
-static void tc9564_chip_remove(struct pci_dev *pdev)
+static void tc9564_function_remove(struct pci_dev *pdev)
 {
 	struct tc9564_chip *chip = dev_get_platdata(&pdev->dev);
 	bool fn0 = &pdev->dev == chip->dev;
@@ -608,13 +608,13 @@ static void tc9564_chip_remove(struct pci_dev *pdev)
 		chip_stop(chip);
 }
 
-static const struct pci_device_id tc9564_chip_id_table[] = {
+static const struct pci_device_id tc9564_function_id_table[] = {
 	{ PCI_DEVICE(PCI_VENDOR_ID_TOSHIBA, PCI_DEVICE_ID_TOSHIBA_TC9564), },
 	{ },
 };
 #if !(IS_ENABLED(CONFIG_TC956X_NET) || IS_ENABLED(CONFIG_DWMAC_TC956X))
 /* Only autoload if neither of these other drivers is enabled */
-MODULE_DEVICE_TABLE(pci, tc9564_chip_id_table);
+MODULE_DEVICE_TABLE(pci, tc9564_function_id_table);
 #endif
 
 static int tc9564_chip_suspend_noirq(struct device *dev)
@@ -661,11 +661,11 @@ static DEFINE_NOIRQ_DEV_PM_OPS(tc9564_chip_pm_ops,
 			       tc9564_chip_suspend_noirq,
 			       tc9564_chip_resume_noirq);
 
-static struct pci_driver tc9564_chip_driver = {
+static struct pci_driver tc9564_function_driver = {
 	.name		= DRIVER_NAME,
-	.id_table	= tc9564_chip_id_table,
-	.probe		= tc9564_chip_probe,
-	.remove		= tc9564_chip_remove,
+	.id_table	= tc9564_function_id_table,
+	.probe		= tc9564_function_probe,
+	.remove		= tc9564_function_remove,
 	.driver		= {
 		.name	= DRIVER_NAME,
 		.owner	= THIS_MODULE,
@@ -673,7 +673,7 @@ static struct pci_driver tc9564_chip_driver = {
 	},
 };
 
-module_pci_driver(tc9564_chip_driver);
+module_pci_driver(tc9564_function_driver);
 
 MODULE_DESCRIPTION("Toshiba TC9564 PCIe Embedded Function Driver");
 MODULE_LICENSE("GPL");
