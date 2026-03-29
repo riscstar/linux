@@ -12,13 +12,11 @@
 
 #include <linux/auxiliary_bus.h>
 #include <linux/bitops.h>
-#include <linux/cleanup.h>
 #include <linux/delay.h>
 #include <linux/gpio/consumer.h>
 #include <linux/iopoll.h>
 #include <linux/irqchip/chained_irq.h>
 #include <linux/of_irq.h>
-#include <linux/pci.h>
 #include <linux/pcs/pcs-xpcs-regmap.h>
 #include <linux/pcs/pcs-xpcs.h>
 #include <linux/phy.h>
@@ -31,7 +29,6 @@
 #include "common.h"
 #include "dwxgmac2.h"
 #include "stmmac.h"
-#include "stmmac_libpci.h"
 
 #include "soc-tc9564-chip.h"
 
@@ -1039,46 +1036,6 @@ static const struct auxiliary_device_id tc964x_dwmac_ids[] = {
 MODULE_DEVICE_TABLE(auxiliary, tc9564x_dwmac_ids);
 #endif
 
-/**
- * tc956x_suspend - suspend callback
- * @dev: device pointer
- * Description: Most of the TC956x MAC suspend is handled from via stmmac
- * callbacks (tc956x_xgmac3_suspend). This "outer" suspend function simply helps
- * us cope when a PCI device provides a GPIO controller but the MAC is inactive.
- */
-static int tc956x_suspend(struct device *dev)
-{
-	struct net_device *ndev = dev_get_drvdata(dev);
-	int ret;
-
-	/* If we are a GPIO-only device then there will be no device data */
-	if (ndev) {
-		ret = stmmac_suspend(dev);
-		if (ret)
-			return ret;
-	}
-
-	return stmmac_pci_plat_suspend(dev, NULL);
-}
-
-static int tc956x_resume(struct device *dev)
-{
-	struct net_device *ndev = dev_get_drvdata(dev);
-	int ret;
-
-	ret = stmmac_pci_plat_resume(dev, NULL);
-	if (ret)
-		return ret;
-
-	/* If we are a GPIO-only device then there will be no device data */
-	if (ndev)
-		return stmmac_resume(dev);
-
-	return 0;
-}
-
-static SIMPLE_DEV_PM_OPS(tc9564x_pm_ops, tc956x_suspend, tc956x_resume);
-
 static struct auxiliary_driver tc9564x_dwmac_driver = {
 	.name		= DRIVER_NAME,
 	.probe		= tc9564x_dwmac_probe,
@@ -1086,7 +1043,7 @@ static struct auxiliary_driver tc9564x_dwmac_driver = {
 	.id_table	= tc964x_dwmac_ids,
 	.driver = {
 		.name	= DRIVER_NAME,
-		.pm	= &tc9564x_pm_ops,
+		.pm	= &stmmac_simple_pm_ops,
 		.owner	= THIS_MODULE,
 		/* .probe_type	= PROBE_PREFER_ASYNCHRONOUS, */
 	},
