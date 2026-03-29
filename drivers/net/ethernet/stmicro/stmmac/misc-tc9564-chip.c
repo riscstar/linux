@@ -160,7 +160,7 @@ regmap_log_mmio(const char *name, const struct regmap_config *config)
 }
 
 /* Common clock/reset register update function */
-void tc9564_chip_reset_clock_set(struct tc9564_chip *chip, bool reset,
+void tc9564x_chip_reset_clock_set(struct tc9564_chip *chip, bool reset,
 				 bool reg0, bool set, u8 bit)
 {
 	u32 offset = reset ? reg0 ? RSTCTRL0_OFFSET : RSTCTRL1_OFFSET
@@ -171,7 +171,7 @@ void tc9564_chip_reset_clock_set(struct tc9564_chip *chip, bool reset,
 	(void)regmap_update_bits(chip->reset_clock_regmap, offset, mask,
 				 set ? mask : 0);
 }
-EXPORT_SYMBOL_GPL(tc9564_chip_reset_clock_set);
+EXPORT_SYMBOL_GPL(tc9564x_chip_reset_clock_set);
 
 static void adev_release(struct device *dev)
 {

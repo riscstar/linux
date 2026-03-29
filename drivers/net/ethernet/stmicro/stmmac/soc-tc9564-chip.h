@@ -65,34 +65,34 @@ struct tc9564_dwmac_data {
 	u32 id;
 };
 
-extern void tc9564_chip_reset_clock_set(struct tc9564_chip *chip, bool reset,
+extern void tc9564x_chip_reset_clock_set(struct tc9564_chip *chip, bool reset,
 					bool reg0, bool set, u8 bit);
 
 /* Chip and MAC reset assert/deassert */
 static inline void tc9564_chip_reset_assert(struct tc9564_chip *chip,
 					    enum tc9564_chip_reset_id id)
 {
-	tc9564_chip_reset_clock_set(chip, true, true, true, (u8)id);
+	tc9564x_chip_reset_clock_set(chip, true, true, true, (u8)id);
 }
 
 static inline void tc9564_chip_reset_deassert(struct tc9564_chip *chip,
 					      enum tc9564_chip_reset_id id)
 {
-	tc9564_chip_reset_clock_set(chip, true, true, false, (u8)id);
+	tc9564x_chip_reset_clock_set(chip, true, true, false, (u8)id);
 }
 
 static inline void tc9564_mac_reset_assert(struct tc9564_chip *chip,
 					   u8 pci_fn,
 					   enum tc9564_mac_reset_id id)
 {
-	tc9564_chip_reset_clock_set(chip, true, !pci_fn, true, (u8)id);
+	tc9564x_chip_reset_clock_set(chip, true, !pci_fn, true, (u8)id);
 }
 
 static inline void tc9564_mac_reset_deassert(struct tc9564_chip *chip,
 					     u8 pci_fn,
 					     enum tc9564_mac_reset_id id)
 {
-	tc9564_chip_reset_clock_set(chip, true, !pci_fn, false, (u8)id);
+	tc9564x_chip_reset_clock_set(chip, true, !pci_fn, false, (u8)id);
 }
 
 
@@ -100,27 +100,27 @@ static inline void tc9564_mac_reset_deassert(struct tc9564_chip *chip,
 static inline void tc9564_chip_clock_enable(struct tc9564_chip *chip,
 					    enum tc9564_chip_clock_id id)
 {
-	tc9564_chip_reset_clock_set(chip, false, true, true, (u8)id);
+	tc9564x_chip_reset_clock_set(chip, false, true, true, (u8)id);
 }
 
 static inline void tc9564_chip_clock_disable(struct tc9564_chip *chip,
 					     enum tc9564_chip_clock_id id)
 {
-	tc9564_chip_reset_clock_set(chip, false, true, false, (u8)id);
+	tc9564x_chip_reset_clock_set(chip, false, true, false, (u8)id);
 }
 
 static inline void tc9564_mac_clock_enable(struct tc9564_chip *chip,
 					   u8 pci_fn,
 					   enum tc9564_mac_clock_id id)
 {
-	tc9564_chip_reset_clock_set(chip, false, !pci_fn, true, (u8)id);
+	tc9564x_chip_reset_clock_set(chip, false, !pci_fn, true, (u8)id);
 }
 
 static inline void tc9564_mac_clock_disable(struct tc9564_chip *chip,
 					    u8 pci_fn,
 					    enum tc9564_mac_clock_id id)
 {
-	tc9564_chip_reset_clock_set(chip, false, !pci_fn, false, (u8)id);
+	tc9564x_chip_reset_clock_set(chip, false, !pci_fn, false, (u8)id);
 }
 
 #endif /* __SOC_TOSHIBA_TC9564_CHIP_H__*/
