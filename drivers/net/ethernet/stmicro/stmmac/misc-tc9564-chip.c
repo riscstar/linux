@@ -558,6 +558,12 @@ tc9564_chip_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (!dev->of_node)
 		return -EINVAL;
 
+	ret = pcim_enable_device(pdev);
+	if (ret)
+		return ret;
+
+	pci_set_master(pdev);
+
 	chip = chip_get(pdev);
 	if (IS_ERR(chip))
 		return dev_err_probe(dev, PTR_ERR(chip), "failed to get chip\n");
@@ -565,12 +571,6 @@ tc9564_chip_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	ret = chip_init(chip, pdev);
 	if (ret)
 		return dev_err_probe(dev, ret, "failed to initialize chip\n");
-
-	ret = pcim_enable_device(pdev);
-	if (ret)
-		return ret;
-
-	pci_set_master(pdev);
 
 	/* pcim_enable_device() causes this to be freed automatically */
 	ret = pci_alloc_irq_vectors(pdev, 1, 1, PCI_IRQ_MSI);
