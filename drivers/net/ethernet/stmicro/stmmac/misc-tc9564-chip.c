@@ -119,7 +119,7 @@
  */
 struct tc9564_chip {
 	struct device *dev;
-	void __iomem *sfr;
+	void __iomem *sfr[1];
 	u8 rev_id;
 	void __iomem *bridge_config;
 	struct regmap *reset_clock_regmap;
@@ -237,8 +237,8 @@ static int adev_device_add(struct device *dev, const char *name, u32 id,
 /* The embedded GPIO controller has an auxiliary device driver */
 static int chip_gpio_adev_add(struct tc9564_chip *chip)
 {
+	void __iomem *base = chip->sfr[0];
 	struct device *dev = chip->dev;
-	void __iomem *base = chip->sfr;
 	struct regmap *regmap;
 
 	/*
@@ -266,7 +266,6 @@ static int function_xgmac_adev_add(struct pci_dev *pdev,
 {
 	bool fn0 = !PCI_FUNC(pdev->devfn);
 	struct device *dev = &pdev->dev;
-	void __iomem *base = chip->sfr;
 	struct tc9564_dwmac_data *data;
 	int ret;
 
@@ -275,15 +274,15 @@ static int function_xgmac_adev_add(struct pci_dev *pdev,
 	if (!data)
 		return -ENOMEM;
 
-	data->sfr = base;
+	data->sfr = chip->sfr[0];
 	data->rev_id = chip->rev_id;
 	if (fn0) {
-		data->dwmac_addr = base + 0x40000;
-		data->msigen_addr = base + 0xf000;
+		data->dwmac_addr = data->sfr + 0x40000;
+		data->msigen_addr = data->sfr + 0xf000;
 		data->id = 0;
 	} else {
-		data->dwmac_addr = base + 0x48000;
-		data->msigen_addr = base + 0xf100;
+		data->dwmac_addr = data->sfr + 0x48000;
+		data->msigen_addr = data->sfr + 0xf100;
 		data->id = 1;
 	}
 	data->msigen_irq = irq;
@@ -303,8 +302,8 @@ static int function_xgmac_adev_add(struct pci_dev *pdev,
 
 static int chip_reset_clock_init(struct tc9564_chip *chip)
 {
+	void __iomem *base = chip->sfr[0];
 	struct device *dev = chip->dev;
-	void __iomem *base = chip->sfr;
 	struct regmap *regmap;
 
 	regmap = devm_regmap_init_mmio(dev, base, &reset_clock_regmap_config);
@@ -523,12 +522,12 @@ static int chip_init(struct tc9564_chip *chip, struct pci_dev *pdev)
 	if (ret)
 		return ret;
 
-	chip->sfr = pcim_iomap_region(pdev, PCI_BAR_SFR, DRIVER_NAME);
-	if (IS_ERR(chip->sfr))
-		return PTR_ERR(chip->sfr);
+	chip->sfr[0] = pcim_iomap_region(pdev, PCI_BAR_SFR, DRIVER_NAME);
+	if (IS_ERR(chip->sfr[0]))
+		return PTR_ERR(chip->sfr[0]);
 
 	/* Get the revision ID */
-	val = readl(chip->sfr + NCID_OFFSET);
+	val = readl(chip->sfr[0] + NCID_OFFSET);
 	chip->rev_id = u32_get_bits(val, NCID_REV_ID_MASK);
 
 	ret = chip_reset_clock_init(chip);
