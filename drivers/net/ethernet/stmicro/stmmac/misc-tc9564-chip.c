@@ -119,7 +119,7 @@
  */
 struct tc9564_chip {
 	struct device *dev;
-	void __iomem *sfr[1];
+	void __iomem *sfr[2];
 	u8 rev_id;
 	void __iomem *bridge_config;
 	struct regmap *reset_clock_regmap;
@@ -274,7 +274,7 @@ static int function_xgmac_adev_add(struct pci_dev *pdev,
 	if (!data)
 		return -ENOMEM;
 
-	data->sfr = chip->sfr[0];
+	data->sfr = chip->sfr[id];
 	if (id) {
 		data->dwmac_addr = data->sfr + 0x48000;
 		data->msigen_addr = data->sfr + 0xf100;
@@ -502,20 +502,21 @@ static struct tc9564_chip *chip_get(struct pci_dev *pdev)
 
 static int chip_init(struct tc9564_chip *chip, struct pci_dev *pdev)
 {
+	u32 id = PCI_FUNC(pdev->devfn) ? 1 : 0;
 	u32 val;
 	int ret;
 
-	/* Only function 0 does chip initialization */
-	if (&pdev->dev != chip->dev)
+	chip->sfr[id] = pcim_iomap_region(pdev, PCI_BAR_SFR, DRIVER_NAME);
+	if (IS_ERR(chip->sfr[id]))
+		return PTR_ERR(chip->sfr[id]);
+
+	/* Only function 0 does the rest of chip initialization */
+	if (id)
 		return 0;
 
 	ret = chip_translation_init(chip, pdev);
 	if (ret)
 		return ret;
-
-	chip->sfr[0] = pcim_iomap_region(pdev, PCI_BAR_SFR, DRIVER_NAME);
-	if (IS_ERR(chip->sfr[0]))
-		return PTR_ERR(chip->sfr[0]);
 
 	/* Get the revision ID */
 	val = readl(chip->sfr[0] + NCID_OFFSET);
