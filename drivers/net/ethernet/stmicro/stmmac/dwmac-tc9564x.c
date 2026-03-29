@@ -527,10 +527,10 @@ static void tc956x_mac_init_state(struct tc956x_data *td)
 	tc956x_stop_mac(td);
 }
 
-static int tc956x_xgmac3_default_data(struct device *dev,
-				      struct plat_stmmacenet_data *plat)
+static int tc956x_xgmac3_default_data(struct tc956x_data *td)
 {
-	struct tc956x_data *td = plat->bsp_priv;
+	struct plat_stmmacenet_data *plat = td->plat;
+	struct device *dev = td->dev;
 	int speed;
 	u32 i;
 
@@ -914,7 +914,7 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 	td->plat->phy_interface = td->pci_fn ? PHY_INTERFACE_MODE_SGMII
 					     : PHY_INTERFACE_MODE_10GBASER;
 
-	ret = tc956x_xgmac3_default_data(dev, td->plat);
+	ret = tc956x_xgmac3_default_data(td);
 	if (ret)
 		goto err;
 
