@@ -1027,20 +1027,17 @@ static void tc9564x_dwmac_remove(struct auxiliary_device *adev)
 	}
 }
 
-static const struct auxiliary_device_id tc964x_dwmac_ids[] = {
+static const struct auxiliary_device_id tc9564x_dwmac_ids[] = {
 	{ .name = "misc_tc9564_chip." DRIVER_NAME, },
 	{ }
 };
-
-#if !(IS_ENABLED(CONFIG_TC956X_NET) || IS_ENABLED(CONFIG_DWMAC_TC9564))
 MODULE_DEVICE_TABLE(auxiliary, tc9564x_dwmac_ids);
-#endif
 
 static struct auxiliary_driver tc9564x_dwmac_driver = {
 	.name		= DRIVER_NAME,
 	.probe		= tc9564x_dwmac_probe,
 	.remove		= tc9564x_dwmac_remove,
-	.id_table	= tc964x_dwmac_ids,
+	.id_table	= tc9564x_dwmac_ids,
 	.driver = {
 		.name	= DRIVER_NAME,
 		.pm	= &stmmac_simple_pm_ops,
