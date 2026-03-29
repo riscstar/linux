@@ -189,6 +189,17 @@ static void adev_remove(void *data)
 	auxiliary_device_uninit(adev);
 }
 
+static void auxiliary_device_set_dma_from_dev(struct auxiliary_device *adev,
+					      struct device *dev)
+{
+	adev->dev.dma_mask = dev->dma_mask;
+	adev->dev.dma_parms = dev->dma_parms;
+	adev->dev.coherent_dma_mask = dev->coherent_dma_mask;
+
+	dma_set_max_seg_size(&adev->dev, dma_get_max_seg_size(dev));
+	dma_set_seg_boundary(&adev->dev, dma_get_seg_boundary(dev));
+}
+
 static int adev_device_add(struct device *dev, const char *name, u32 id,
 			   void *platform_data)
 {
@@ -205,6 +216,7 @@ static int adev_device_add(struct device *dev, const char *name, u32 id,
 	adev->dev.platform_data = platform_data;
 	adev->dev.release = adev_release;
 	device_set_of_node_from_dev(&adev->dev, dev);
+	auxiliary_device_set_dma_from_dev(adev, dev);
 
 	ret = auxiliary_device_init(adev);
 	if (ret) {
