@@ -586,7 +586,7 @@ tc9564_chip_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (fn0)
 		chip_start(chip);
 
-	ret = function_xgmac_adev_add(pdev, chip->sfr, irq);
+	ret = function_xgmac_adev_add(pdev, chip, irq);
 	if (ret)
 		return dev_err_probe(dev, ret, "failed to add xgmap device\n");
 
