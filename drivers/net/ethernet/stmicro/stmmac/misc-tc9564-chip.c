@@ -264,7 +264,7 @@ static int function_xgmac_adev_add(struct pci_dev *pdev,
 				   struct tc9564_chip *chip,
 				   unsigned int irq)
 {
-	bool fn0 = !PCI_FUNC(pdev->devfn);
+	u32 id = PCI_FUNC(pdev->devfn) ? 1 : 0;
 	struct device *dev = &pdev->dev;
 	struct tc9564_dwmac_data *data;
 	int ret;
@@ -275,27 +275,26 @@ static int function_xgmac_adev_add(struct pci_dev *pdev,
 		return -ENOMEM;
 
 	data->sfr = chip->sfr[0];
-	data->rev_id = chip->rev_id;
-	if (fn0) {
-		data->dwmac_addr = data->sfr + 0x40000;
-		data->msigen_addr = data->sfr + 0xf000;
-		data->id = 0;
-	} else {
+	if (id) {
 		data->dwmac_addr = data->sfr + 0x48000;
 		data->msigen_addr = data->sfr + 0xf100;
-		data->id = 1;
+	} else {
+		data->dwmac_addr = data->sfr + 0x40000;
+		data->msigen_addr = data->sfr + 0xf000;
 	}
 	data->msigen_irq = irq;
+	data->rev_id = chip->rev_id;
+	data->id = id;
 
-	ret = adev_device_add(dev, XGMAC_DEVICE_NAME, data->id, data);
+	ret = adev_device_add(dev, XGMAC_DEVICE_NAME, id, data);
 	if (ret)
 		return ret;
 
 #if IS_ENABLED(CONFIG_TRACE_MMIO_ACCESS)
 	log_mmio_register_range(data->dwmac_addr, 0x8000,
-				fn0 ? "xgmac0" : "xgmac1");
+				id ? "xgmac1" : "xgmac0");
 	log_mmio_register_range(data->msigen_addr, 0x0100,
-				fn0 ? "msigen0" : "msigen1");
+				id ? "msigen1" : "msigen0");
 #endif
 	return 0;
 }
@@ -466,6 +465,8 @@ static struct tc9564_chip *chip_get(struct pci_dev *pdev)
 	unsigned int devfn = pdev->devfn;
 	struct device *dev = &pdev->dev;
 	struct tc9564_chip *chip;
+	struct device_link *link;
+	struct pci_dev *peer;
 
 	/* Function 0 just allocates the chip structure */
 	if (!PCI_FUNC(devfn)) {
@@ -505,7 +506,7 @@ static int chip_init(struct tc9564_chip *chip, struct pci_dev *pdev)
 	int ret;
 
 	/* Only function 0 does chip initialization */
-	if (PCI_FUNC(pdev->devfn))
+	if (&pdev->dev != chip->dev)
 		return 0;
 
 	ret = chip_translation_init(chip, pdev);
@@ -536,7 +537,6 @@ static int chip_init(struct tc9564_chip *chip, struct pci_dev *pdev)
 static int
 tc9564_function_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
-	bool fn0 = !PCI_FUNC(pdev->devfn);
 	struct device *dev = &pdev->dev;
 	struct tc9564_chip *chip;
 	unsigned int irq;
@@ -572,7 +572,7 @@ tc9564_function_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		return dev_err_probe(dev, ret ? : -EIO, "failed to get IRQ\n");
 	irq = ret;
 
-	if (fn0)
+	if (&pdev->dev == chip->dev)
 		chip_start(chip);
 	dev->platform_data = chip;
 
@@ -588,13 +588,12 @@ tc9564_function_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 static void tc9564_function_remove(struct pci_dev *pdev)
 {
 	struct tc9564_chip *chip = dev_get_platdata(&pdev->dev);
-	bool fn0 = &pdev->dev == chip->dev;
 
 	dev_info(&pdev->dev, " === %s success\n", __func__);
 
 	pci_clear_master(pdev);
 
-	if (fn0)
+	if (&pdev->dev == chip->dev)
 		chip_stop(chip);
 }
 
@@ -611,7 +610,6 @@ static int tc9564_chip_suspend_noirq(struct device *dev)
 {
 	struct tc9564_chip *chip = dev_get_platdata(dev);
 	struct pci_dev *pdev = to_pci_dev(dev);
-	bool fn0 = dev == chip->dev;
 	int ret;
 
 	dev_info(dev, " === %s\n", __func__);
@@ -622,7 +620,7 @@ static int tc9564_chip_suspend_noirq(struct device *dev)
 
 	pci_wake_from_d3(pdev, true);
 
-	if (fn0)
+	if (dev == chip->dev)
 		chip_stop(chip);
 
 	return 0;
@@ -632,11 +630,10 @@ static int tc9564_chip_resume_noirq(struct device *dev)
 {
 	struct tc9564_chip *chip = dev_get_platdata(dev);
 	struct pci_dev *pdev = to_pci_dev(dev);
-	bool fn0 = dev == chip->dev;
 
 	dev_info(dev, " === %s\n", __func__);
 
-	if (fn0)
+	if (dev == chip->dev)
 		chip_start(chip);
 
 	pci_wake_from_d3(pdev, false);
