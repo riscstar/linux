@@ -454,34 +454,6 @@ static void chip_link_del(void *data)
 	device_link_del(link);
 }
 
-static struct tc9564_chip *chip_get_function1(struct pci_dev *pdev)
-{
-	struct device *dev = &pdev->dev;
-	struct tc9564_chip *chip;
-	struct device_link *link;
-	struct pci_dev *peer;
-	unsigned int devfn;
-
-	/* Look up the PCI device for function 0 */
-	devfn = PCI_DEVFN(PCI_SLOT(pdev->devfn), 0);
-	peer = pci_get_slot(pdev->bus, devfn);
-	if (!peer)
-		return ERR_PTR(-ENXIO);
-
-	chip = dev_get_platdata(&peer->dev);
-	if (!chip)
-		return ERR_PTR(-EPROBE_DEFER);
-
-	/* Mark this device as dependent on function 0 */
-	link = device_link_add(dev, &peer->dev, DL_FLAG_STATELESS);
-	if (!link)
-		return ERR_PTR(-ENODEV);
-
-	devm_add_action_or_reset(&peer->dev, chip_link_del, link);
-
-	return chip;
-}
-
 /*
  * Function 0 will allocate the chip structure that is shared by both
  * functions.  Once it has allocated the structure it assigns it as
@@ -491,17 +463,38 @@ static struct tc9564_chip *chip_get_function1(struct pci_dev *pdev)
  */
 static struct tc9564_chip *chip_get(struct pci_dev *pdev)
 {
+	unsigned int devfn = pdev->devfn;
 	struct device *dev = &pdev->dev;
 	struct tc9564_chip *chip;
 
-	if (PCI_FUNC(pdev->devfn))
-		return chip_get_function1(pdev);
+	/* Function 0 just allocates the chip structure */
+	if (!PCI_FUNC(devfn)) {
+		chip = devm_kzalloc(dev, sizeof(*chip), GFP_KERNEL);
+		if (!chip)
+			return ERR_PTR(-ENOMEM);
 
-	chip = devm_kzalloc(dev, sizeof(*chip), GFP_KERNEL);
+		/* The chip uses function 0's device pointer */
+		chip->dev = dev;
+
+		return chip;
+	}
+
+	/* Function 1 has to get the chip structure from function 0 */
+	peer = pci_get_slot(pdev->bus, PCI_DEVFN(PCI_SLOT(devfn), 0));
+	if (!peer)
+		return ERR_PTR(-ENXIO);
+
+	/* If function 0 hasn't set up the chip yet, try again later */
+	chip = dev_get_platdata(&peer->dev);
 	if (!chip)
-		return ERR_PTR(-ENOMEM);
+		return ERR_PTR(-EPROBE_DEFER);
 
-	chip->dev = dev;
+	/* Mark function 1's device as dependent on function 0 */
+	link = device_link_add(dev, &peer->dev, DL_FLAG_STATELESS);
+	if (!link)
+		return ERR_PTR(-ENODEV);
+
+	devm_add_action_or_reset(&peer->dev, chip_link_del, link);
 
 	return chip;
 }
