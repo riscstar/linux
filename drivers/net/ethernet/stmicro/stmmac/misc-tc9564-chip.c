@@ -472,16 +472,14 @@ static struct tc9564_chip *chip_get_function1(struct pci_dev *pdev)
 	if (!chip)
 		return ERR_PTR(-EPROBE_DEFER);
 
-	/* XXX Can't we DL_FLAG_AUTOREMOVE_SUPPLIER instead? */
 	/* Mark this device as dependent on function 0 */
 	link = device_link_add(dev, &peer->dev, DL_FLAG_STATELESS);
-	if (link) {
-		devm_add_action_or_reset(&peer->dev, chip_link_del, link);
+	if (!link)
+		return ERR_PTR(-ENODEV);
 
-		dev->platform_data = chip;
-	}
+	devm_add_action_or_reset(&peer->dev, chip_link_del, link);
 
-	return link ? chip : ERR_PTR(-ENODEV);
+	return chip;
 }
 
 /*
@@ -504,7 +502,6 @@ static struct tc9564_chip *chip_get(struct pci_dev *pdev)
 		return ERR_PTR(-ENOMEM);
 
 	chip->dev = dev;
-	dev->platform_data = chip;
 
 	return chip;
 }
@@ -584,6 +581,7 @@ tc9564_function_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	if (fn0)
 		chip_start(chip);
+	dev->platform_data = chip;
 
 	ret = function_xgmac_adev_add(pdev, chip, irq);
 	if (ret)
