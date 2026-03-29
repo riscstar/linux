@@ -32,7 +32,7 @@
 
 #include "soc-tc9564-chip.h"
 
-#define DRIVER_NAME		"dwmac-tc956x"
+#define DRIVER_NAME		"dwmac-tc9564x"
 
 #define GPIO_DEVICE_NAME	"tc9564-gpio"
 
