@@ -411,6 +411,15 @@ config DWMAC_TC9564
 	  We will probably want a different higher-level config options,
 	  like QCOM_MISC_QPS615 and GPIO_QCOM_QPS615.
 
+config GPIO_TC9564
+	tristate "Toshiba TC9564 GPIO support"
+	depends on DWMAC_TC9564
+	default m if DWMAC_TC9564
+	help
+	  This enables support for the GPIO controller embedded in the Toshiba
+	  TC9564 (and Qualcomm QPS615) SoC.  On some platforms, a few of the
+	  GPIO lines are used to manage external clocks or resets.
+
 config STMMAC_PCI
 	tristate "STMMAC PCI bus support"
 	depends on PCI
