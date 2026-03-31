@@ -864,6 +864,11 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 	if (!td->plat)
 		return -ENOMEM;
 
+	ret = device_get_phy_mode(td->dev);
+	if (ret < 0)
+		return ret;
+	td->plat->phy_interface = ret;
+
 	ret = of_irq_get_byname(dev_of_node(dev), "wake-on-lan");
 	if (ret <= 0) {
 		dev_err(dev, "failed to get wake-on-lan property\n");
@@ -891,10 +896,6 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 
 	/* Put the MAC in a known initial state */
 	tc956x_mac_init_state(td);
-
-	// TODO: this needs to come from devicetree
-	td->plat->phy_interface = td->pci_fn ? PHY_INTERFACE_MODE_SGMII
-					     : PHY_INTERFACE_MODE_10GBASER;
 
 	ret = tc956x_xgmac3_default_data(td);
 	if (ret)
