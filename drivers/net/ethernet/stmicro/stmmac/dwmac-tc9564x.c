@@ -184,7 +184,6 @@ struct tc956x_data {
 
 /**
  * struct tc9564_chip - Common chip support information
- * @reset_clock_regmap:	Register map used for clocks and resets
  * @primary:		Data pointer for the primary eMAC interface
  * @secondary:		Device link between secondary (consumer) and primary
  * @pci_bus_num:	PCI bus this chip is on
@@ -202,8 +201,6 @@ struct tc956x_data {
  * (and unmapped) unless the secondary interface is not in use.
  */
 struct tc9564_chip {
-	struct regmap *reset_clock_regmap;
-
 	struct tc956x_data *primary;
 
 	struct device_link *secondary;
@@ -231,40 +228,6 @@ static struct tc956x_mac_speed tc956x_chipcfg_mac_speed[] = {
 
 static LIST_HEAD(tc9564_chips);		/* List of TC956x chips */
 static DEFINE_MUTEX(tc9564_chips_lock); /* Don't rely on synchronous probing */
-
-static const struct regmap_config tc9564x_reset_clock_regmap_config = {
-	.name		= "tc9564x-clk-reset",
-	.reg_bits	= 32,
-	.reg_stride	= 4,
-	.reg_base	= 0x1000,	/* Register NCTLSTS */
-	.val_bits	= 32,
-	.max_register	= 0x1010,	/* Register NRSTCTRL1 */
-};
-
-static int tc9564x_reset_clock_init(struct tc956x_data *td)
-{
-	struct regmap *regmap;
-
-	regmap = devm_regmap_init_mmio(td->dev, td->sfr,
-				       &tc9564x_reset_clock_regmap_config);
-	if (IS_ERR(regmap))
-		return PTR_ERR(regmap);
-	td->chip->reset_clock_regmap = regmap;
-
-	return 0;
-}
-
-void tc9564x_chip_reset_clock_set(struct tc9564_chip *chip, bool reset,
-				  bool reg0, bool set, u8 bit)
-{
-	u32 offset = reset ? reg0 ? RSTCTRL0_OFFSET : RSTCTRL1_OFFSET
-			   : reg0 ? CLKCTRL0_OFFSET : CLKCTRL1_OFFSET;
-	u32 mask = BIT(bit);
-
-	/* Note: no need to check for errors on read/write for MMIO regmap */
-	(void)regmap_update_bits(chip->reset_clock_regmap, offset, mask,
-				 set ? mask : 0);
-}
 
 struct tc956x_msigen_data {
 	void __iomem *regs;
@@ -1026,10 +989,6 @@ static int tc9564x_dwmac_probe(struct auxiliary_device *adev,
 	td->rev_id = data->rev_id;
 	/* XXX And this might come from the data pointer */
 	td->chip = dev_get_platdata(dev->parent);
-
-	ret = tc9564x_reset_clock_init(td);
-	if (ret)
-		return ret;
 
 	ret = tc956x_xgmac3_probe(td);
 	if (ret)
