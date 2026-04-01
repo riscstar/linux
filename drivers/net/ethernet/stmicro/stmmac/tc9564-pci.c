@@ -56,10 +56,10 @@
 
 #include "soc-tc9564-chip.h"
 
-#define DRIVER_NAME			"tc9564-chip"
+#define DRIVER_NAME			"tc9564-pci"
 
 #define GPIO_DEVICE_NAME		"tc9564-gpio"
-#define XGMAC_DEVICE_NAME		"dwmac-tc9564x"
+#define XGMAC_DEVICE_NAME		"dwmac-tc9564"
 
 #define PCI_DEVICE_ID_TOSHIBA_TC9564	0x0220
 

@@ -32,9 +32,7 @@
 
 #include "soc-tc9564-chip.h"
 
-#define DRIVER_NAME		"dwmac-tc9564x"
-
-#define GPIO_DEVICE_NAME	"tc9564-gpio"
+#define DRIVER_NAME		"dwmac-tc9564"
 
 /* PCI BAR assignments */
 #define PCI_BAR_BRIDGE_CONFIG	0
@@ -1014,7 +1012,7 @@ static void tc9564x_dwmac_remove(struct auxiliary_device *adev)
 }
 
 static const struct auxiliary_device_id tc9564x_dwmac_ids[] = {
-	{ .name = "misc_tc9564_chip." DRIVER_NAME, },
+	{ .name = "tc9564_pci." DRIVER_NAME, },
 	{ }
 };
 MODULE_DEVICE_TABLE(auxiliary, tc9564x_dwmac_ids);

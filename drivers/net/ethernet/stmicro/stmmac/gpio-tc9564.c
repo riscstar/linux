@@ -178,7 +178,7 @@ static int tc9564_gpio_probe(struct auxiliary_device *adev,
 }
 
 static const struct auxiliary_device_id tc964_gpio_ids[] = {
-	{ .name = "misc_tc9564_chip." DRIVER_NAME, },
+	{ .name = "tc9564_pci." DRIVER_NAME, },
 	{ }
 };
 MODULE_DEVICE_TABLE(auxiliary, tc964_gpio_ids);
