@@ -459,6 +459,7 @@ static int tc956x_xgmac3_default_data(struct tc956x_data *td)
 	}
 
 	/* AXI Configuration */
+	/* TODO: should this join dma_cfg and friends in struct tc956x_data? */
 	plat->axi = devm_kzalloc(dev, sizeof(*plat->axi), GFP_KERNEL);
 	if (!plat->axi)
 		return -ENOMEM;
@@ -640,6 +641,7 @@ static int tc956x_mac_setup(void *apriv, struct mac_device_info *mac)
 		struct stmmac_desc_ops desc;
 	} *ops;
 
+	/* TODO: should this join dma_cfg and friends in struct tc956x_data? */
 	ops = devm_kzalloc(priv->device, sizeof(*ops), GFP_KERNEL);
 	if (!ops)
 		return -ENOMEM;
