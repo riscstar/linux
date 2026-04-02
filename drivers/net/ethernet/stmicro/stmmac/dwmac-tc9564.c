@@ -8,8 +8,6 @@
  * Copyright (C) 2025 Toshiba Electronic Devices & Storage Corporation
  */
 
-#define pr_fmt(fmt) "dwmac-tc956x: " fmt
-
 #include <linux/auxiliary_bus.h>
 #include <linux/bitops.h>
 #include <linux/delay.h>
@@ -34,45 +32,10 @@
 
 #define DRIVER_NAME		"dwmac-tc9564"
 
-/* PCI BAR assignments */
-#define PCI_BAR_BRIDGE_CONFIG	0
-#define PCI_BAR_SFR		4
-
-/* XXX TC9564? Also, this is a physical function; virtual is 0x0221 */
-#define PCI_DEVICE_ID_TOSHIBA_TC956X	0x0220
-
-#define AXI4_SLV_TABLE_OFFSET		0x0800
-
-/* Each AXI translation entry has has a block of registers this far apart */
-#define AXI4_TABLE_STRIDE		0x20
-#define AXI4_SLV_BASE(tid)						\
-		(AXI4_SLV_TABLE_OFFSET + (tid) * AXI4_TABLE_STRIDE)
-
-#define SRC_ADDR_LO_OFFSET		0x0000
-#define ATR_IMPL			BIT(0)		/* 1 = enabled */
-#define ATR_SIZE_MASK			GENMASK(6, 1)	/* size 2^(ATR + 1) */
-#define SRC_ADDR_HI_OFFSET		0x0004
-#define TRSL_ADDR_LO_OFFSET		0x0008
-#define TRSL_ADDR_HI_OFFSET		0x000c
-#define TRSL_PARAM_OFFSET		0x0010
-#define TRSL_ID_MASK			GENMASK(3, 0)
-#define TRSL_ID_PCIE_TX_RX		0
-#define TRSF_PARAM_MASK			GENMASK(27, 16)
-
 /* Address translation space size */
-#define SLV00_ATR_SIZE_DEFAULT		63	/* 2^64 (16 exabytes) */
-#define SLV00_ATR_SIZE			35	/* 2^36 (64 gigabytes) */
 #define SLV00_SRC_ADDR			0x0000001000000000ULL
-#define SLV00_TRSL_ADDR			0x0000000000000000ULL
 
 #define CM3_TAMAP_COUNT			4
-
-#define NCTLSTS_OFFSET			0x1000
-/* The next four are relative to the base of the clock/reset regmap (NCTLSTS) */
-#define RSTCTRL0_OFFSET			0x0008
-#define RSTCTRL1_OFFSET			0x0010
-#define CLKCTRL0_OFFSET			0x0004
-#define CLKCTRL1_OFFSET			0x000c
 
 /* EMAC control registers for ports 0 and 1 (both have same format) */
 #define NEMAC0CTL_OFFSET		0x1070
@@ -180,35 +143,6 @@ struct tc956x_data {
 	struct stmmac_mdio_bus_data mdio_bus_data;
 };
 
-/**
- * struct tc9564_chip - Common chip support information
- * @primary:		Data pointer for the primary eMAC interface
- * @secondary:		Device link between secondary (consumer) and primary
- * @pci_bus_num:	PCI bus this chip is on
- * @pci_slot:		PCI slot on its bus this chip fills
- * @chip_id:		Chip ID
- * @links:		Links in the list of all chips
- *
- * A single tc9564_chip structure represents the chip as a whole,
- * collecting resources that are common to both eMAC interfaces.
- * The first eMAC probed will create one of these when it creates
- * its tc956x_data structure; this will be the *primary* interface.
- * The second eMAC (which could be eMAC 0 or 1, assuming it's probed)
- * will be the *secondary* interface.  The primary interface provides
- * the mapped SFR memory, and for that reason, cannot be removed
- * (and unmapped) unless the secondary interface is not in use.
- */
-struct tc9564_chip {
-	struct tc956x_data *primary;
-
-	struct device_link *secondary;
-
-	u8 pci_bus_num;
-	u8 pci_slot;
-
-	struct list_head links;		/* Protected by tc9564_chips_lock */
-};
-
 struct tc956x_mac_speed {
 	phy_interface_t phy_interface;
 	int speed;
@@ -223,9 +157,6 @@ static struct tc956x_mac_speed tc956x_chipcfg_mac_speed[] = {
 	{ PHY_INTERFACE_MODE_SGMII,	SPEED_100,   SP_SEL_SGMII_100M, },
 	{ PHY_INTERFACE_MODE_SGMII,	SPEED_10,    SP_SEL_SGMII_10M, },
 };
-
-static LIST_HEAD(tc9564_chips);		/* List of TC956x chips */
-static DEFINE_MUTEX(tc9564_chips_lock); /* Don't rely on synchronous probing */
 
 struct tc956x_msigen_data {
 	void __iomem *regs;
