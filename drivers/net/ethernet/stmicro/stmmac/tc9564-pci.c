@@ -91,6 +91,7 @@
 
 /* Address translation space parameters (entry 0) */
 #define SLV00_ATR_SIZE			35	/* 2^36 (64 gigabytes) */
+/* TODO: SLV00_SRC_ADDR should be in a shared header file since dwmac-tc9564.c needs it */
 #define SLV00_SRC_ADDR			0x0000001000000000ULL
 #define SLV00_TRSL_ADDR			0x0000000000000000ULL
 
@@ -146,6 +147,12 @@ static const struct regmap_config reset_clock_regmap_config = {
 static void
 regmap_log_mmio(const char *name, const struct regmap_config *config)
 {
+	/*
+	 * TODO: this is "too clever"... to be confident in the register tracing
+	 *       we need to log *all* access to SFR registers not just those
+	 *       we remember to register. It should run right after the iomap
+	 *       and cover the whole register space.
+	 */
 #if IS_ENABLED(CONFIG_TRACE_MMIO_ACCESS)
 	void __iomem *range_base;
 	unsigned long range_len;
@@ -192,6 +199,7 @@ static void adev_remove(void *data)
 static void auxiliary_device_set_dma_from_dev(struct auxiliary_device *adev,
 					      struct device *dev)
 {
+	/* TODO: other sub-systems typically solve problem this by separating the DMA device from the actual device */
 	adev->dev.dma_mask = &adev->dev.coherent_dma_mask;
 	adev->dev.dma_parms = dev->dma_parms;
 	adev->dev.coherent_dma_mask = dev->coherent_dma_mask;
@@ -639,6 +647,7 @@ static int tc9564_chip_resume_noirq(struct device *dev)
 
 	dev_info(dev, " === %s\n", __func__);
 
+	/* TODO: is if safe to start the chip before turning it on? */
 	if (dev == chip->dev)
 		chip_start(chip);
 
