@@ -18,7 +18,7 @@
  * might not be usable/used.
  *
  * To support the non-XGMAC functionality on the TC9564 regardless of
- * the presense of either Ethernet PHY, the Ethernet functions are
+ * the presence of either Ethernet PHY, the Ethernet functions are
  * treated as two parts:  a PCI function; and a Synopsys XGMAC component.
  * The PCI function has access to the BARs used by the XGMAC, and maps
  * them for use.  The XGMAP is treated as an auxiliary sub-device of
