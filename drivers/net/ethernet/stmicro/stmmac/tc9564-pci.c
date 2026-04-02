@@ -615,7 +615,7 @@ static const struct pci_device_id tc9564_function_id_table[] = {
 	{ PCI_DEVICE(PCI_VENDOR_ID_TOSHIBA, PCI_DEVICE_ID_TOSHIBA_TC9564), },
 	{ },
 };
-#if !(IS_ENABLED(CONFIG_TC956X_NET) || IS_ENABLED(CONFIG_DWMAC_TC956X))
+#if !IS_ENABLED(CONFIG_TC956X_NET)
 /* Only autoload if neither of these other drivers is enabled */
 MODULE_DEVICE_TABLE(pci, tc9564_function_id_table);
 #endif
