@@ -144,28 +144,6 @@ static const struct regmap_config reset_clock_regmap_config = {
 	.max_register	= 0x1010,	/* Register NRSTCTRL1 */
 };
 
-static void
-regmap_log_mmio(const char *name, const struct regmap_config *config)
-{
-	/*
-	 * TODO: this is "too clever"... to be confident in the register tracing
-	 *       we need to log *all* access to SFR registers not just those
-	 *       we remember to register. It should run right after the iomap
-	 *       and cover the whole register space.
-	 */
-#if IS_ENABLED(CONFIG_TRACE_MMIO_ACCESS)
-	void __iomem *range_base;
-	unsigned long range_len;
-
-	range_base = base + config->reg_base,
-	len = config->max_register;
-	len -= config->reg_base,
-	len += config->reg_bits / BITS_PER_BYTE;
-
-	log_mmio_register_range(range_base, range_len, name);
-#endif
-}
-
 /* Common clock/reset register update function */
 void tc9564x_chip_reset_clock_set(struct tc9564_chip *chip, bool reset,
 				 bool reg0, bool set, u8 bit)
@@ -267,8 +245,6 @@ static int chip_gpio_adev_add(struct tc9564_chip *chip)
 	if (IS_ERR(regmap))
 		return PTR_ERR(regmap);
 
-	regmap_log_mmio("misc-gpio", &gpio_regmap_config);
-
 	return adev_device_add(dev, GPIO_DEVICE_NAME, 0, regmap);
 }
 
@@ -303,12 +279,6 @@ static int function_xgmac_adev_add(struct pci_dev *pdev,
 	if (ret)
 		return ret;
 
-#if IS_ENABLED(CONFIG_TRACE_MMIO_ACCESS)
-	log_mmio_register_range(data->dwmac_addr, 0x8000,
-				id ? "xgmac1" : "xgmac0");
-	log_mmio_register_range(data->msigen_addr, 0x0100,
-				id ? "msigen1" : "msigen0");
-#endif
 	return 0;
 }
 
@@ -323,8 +293,6 @@ static int chip_reset_clock_init(struct tc9564_chip *chip)
 		return PTR_ERR(regmap);
 	chip->reset_clock_regmap = regmap;
 
-	regmap_log_mmio("misc-reset-clock", &reset_clock_regmap_config);
-
 	return 0;
 }
 
@@ -337,12 +305,13 @@ static int chip_translation_init(struct tc9564_chip *chip, struct pci_dev *pdev)
 	base = pcim_iomap_region(pdev, PCI_BAR_BRIDGE_CONFIG, DRIVER_NAME);
 	if (IS_ERR(base))
 		return PTR_ERR(base);
+#if IS_ENABLED(CONFIG_TRACE_MMIO_ACCESS)
+	log_mmio_register_range(base,
+				pci_resource_len(pdev, PCI_BAR_BRIDGE_CONFIG),
+				"bridge_cfg");
+#endif
 
 	chip->bridge_config = base + ATR_AXI4_SLV0_OFFSET;
-
-#if IS_ENABLED(CONFIG_TRACE_MMIO_ACCESS)
-	log_mmio_register_range(chip->bridge_config, 0x0080, "translation");
-#endif
 
 	return 0;
 }
@@ -522,6 +491,11 @@ static int chip_init(struct tc9564_chip *chip, struct pci_dev *pdev)
 	chip->sfr[id] = pcim_iomap_region(pdev, PCI_BAR_SFR, DRIVER_NAME);
 	if (IS_ERR(chip->sfr[id]))
 		return PTR_ERR(chip->sfr[id]);
+#if IS_ENABLED(CONFIG_TRACE_MMIO_ACCESS)
+	log_mmio_register_range(chip->sfr[id],
+				pci_resource_len(pdev, PCI_BAR_SFR), "sfr");
+#endif
+
 
 	/* Only function 0 does the rest of chip initialization */
 	if (id)
