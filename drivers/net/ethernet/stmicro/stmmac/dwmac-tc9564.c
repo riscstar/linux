@@ -124,6 +124,7 @@ enum tc956x_msigen_hwirq {
  * @dma_cfg:		DMA config buffer used by plat_stmmacenet_data
  * @mdio_bus_data:	MDIO bus data used by plat_stmmacenet_data
  * @axi:		AXI data used by plat_stmmacenet_data
+ * @desc:		DMA descriptor data used by mac_device_info
  */
 struct tc956x_data {
 	struct device *dev;
@@ -139,10 +140,12 @@ struct tc956x_data {
 	struct tc9564_chip *chip;
 	u8 rev_id;
 
-	/* Remaining fields are used by the plat_stmmacenet_data structure */
+	/* These three fields are used by the plat_stmmacenet_data structure */
 	struct stmmac_dma_cfg dma_cfg;
 	struct stmmac_mdio_bus_data mdio_bus_data;
 	struct stmmac_axi axi;
+	/* This field is used by the mac_device_info structure */
+	struct stmmac_desc_ops desc;
 };
 
 struct tc956x_mac_speed {
@@ -635,9 +638,10 @@ static void tc956x_desc_set_sec_addr(struct dma_desc *p, dma_addr_t addr, bool i
 static int tc956x_mac_setup(void *apriv, struct mac_device_info *mac)
 {
 	struct stmmac_priv *priv = apriv;
+	struct stmmac_desc_ops *desc;
+	struct tc956x_data *td;
 	struct {
 		struct stmmac_dma_ops dma;
-		struct stmmac_desc_ops desc;
 	} *ops;
 
 	/* TODO: should this join dma_cfg and friends in struct tc956x_data? */
@@ -645,18 +649,23 @@ static int tc956x_mac_setup(void *apriv, struct mac_device_info *mac)
 	if (!ops)
 		return -ENOMEM;
 
+	td = priv->plat->bsp_priv;
+
 	ops->dma = dwxgmac210_dma_ops;
 	ops->dma.init = tc956x_dma_init;
 	ops->dma.init_rx_chan = tc956x_dma_init_rx_chan;
 	ops->dma.init_tx_chan = tc956x_dma_init_tx_chan;
 	mac->dma = &ops->dma;
 
-	ops->desc = dwxgmac210_desc_ops;
-	ops->desc.set_addr = tc956x_desc_set_addr;
-	ops->desc.set_sec_addr = tc956x_desc_set_sec_addr;
-	mac->desc = &ops->desc;
+	/* dwxgmac210_desc_ops has most of what we want */
+	desc = &td->desc;
+	*desc = dwxgmac210_desc_ops;
+	desc->set_addr = tc956x_desc_set_addr;
+	desc->set_sec_addr = tc956x_desc_set_sec_addr;
+	mac->desc = desc;
 
 	priv->hw = mac;
+
 	return dwxgmac2_setup(priv);
 }
 
