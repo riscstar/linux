@@ -125,6 +125,7 @@ enum tc956x_msigen_hwirq {
  * @mdio_bus_data:	MDIO bus data used by plat_stmmacenet_data
  * @axi:		AXI data used by plat_stmmacenet_data
  * @desc:		DMA descriptor data used by mac_device_info
+ * @dma:		DMA operations data used by mac_device_info
  */
 struct tc956x_data {
 	struct device *dev;
@@ -146,6 +147,7 @@ struct tc956x_data {
 	struct stmmac_axi axi;
 	/* This field is used by the mac_device_info structure */
 	struct stmmac_desc_ops desc;
+	struct stmmac_dma_ops dma;
 };
 
 struct tc956x_mac_speed {
@@ -639,23 +641,18 @@ static int tc956x_mac_setup(void *apriv, struct mac_device_info *mac)
 {
 	struct stmmac_priv *priv = apriv;
 	struct stmmac_desc_ops *desc;
+	struct stmmac_dma_ops *dma;
 	struct tc956x_data *td;
-	struct {
-		struct stmmac_dma_ops dma;
-	} *ops;
-
-	/* TODO: should this join dma_cfg and friends in struct tc956x_data? */
-	ops = devm_kzalloc(priv->device, sizeof(*ops), GFP_KERNEL);
-	if (!ops)
-		return -ENOMEM;
 
 	td = priv->plat->bsp_priv;
 
-	ops->dma = dwxgmac210_dma_ops;
-	ops->dma.init = tc956x_dma_init;
-	ops->dma.init_rx_chan = tc956x_dma_init_rx_chan;
-	ops->dma.init_tx_chan = tc956x_dma_init_tx_chan;
-	mac->dma = &ops->dma;
+	/* We can mostly use dwxgmac210_dma_ops, overwriting just a few */
+	dma = &td->dma;
+	*dma = dwxgmac210_dma_ops;
+	dma->init = tc956x_dma_init;
+	dma->init_rx_chan = tc956x_dma_init_rx_chan;
+	dma->init_tx_chan = tc956x_dma_init_tx_chan;
+	mac->dma = dma;
 
 	/* dwxgmac210_desc_ops has most of what we want */
 	desc = &td->desc;
