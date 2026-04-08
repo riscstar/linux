@@ -1024,7 +1024,6 @@ EXPORT_SYMBOL_GPL(fwnode_get_phy_mode);
  */
 int device_get_phy_mode(struct device *dev)
 {
-printk(" === %s: dev %s\n", __func__, dev_name(dev));
 	return fwnode_get_phy_mode(dev_fwnode(dev));
 }
 EXPORT_SYMBOL_GPL(device_get_phy_mode);
