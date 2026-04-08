@@ -123,6 +123,7 @@ enum tc956x_msigen_hwirq {
  * @rev_id:		Revision ID
  * @dma_cfg:		DMA config buffer used by plat_stmmacenet_data
  * @mdio_bus_data:	MDIO bus data used by plat_stmmacenet_data
+ * @axi:		AXI data used by plat_stmmacenet_data
  */
 struct tc956x_data {
 	struct device *dev;
@@ -141,6 +142,7 @@ struct tc956x_data {
 	/* Remaining fields are used by the plat_stmmacenet_data structure */
 	struct stmmac_dma_cfg dma_cfg;
 	struct stmmac_mdio_bus_data mdio_bus_data;
+	struct stmmac_axi axi;
 };
 
 struct tc956x_mac_speed {
@@ -442,6 +444,7 @@ static int tc956x_xgmac3_default_data(struct tc956x_data *td)
 {
 	struct plat_stmmacenet_data *plat = td->plat;
 	struct device *dev = td->dev;
+	struct stmmac_axi *axi;
 	int speed;
 	u32 i;
 
@@ -459,17 +462,13 @@ static int tc956x_xgmac3_default_data(struct tc956x_data *td)
 	}
 
 	/* AXI Configuration */
-	/* TODO: should this join dma_cfg and friends in struct tc956x_data? */
-	plat->axi = devm_kzalloc(dev, sizeof(*plat->axi), GFP_KERNEL);
-	if (!plat->axi)
-		return -ENOMEM;
-
-	plat->axi->axi_lpi_en = 1;
-	plat->axi->axi_wr_osr_lmt = 31;
-	plat->axi->axi_rd_osr_lmt = 31;
-	plat->axi->axi_blen_regval =
-		DMA_AXI_BLEN256 | DMA_AXI_BLEN128 | DMA_AXI_BLEN64 |
-		DMA_AXI_BLEN32 | DMA_AXI_BLEN16 | DMA_AXI_BLEN8 | DMA_AXI_BLEN4;
+	axi = &td->axi;
+	axi->axi_lpi_en = 1;
+	axi->axi_wr_osr_lmt = 31;
+	axi->axi_rd_osr_lmt = 31;
+	/* All sizes (2^2..2^8) are supported */
+	axi->axi_blen_regval = field_max(DMA_AXI_BLEN_MASK);
+	plat->axi = axi;
 
 	plat->mac_port_sel_speed = speed;
 	plat->max_speed = speed;
