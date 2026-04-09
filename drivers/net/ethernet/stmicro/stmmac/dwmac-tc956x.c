@@ -758,15 +758,9 @@ static int tc956x_xgmac3_resume(struct device *dev, void *bsp_priv)
 	return tc956x_chipcfg_mac_init(td);
 }
 
-static struct plat_stmmacenet_data *
-tc956x_plat_dat_alloc(struct tc956x_data *td)
+static void tc956x_plat_dat_init(struct tc956x_data *td)
 {
-	struct plat_stmmacenet_data *plat;
-
-	/* The platform structure is allocated with devm_kzalloc() */
-	plat = stmmac_plat_dat_alloc(td->dev);
-	if (!plat)
-		return NULL;
+	struct plat_stmmacenet_data *plat = td->plat;
 
 	plat->bsp_priv = td;
 	plat->bus_id = td->pci_fn;
@@ -782,8 +776,6 @@ tc956x_plat_dat_alloc(struct tc956x_data *td)
 
 	/* Initialized in tc956x_xgmac3_default_data() and tc956x_dma_init() */
 	plat->dma_cfg = &td->dma_cfg;
-
-	return plat;
 }
 
 /* Called by tc956x_dwmac_probe(); return errors with dev_err_probe() */
@@ -825,6 +817,20 @@ static int devicetree_init(struct tc956x_data *td)
 	return 0;
 }
 
+static int plat_stmmacenet_data_init(struct tc956x_data *td)
+{
+	struct plat_stmmacenet_data *plat;
+
+	/* The platform structure is allocated with devm_kzalloc() */
+	plat = stmmac_plat_dat_alloc(td->dev);
+	if (!plat)
+		return -ENOMEM;
+
+	td->plat = plat;
+
+	return 0;
+}
+
 static int tc956x_xgmac3_probe(struct tc956x_data *td)
 {
 	struct stmmac_resources res = { };
@@ -834,9 +840,7 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 	int ret;
 	u32 i;
 
-	td->plat = tc956x_plat_dat_alloc(td);
-	if (!td->plat)
-		return -ENOMEM;
+	tc956x_plat_dat_init(td);
 
 	ret = device_get_phy_mode(td->dev);
 	if (ret < 0)
@@ -941,6 +945,10 @@ static int tc956x_dwmac_probe(struct auxiliary_device *adev,
 	td->chip = dev_get_platdata(dev->parent);
 
 	ret = devicetree_init(td);
+	if (ret)
+		return ret;
+
+	ret = plat_stmmacenet_data_init(td);
 	if (ret)
 		return ret;
 
