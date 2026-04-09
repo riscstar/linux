@@ -52,7 +52,7 @@ struct tc956x_chip;
  * @msigen_addr:	I/O mapped address used by MSIGEN
  * @msigen_irq:		IRQ number used by MSIGEN
  * @rev_id:		Chip revision ID (for quirks)
- * @id:			Unique device ID
+ * @mac_id:		Unique device ID (0 or 1)
  *
  * This structure is passed via platform data to the stmmac auxiliary devices.
  */
@@ -62,7 +62,7 @@ struct tc956x_dwmac_data {
 	void __iomem *msigen_addr;
 	unsigned int msigen_irq;
 	u32 rev_id;
-	u32 id;
+	u32 mac_id;
 };
 
 extern void tc956x_chip_reset_clock_set(struct tc956x_chip *chip, bool reset,
@@ -81,18 +81,16 @@ static inline void tc956x_chip_reset_deassert(struct tc956x_chip *chip,
 	tc956x_chip_reset_clock_set(chip, true, true, false, (u8)id);
 }
 
-static inline void tc956x_mac_reset_assert(struct tc956x_chip *chip,
-					   u8 pci_fn,
+static inline void tc956x_mac_reset_assert(struct tc956x_chip *chip, u8 mac_id,
 					   enum tc956x_mac_reset_id id)
 {
-	tc956x_chip_reset_clock_set(chip, true, !pci_fn, true, (u8)id);
+	tc956x_chip_reset_clock_set(chip, true, !mac_id, true, (u8)id);
 }
 
-static inline void tc956x_mac_reset_deassert(struct tc956x_chip *chip,
-					     u8 pci_fn,
+static inline void tc956x_mac_reset_deassert(struct tc956x_chip *chip, u8 mac_id,
 					     enum tc956x_mac_reset_id id)
 {
-	tc956x_chip_reset_clock_set(chip, true, !pci_fn, false, (u8)id);
+	tc956x_chip_reset_clock_set(chip, true, !mac_id, false, (u8)id);
 }
 
 
@@ -109,18 +107,16 @@ static inline void tc956x_chip_clock_disable(struct tc956x_chip *chip,
 	tc956x_chip_reset_clock_set(chip, false, true, false, (u8)id);
 }
 
-static inline void tc956x_mac_clock_enable(struct tc956x_chip *chip,
-					   u8 pci_fn,
+static inline void tc956x_mac_clock_enable(struct tc956x_chip *chip, u8 mac_id,
 					   enum tc956x_mac_clock_id id)
 {
-	tc956x_chip_reset_clock_set(chip, false, !pci_fn, true, (u8)id);
+	tc956x_chip_reset_clock_set(chip, false, !mac_id, true, (u8)id);
 }
 
-static inline void tc956x_mac_clock_disable(struct tc956x_chip *chip,
-					    u8 pci_fn,
+static inline void tc956x_mac_clock_disable(struct tc956x_chip *chip, u8 mac_id,
 					    enum tc956x_mac_clock_id id)
 {
-	tc956x_chip_reset_clock_set(chip, false, !pci_fn, false, (u8)id);
+	tc956x_chip_reset_clock_set(chip, false, !mac_id, false, (u8)id);
 }
 
 #endif /* __SOC_TOSHIBA_TC956X_CHIP_H__*/

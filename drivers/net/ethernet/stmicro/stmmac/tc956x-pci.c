@@ -253,7 +253,7 @@ static int function_xgmac_adev_add(struct pci_dev *pdev,
 				   struct tc956x_chip *chip,
 				   unsigned int irq)
 {
-	u32 id = PCI_FUNC(pdev->devfn) ? 1 : 0;
+	u32 mac_id = PCI_FUNC(pdev->devfn) ? 1 : 0;
 	struct device *dev = &pdev->dev;
 	struct tc956x_dwmac_data *data;
 	int ret;
@@ -263,8 +263,8 @@ static int function_xgmac_adev_add(struct pci_dev *pdev,
 	if (!data)
 		return -ENOMEM;
 
-	data->sfr = chip->sfr[id];
-	if (id) {
+	data->sfr = chip->sfr[mac_id];
+	if (mac_id) {
 		data->dwmac_addr = data->sfr + 0x48000;
 		data->msigen_addr = data->sfr + 0xf100;
 	} else {
@@ -273,9 +273,9 @@ static int function_xgmac_adev_add(struct pci_dev *pdev,
 	}
 	data->msigen_irq = irq;
 	data->rev_id = chip->rev_id;
-	data->id = id;
+	data->mac_id = mac_id;
 
-	ret = adev_device_add(dev, XGMAC_DEVICE_NAME, id, data);
+	ret = adev_device_add(dev, XGMAC_DEVICE_NAME, mac_id, data);
 	if (ret)
 		return ret;
 

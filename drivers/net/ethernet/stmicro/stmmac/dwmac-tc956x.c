@@ -83,7 +83,8 @@ enum tc956x_msigen_hwirq {
 };
 #define TC956X_NR_HWIRQ		25
 
-#define XGMAC_BASE(td)	((td)->sfr + ((td)->pci_fn ? 0x48000 : 0x40000))
+#define XGMAC_BASE(td) \
+		((td)->data->sfr + ((td)->data->mac_id ? 0x48000 : 0x40000))
 
 /* The next two are relative to XGMAC_BASE() */
 #define XPCS_XGMAC_OFFSET			0x3a00
@@ -116,18 +117,14 @@ enum tc956x_msigen_hwirq {
 /**
  * struct tc956x_data - Toshiba-specific platform data
  * @dev:		Device pointer
+ * @data:		Pointer to data passed from the parent device
  * @plat:		Pointer to our stmmac platform data
  * @bridge_config:	Mapped bridge config data (BAR 0)
- * @sfr:		Mapped SFR region (BAR 4)
- * @pci_fn:		Which PCI function this is (0 or 1)
  * @phy_supply:		PHY supply regulator
  * @phy_reset:		Descriptor for GPIO used for PHY reset
  * @phy_reset_delay:	Delay (milliseconds) after PHY reset
- * @msigen_addr:	I/O mapped address used by MSIGEN
- * @msigen_irq:		MSIGEN IRQ number
  * @wol_irq:		Wake-on-LAN IRQ number
  * @chip:		Pointer to the containing chip information
- * @rev_id:		Revision ID
  * @dma_cfg:		DMA config buffer used by plat_stmmacenet_data
  * @mdio_bus_data:	MDIO bus data used by plat_stmmacenet_data
  * @axi:		AXI data used by plat_stmmacenet_data
@@ -136,18 +133,14 @@ enum tc956x_msigen_hwirq {
  */
 struct tc956x_data {
 	struct device *dev;
+	struct tc956x_dwmac_data *data;
 	struct plat_stmmacenet_data *plat;
 	void __iomem *bridge_config;
-	void __iomem *sfr;
-	unsigned int pci_fn;
 	struct regulator *phy_supply;
 	struct gpio_desc *phy_reset;
 	u32 phy_reset_delay;
-	void __iomem *msigen_addr;
-	unsigned int msigen_irq;
 	int wol_irq;
 	struct tc956x_chip *chip;
-	u8 rev_id;
 
 	/* These three fields are used by the plat_stmmacenet_data structure */
 	struct stmmac_dma_cfg dma_cfg;
@@ -267,8 +260,8 @@ static struct irq_domain *devm_tc956x_msigen_register(struct tc956x_data *td)
 	if (!tc956x_msigen)
 		return ERR_PTR(-ENOMEM);
 
-	tc956x_msigen->regs = td->msigen_addr;
-	tc956x_msigen->irq = td->msigen_irq;
+	tc956x_msigen->regs = td->data->msigen_addr;
+	tc956x_msigen->irq = td->data->msigen_irq;
 	d_info.host_data = tc956x_msigen;
 
 	domain = devm_irq_domain_instantiate(dev, &d_info);
@@ -318,6 +311,7 @@ static void tc956x_mac_pma_init(struct tc956x_data *td)
 {
 	void __iomem *pma_base = XGMAC_BASE(td) + PMA_XGMAC_OFFSET;
 	void __iomem *emac_ctl_reg;
+	u32 id = td->data->mac_id;
 	u32 val;
 
 	/*
@@ -325,7 +319,7 @@ static void tc956x_mac_pma_init(struct tc956x_data *td)
 	 * been deasserted. We must make sure the PMA reset is asserted before
 	 * we change the clock settings.
 	 */
-	tc956x_mac_reset_assert(td->chip, td->pci_fn, MAC_RESET_PMA);
+	tc956x_mac_reset_assert(td->chip, id, MAC_RESET_PMA);
 
 	/* Power on CML buffer (0 = normal mode, 1 = power down) */
 	writel(0, pma_base + PMA_CML_GL_PM_CFG0);
@@ -353,10 +347,10 @@ static void tc956x_mac_pma_init(struct tc956x_data *td)
 	writel(0, pma_base + PMA_HWT_REFCK_R_EN_R4);
 	writel(0, pma_base + PMA_HWT_REFCK_TERM_EN_R4);
 
-	tc956x_mac_reset_deassert(td->chip, td->pci_fn, MAC_RESET_PMA);
+	tc956x_mac_reset_deassert(td->chip, id, MAC_RESET_PMA);
 
-	emac_ctl_reg = td->sfr + (td->pci_fn ? NEMAC1CTL_OFFSET
-					     : NEMAC0CTL_OFFSET);
+	emac_ctl_reg = td->data->sfr + (id ? NEMAC1CTL_OFFSET
+					   : NEMAC0CTL_OFFSET);
 
 	WARN_ON(readl_poll_timeout(emac_ctl_reg, val, val & EMAC_INIT_DONE, 50, 1000000));
 }
@@ -382,6 +376,7 @@ static int tc956x_mac_speed_select(struct tc956x_data *td, int speed)
 static int tc956x_chipcfg_mac_configure(struct tc956x_data *td, int speed)
 {
 	void __iomem *emac_ctl_reg;
+	u32 id = td->data->mac_id;
 	int sp_sel;
 	u32 val;
 
@@ -391,12 +386,12 @@ static int tc956x_chipcfg_mac_configure(struct tc956x_data *td, int speed)
 
 	/* Speeds up to 1Gbps require the 125 MHz clock to be enabled */
 	if (speed < SPEED_2500)
-		tc956x_mac_clock_enable(td->chip, td->pci_fn, MAC_CLOCK_125M);
+		tc956x_mac_clock_enable(td->chip, id, MAC_CLOCK_125M);
 	else
-		tc956x_mac_clock_disable(td->chip, td->pci_fn, MAC_CLOCK_125M);
+		tc956x_mac_clock_disable(td->chip, id, MAC_CLOCK_125M);
 
-	emac_ctl_reg = td->sfr + (td->pci_fn ? NEMAC1CTL_OFFSET
-					     : NEMAC0CTL_OFFSET);
+	emac_ctl_reg = td->data->sfr + (id ? NEMAC1CTL_OFFSET
+					   : NEMAC0CTL_OFFSET);
 	val = readl(emac_ctl_reg);
 	val |= EMAC_LPIHWCLKEN;
 	val &= ~EMAC_INV_SGM_SIG_DET;
@@ -410,45 +405,48 @@ static int tc956x_chipcfg_mac_configure(struct tc956x_data *td, int speed)
 static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 {
 	struct plat_stmmacenet_data *plat = td->plat;
+	u32 id = td->data->mac_id;
 	int ret;
 
-	tc956x_mac_clock_enable(td->chip, td->pci_fn, MAC_CLOCK_TX);
-	tc956x_mac_clock_enable(td->chip, td->pci_fn, MAC_CLOCK_RX);
-	tc956x_mac_clock_enable(td->chip, td->pci_fn, MAC_CLOCK_ALL);
-	if (td->pci_fn)
-		tc956x_mac_clock_enable(td->chip, td->pci_fn, MAC_CLOCK_RMII);
+	tc956x_mac_clock_enable(td->chip, id, MAC_CLOCK_TX);
+	tc956x_mac_clock_enable(td->chip, id, MAC_CLOCK_RX);
+	tc956x_mac_clock_enable(td->chip, id, MAC_CLOCK_ALL);
+	if (id)
+		tc956x_mac_clock_enable(td->chip, id, MAC_CLOCK_RMII);
 
 	/* Set the speed related registers */
 	ret = tc956x_chipcfg_mac_configure(td, plat->max_speed);
 	if (ret)
 		return ret;
 
-	tc956x_mac_reset_deassert(td->chip, td->pci_fn, MAC_RESET_MAC);
+	tc956x_mac_reset_deassert(td->chip, id, MAC_RESET_MAC);
 
 	tc956x_mac_pma_init(td);
 
-	tc956x_mac_reset_deassert(td->chip, td->pci_fn, MAC_RESET_XPCS);
+	tc956x_mac_reset_deassert(td->chip, id, MAC_RESET_XPCS);
 
 	return 0;
 }
 
 static void tc956x_stop_mac(struct tc956x_data *td)
 {
-	tc956x_mac_reset_assert(td->chip, td->pci_fn, MAC_RESET_MAC);
-	tc956x_mac_reset_assert(td->chip, td->pci_fn, MAC_RESET_PMA);
-	tc956x_mac_reset_assert(td->chip, td->pci_fn, MAC_RESET_XPCS);
+	u32 id = td->data->mac_id;
 
-	tc956x_mac_clock_disable(td->chip, td->pci_fn, MAC_CLOCK_ALL);
-	tc956x_mac_clock_disable(td->chip, td->pci_fn, MAC_CLOCK_RX);
-	tc956x_mac_clock_disable(td->chip, td->pci_fn, MAC_CLOCK_TX);
-	tc956x_mac_clock_disable(td->chip, td->pci_fn, MAC_CLOCK_125M);
-	if (td->pci_fn)
-		tc956x_mac_clock_disable(td->chip, td->pci_fn, MAC_CLOCK_RMII);
+	tc956x_mac_reset_assert(td->chip, id, MAC_RESET_MAC);
+	tc956x_mac_reset_assert(td->chip, id, MAC_RESET_PMA);
+	tc956x_mac_reset_assert(td->chip, id, MAC_RESET_XPCS);
+
+	tc956x_mac_clock_disable(td->chip, id, MAC_CLOCK_ALL);
+	tc956x_mac_clock_disable(td->chip, id, MAC_CLOCK_RX);
+	tc956x_mac_clock_disable(td->chip, id, MAC_CLOCK_TX);
+	tc956x_mac_clock_disable(td->chip, id, MAC_CLOCK_125M);
+	if (id)
+		tc956x_mac_clock_disable(td->chip, id, MAC_CLOCK_RMII);
 }
 
 static void tc956x_mac_init_state(struct tc956x_data *td)
 {
-	tc956x_mac_clock_disable(td->chip, td->pci_fn, MAC_CLOCK_312_5M);
+	tc956x_mac_clock_disable(td->chip, td->data->mac_id, MAC_CLOCK_312_5M);
 
 	tc956x_stop_mac(td);
 }
@@ -511,7 +509,7 @@ static void tc956x_dma_init_rx_chan(struct stmmac_priv *priv,
 	 * Reduce the number of outstanding write requests to 3.  Needed
 	 * for XGMAC 3.01a errata (value 0 means 4 outstanding writes).
 	 */
-	setting = td->rev_id == 1 ? 3 : 0;
+	setting = td->data->rev_id == 1 ? 3 : 0;
 	value = readl(ioaddr + XGMAC_DMA_CH_RX_CONTROL2(chan));
 	value = u32_replace_bits(value, setting, XGMAC_OWRQ);
 	writel(value, ioaddr + XGMAC_DMA_CH_RX_CONTROL2(chan));
@@ -779,7 +777,7 @@ static int plat_stmmacenet_data_init(struct tc956x_data *td)
 	speed = ret;
 
 	plat->core_type = DWMAC_CORE_XGMAC;
-	plat->bus_id = td->pci_fn;
+	plat->bus_id = td->data->mac_id;
 	/* phy_addr */
 	plat->phy_interface = phy_interface;
 	plat->mdio_bus_data = &td->mdio_bus_data;
@@ -987,7 +985,6 @@ static int tc956x_dwmac_probe(struct auxiliary_device *adev,
 			       const struct auxiliary_device_id *id)
 {
 	struct device *dev = &adev->dev;
-	struct tc956x_dwmac_data *data;
 	int has_gpio_controller;
 	struct tc956x_data *td;
 	int ret;
@@ -996,18 +993,14 @@ static int tc956x_dwmac_probe(struct auxiliary_device *adev,
 		return -EINVAL;
 
 	/* XXX This will come from adev->driver_data instead */
-	data = dev_get_platdata(dev);
 
 	td = devm_kzalloc(dev, sizeof(*td), GFP_KERNEL);
 	if (!td)
 		return dev_err_probe(dev, -ENOMEM, "cannot create data\n");
 
 	td->dev = dev;
-	td->pci_fn = data->id;
-	td->sfr = data->sfr;
-	td->msigen_addr = data->msigen_addr;
-	td->msigen_irq = data->msigen_irq;
-	td->rev_id = data->rev_id;
+	td->data = dev_get_platdata(dev);
+
 	/* XXX And this might come from the data pointer */
 	td->chip = dev_get_platdata(dev->parent);
 
