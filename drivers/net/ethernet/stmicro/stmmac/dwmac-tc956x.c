@@ -778,19 +778,32 @@ static int plat_stmmacenet_data_init(struct tc956x_data *td)
 
 	plat->core_type = DWMAC_CORE_XGMAC;
 	plat->bus_id = td->pci_fn;
+	/* phy_addr */
 	plat->phy_interface = phy_interface;
 	plat->mdio_bus_data = &td->mdio_bus_data;
 	/* mdio_bus_data->probed_phy_irq is set in tc956x_xgmac3_probe() */
+	/* phy_node */
+	/* port_node */
+	/* mdio_node */
 	plat->dma_cfg = &td->dma_cfg;
 	plat->dma_cfg->pbl = 32;
 	plat->dma_cfg->pblx8 = true;
+	/* safety_feat_cfg */
 	plat->clk_csr = clk_csr;
+	/* enh_desc */
+	/* tx_coe */
+	/* rx_coe */
+	/* bugged_jumbo */
+	/* pmt */
 	plat->force_sf_dma_mode = 1;
+	/* force_thresh_dma_mode */
+	/* riwt_off */
 	plat->max_speed = speed;
 	/* XXX
 	 * We use the default maxmtu (JUMBO_LEN = 9000).  Toshiba used 9024
 	 * instead:  plat->maxmtu = ALIGN(9000, SMP_CACHE_BYTES);
 	 */
+	/* multicast_filter_bins */
 	plat->unicast_filter_entries = 32;
 	/*
 	 * Oversized FIFOs result in reduced performance in bandwidth tests.
@@ -814,6 +827,7 @@ static int plat_stmmacenet_data_init(struct tc956x_data *td)
 	 * get an IP address or ping does fails) if tx_queues_to_use >3
 	 */
 	plat->tx_queues_to_use = 3;
+
 	plat->rx_sched_algorithm = MTL_RX_ALGORITHM_SP;
 	plat->tx_sched_algorithm = MTL_TX_ALGORITHM_WRR;
 
@@ -829,15 +843,42 @@ static int plat_stmmacenet_data_init(struct tc956x_data *td)
 			plat->tx_queues_cfg[i].tbs_en = true;
 	}
 
+	/* get_interfaces */
+	/* set_phy_intf_sel */
+	/* set_clk_tx_rate */
 	plat->fix_mac_speed = tc956x_fix_mac_speed;
+	/* fix_soc_reset */
+	/* serdes_powerup */
+	/* serdes_powerdown */
+	/* mac_finish */
+	/* ptp_clk_freq_config */
+	/* init */
+	/* exit */
 	plat->suspend = tc956x_xgmac3_suspend;
 	plat->resume = tc956x_xgmac3_resume;
 	plat->mac_setup = tc956x_mac_setup;
+	/* clks_config */
+	/* crosststamp */
+	/* dump_debug_regs */
 	plat->pcs_init = tc956x_pcs_init;
+	/* pcs_exit */
 	plat->select_pcs = tc956x_select_pcs;
 
 	plat->bsp_priv = td;
+	/* stmmac_clk */
+	/* pclk */
+	/* clk_ptp_ref */
+	/* clk_tx_i */
 	plat->clk_ptp_rate = 250000000;
+	/* clk_ref_rate */
+	/* clks */
+	/* num_clks */
+	/* mult_fact_100ns */
+	/* ptp_max_adj */
+	/* cdc_error_adj */
+	/* stmmac_rst */
+	/* stmmac_ahb_rst */
+
 	/* AXI Configuration */
 	axi = &td->axi;
 	axi->axi_lpi_en = 1;
@@ -846,7 +887,18 @@ static int plat_stmmacenet_data_init(struct tc956x_data *td)
 	/* All sizes (2^2..2^8) are supported */
 	axi->axi_blen_regval = field_max(DMA_AXI_BLEN_MASK);
 	plat->axi = axi;
+	/* rss_en */
 	plat->mac_port_sel_speed = speed;
+	/* vlan_fail_q */
+	/* pdev * */
+	/* int_snapshot_num */
+	/* msi_mac_vec */
+	/* msi_wol_vec */
+	/* msi_sfty_ce_vec */
+	/* msi_sfty_ue_vec */
+	/* msi_rx_base_vec */
+	/* msi_tx_base_vec */
+	/* dwmac4_addrs */
 	plat->flags = STMMAC_FLAG_MULTI_MSI_EN | STMMAC_FLAG_TSO_EN;
 
 	td->plat = plat;
