@@ -812,10 +812,16 @@ static int plat_stmmacenet_data_init(struct tc956x_data *td)
 	plat->rx_queues_to_use = 4;		/* Default 1 */
 
 	/* XXX
-	 * TX956x has 8 TX queues. However failures are observed (DHCP does not
-	 * get an IP address or ping does fails) if tx_queues_to_use >3
+	 * TX956x has 8 TX queues but is only configured for 5 traffic classes.
+	 * Since the core driver does not (yet) support decoupling queues and
+	 * traffic classes we must limit ourselves to 5 queues.
+	 *
+	 * Additionally whenever iperf3 UDP tests end up hashing to queue #4
+	 * then those test fail (with Resource temporarily unavailable). The
+	 * specific cause is not yet determined so for now we are also disabling
+	 * that queue.
 	 */
-	plat->tx_queues_to_use = 3;		/* Default 1 */
+	plat->tx_queues_to_use = 4;		/* Default 1 */
 
 	/*
 	 * Oversized FIFOs result in reduced performance in bandwidth tests.
