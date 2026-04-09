@@ -786,13 +786,51 @@ tc956x_plat_dat_alloc(struct tc956x_data *td)
 	return plat;
 }
 
+/* Called by tc956x_dwmac_probe(); return errors with dev_err_probe() */
+static int devicetree_init(struct tc956x_data *td)
+{
+	struct device *dev = td->dev;
+	struct regulator *regulator;
+	struct device_node *np;
+	struct gpio_desc *gpio;
+	u32 delay;
+	int ret;
+
+	regulator = devm_regulator_get(dev, "phy");
+	if (IS_ERR(regulator))
+		return dev_err_probe(dev, PTR_ERR(regulator),
+				     "failed to get phy-supply\n");
+
+	gpio = devm_gpiod_get(dev, "phy-reset", GPIOD_OUT_LOW);
+	if (IS_ERR(gpio))
+		return dev_err_probe(dev, PTR_ERR(gpio),
+				     "failed to get phy-reset\n");
+
+	np = dev_of_node(dev);
+	ret = of_property_read_u32(np, "qcom,phy-reset-delay", &delay);
+	if (ret)
+		return dev_err_probe(dev, ret,
+				      "failed to get qcom,phy-reset-delay property\n");
+
+	ret = of_irq_get_byname(np, "wake-on-lan");
+	if (ret <= 0)
+		return dev_err_probe(dev, ret ? : -EINVAL,
+				     "failed to get wake-on-lan property\n");
+
+	td->phy_supply = regulator;
+	td->phy_reset = gpio;
+	td->phy_reset_delay = delay;
+	td->wol_irq = ret;
+
+	return 0;
+}
+
 static int tc956x_xgmac3_probe(struct tc956x_data *td)
 {
 	struct stmmac_resources res = { };
 	struct irq_domain *irq_domain;
 	struct device *dev = td->dev;
 	struct pinctrl *pinctrl;
-	struct gpio_desc *gpio;
 	int ret;
 	u32 i;
 
@@ -804,31 +842,6 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 	if (ret < 0)
 		return ret;
 	td->plat->phy_interface = ret;
-
-	ret = of_irq_get_byname(dev_of_node(dev), "wake-on-lan");
-	if (ret <= 0) {
-		dev_err(dev, "failed to get wake-on-lan property\n");
-		return ret ? : -EINVAL;
-	}
-	td->wol_irq = ret;
-
-	ret = of_property_read_u32(dev_of_node(dev), "qcom,phy-reset-delay",
-				   &td->phy_reset_delay);
-	if (ret) {
-		dev_err(dev, "failed to get qcom,phy-reset-delay property\n");
-		return ret;
-	}
-
-	gpio = devm_gpiod_get(dev, "phy-reset", GPIOD_OUT_LOW);
-	if (IS_ERR(gpio))
-		return PTR_ERR(gpio);
-	td->phy_reset = gpio;
-
-	td->phy_supply = devm_regulator_get(dev, "phy");
-	if (IS_ERR(td->phy_supply)) {
-		dev_err(dev, "failed to get phy-supply\n");
-		return PTR_ERR(td->phy_supply);
-	}
 
 	/* Put the MAC in a known initial state */
 	tc956x_mac_init_state(td);
@@ -926,6 +939,10 @@ static int tc956x_dwmac_probe(struct auxiliary_device *adev,
 	td->rev_id = data->rev_id;
 	/* XXX And this might come from the data pointer */
 	td->chip = dev_get_platdata(dev->parent);
+
+	ret = devicetree_init(td);
+	if (ret)
+		return ret;
 
 	ret = tc956x_xgmac3_probe(td);
 	if (ret)
