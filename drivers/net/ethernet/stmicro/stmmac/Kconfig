@@ -383,37 +383,37 @@ config DWMAC_MOTORCOMM
 	  This enables glue driver for Motorcomm DWMAC-based PCI Ethernet
 	  controllers. Currently only YT6801 is supported.
 
-config TC9564_PCI
-	tristate "Toshiba TC9564 PCI function support"
+config TC956X_PCI
+	tristate "Toshiba TC956X PCI function support"
 	depends on PCI
 	help
 	  This enables support for the two PCI functions implemented by the
-	  embedded PCIe endpoint in the Toshiba TC9564.  Attached to these
+	  embedded PCIe endpoint in the Toshiba TC956X.  Attached to these
 	  functions are Synopsys XGMAC Ethernet controllers.
 
 	  This provides support for the ethernet controllers found on these
 	  devices.
 
-config DWMAC_TC9564
-	tristate "Toshiba TC9564 DWMAC support"
+config DWMAC_TC956X
+	tristate "Toshiba TC956X DWMAC support"
 	depends on PCI
 	depends on COMMON_CLK
 	select STMMAC_LIBPCI
-	select TC9564_PCI
+	select TC956X_PCI
 	help
-	  This selects the Toshiba TC9564 (and Qualcomm QPS615) support in the
+	  This selects the Toshiba TC956X (and Qualcomm QPS615) support in the
 	  stmmac driver.
 
 	  This provides support for the ethernet controllers found on these
 	  devices.
 
-config GPIO_TC9564
-	tristate "Toshiba TC9564 GPIO support"
-	depends on DWMAC_TC9564
-	default m if DWMAC_TC9564
+config GPIO_TC956X
+	tristate "Toshiba TC956X GPIO support"
+	depends on DWMAC_TC956X
+	default m if DWMAC_TC956X
 	help
 	  This enables support for the GPIO controller embedded in the Toshiba
-	  TC9564 (and Qualcomm QPS615) SoC.  On some platforms, a few of the
+	  TC956X (and Qualcomm QPS615) SoC.  On some platforms, a few of the
 	  GPIO lines are used to manage external clocks or resets.
 
 config STMMAC_PCI

@@ -4735,7 +4735,7 @@ static const struct pci_device_id tc956xmac_id_table[] = {
 #endif
 	{}
 };
-#if !IS_ENABLED(CONFIG_DWMAC_TC9564)
+#if !IS_ENABLED(CONFIG_DWMAC_TC956X)
 /* Only autoload if neither of these other drivers is enabled */
 MODULE_DEVICE_TABLE(pci, tc956xmac_id_table);
 #endif
