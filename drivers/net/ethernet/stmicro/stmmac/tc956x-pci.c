@@ -54,12 +54,12 @@
 #include <linux/regmap.h>
 #include <linux/types.h>
 
-#include "soc-tc9564-chip.h"
+#include "soc-tc956x-chip.h"
 
-#define DRIVER_NAME			"tc9564-pci"
+#define DRIVER_NAME			"tc956x-pci"
 
-#define GPIO_DEVICE_NAME		"tc9564-gpio"
-#define XGMAC_DEVICE_NAME		"dwmac-tc9564"
+#define GPIO_DEVICE_NAME		"tc956x-gpio"
+#define XGMAC_DEVICE_NAME		"dwmac-tc956x"
 
 #define PCI_DEVICE_ID_TOSHIBA_TC9564	0x0220
 

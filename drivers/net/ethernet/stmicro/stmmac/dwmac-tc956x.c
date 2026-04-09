@@ -28,9 +28,9 @@
 #include "dwxgmac2.h"
 #include "stmmac.h"
 
-#include "soc-tc9564-chip.h"
+#include "soc-tc956x-chip.h"
 
-#define DRIVER_NAME		"dwmac-tc9564"
+#define DRIVER_NAME		"dwmac-tc956x"
 
 /* Address translation space size */
 #define SLV00_SRC_ADDR			0x0000001000000000ULL
@@ -950,7 +950,7 @@ static void tc9564x_dwmac_remove(struct auxiliary_device *adev)
 }
 
 static const struct auxiliary_device_id tc9564x_dwmac_ids[] = {
-	{ .name = "tc9564_pci." DRIVER_NAME, },
+	{ .name = "tc956x_pci." DRIVER_NAME, },
 	{ }
 };
 MODULE_DEVICE_TABLE(auxiliary, tc9564x_dwmac_ids);

@@ -22,7 +22,7 @@
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
 
-#define DRIVER_NAME		"tc9564-gpio"
+#define DRIVER_NAME		"tc956x-gpio"
 
 #define TC956X_GPIO_COUNT	37	/* Number of GPIOs (20-21 reserved) */
 
@@ -178,7 +178,7 @@ static int tc9564_gpio_probe(struct auxiliary_device *adev,
 }
 
 static const struct auxiliary_device_id tc964_gpio_ids[] = {
-	{ .name = "tc9564_pci." DRIVER_NAME, },
+	{ .name = "tc956x_pci." DRIVER_NAME, },
 	{ }
 };
 MODULE_DEVICE_TABLE(auxiliary, tc964_gpio_ids);
