@@ -123,6 +123,7 @@ enum tc956x_msigen_hwirq {
  * @phy_supply:		PHY supply regulator
  * @phy_reset:		Descriptor for GPIO used for PHY reset
  * @phy_reset_delay:	Delay (milliseconds) after PHY reset
+ * @msigen_addr:	I/O mapped address used by MSIGEN
  * @msigen_irq:		MSIGEN IRQ number
  * @wol_irq:		Wake-on-LAN IRQ number
  * @chip:		Pointer to the containing chip information
@@ -142,6 +143,7 @@ struct tc956x_data {
 	struct regulator *phy_supply;
 	struct gpio_desc *phy_reset;
 	u32 phy_reset_delay;
+	void __iomem *msigen_addr;
 	unsigned int msigen_irq;
 	int wol_irq;
 	struct tc956x_chip *chip;
@@ -265,7 +267,7 @@ static struct irq_domain *devm_tc956x_msigen_register(struct tc956x_data *td)
 	if (!tc956x_msigen)
 		return ERR_PTR(-ENOMEM);
 
-	tc956x_msigen->regs = td->sfr + TC956X_MSIGEN_BASE(td->pci_fn);
+	tc956x_msigen->regs = td->msigen_addr;
 	tc956x_msigen->irq = td->msigen_irq;
 	d_info.host_data = tc956x_msigen;
 
@@ -1003,6 +1005,7 @@ static int tc956x_dwmac_probe(struct auxiliary_device *adev,
 	td->dev = dev;
 	td->pci_fn = data->id;
 	td->sfr = data->sfr;
+	td->msigen_addr = data->msigen_addr;
 	td->msigen_irq = data->msigen_irq;
 	td->rev_id = data->rev_id;
 	/* XXX And this might come from the data pointer */
