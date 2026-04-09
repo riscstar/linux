@@ -37,6 +37,12 @@
 
 #define CM3_TAMAP_COUNT			4
 
+#define TC956X_RX_QUEUE_COUNT		8	/* Supported by hardware */
+#define TC956X_RX_FIFO_KB		46	/* Shared by all RX queues */
+
+#define TC956X_TX_QUEUE_COUNT		8	/* Supported by hardware */
+#define TC956X_TX_FIFO_KB		46	/* Shared by all TX queues */
+
 /* EMAC control registers for ports 0 and 1 (both have same format) */
 #define NEMAC0CTL_OFFSET		0x1070
 #define NEMAC1CTL_OFFSET		0x1074
@@ -448,23 +454,8 @@ static void tc956x_mac_init_state(struct tc956x_data *td)
 static int tc956x_xgmac3_default_data(struct tc956x_data *td)
 {
 	struct plat_stmmacenet_data *plat = td->plat;
-	struct device *dev = td->dev;
 	struct stmmac_axi *axi;
-	int speed;
 	u32 i;
-
-	switch (plat->phy_interface) {
-	case PHY_INTERFACE_MODE_10GBASER:
-		speed = SPEED_10000;
-		break;
-	case PHY_INTERFACE_MODE_SGMII:
-	case PHY_INTERFACE_MODE_2500BASEX:
-		speed = SPEED_2500;
-		break;
-	default:
-		dev_err(dev, "Unexpected PHY interface mode\n");
-		return -ENOTSUPP;
-	}
 
 	/* AXI Configuration */
 	axi = &td->axi;
@@ -475,27 +466,10 @@ static int tc956x_xgmac3_default_data(struct tc956x_data *td)
 	axi->axi_blen_regval = field_max(DMA_AXI_BLEN_MASK);
 	plat->axi = axi;
 
-	plat->mac_port_sel_speed = speed;
-	plat->max_speed = speed;
-
 	/* Set common default data */
-	plat->core_type = DWMAC_CORE_XGMAC;
-	plat->force_sf_dma_mode = 1;
 	plat->flags |= STMMAC_FLAG_MULTI_MSI_EN | STMMAC_FLAG_TSO_EN;
 
 	plat->clk_ptp_rate = 250000000;
-	plat->host_dma_width = 36;
-
-	/* For TC956X, clk_csr_i = 125MHz */
-	if (td->pci_fn)			/* emac1: SGMII */
-		plat->clk_csr = STMMAC_CSR_60_100M;
-	else				/* emac0: XFI */
-		plat->clk_csr = STMMAC_CSR_150_250M;	/* XXX set CRS bit? */
-
-	plat->unicast_filter_entries = 32;
-
-	plat->dma_cfg->pbl = 32;
-	plat->dma_cfg->pblx8 = true;
 
 	/*
 	 * TC956x has 8 RX queues but we observe significantly reduced RX
@@ -523,13 +497,6 @@ static int tc956x_xgmac3_default_data(struct tc956x_data *td)
 		if (i >= 5)
 			plat->tx_queues_cfg[i].tbs_en = true;
 	}
-
-	/*
-	 * Oversized FIFOs result in reduced performance in bandwidth tests.
-	 * Let's limit them to 8KiB unless they must be smaller.
-	 */
-	plat->tx_fifo_size = min(plat->tx_queues_to_use * 8, 46) * SZ_1K;
-	plat->rx_fifo_size = min(plat->rx_queues_to_use * 8, 46) * SZ_1K;
 
 	return 0;
 }
@@ -763,19 +730,12 @@ static void tc956x_plat_dat_init(struct tc956x_data *td)
 	struct plat_stmmacenet_data *plat = td->plat;
 
 	plat->bsp_priv = td;
-	plat->bus_id = td->pci_fn;
 	plat->mac_setup = tc956x_mac_setup;
 	plat->fix_mac_speed = tc956x_fix_mac_speed;
 	plat->pcs_init = tc956x_pcs_init;
 	plat->select_pcs = tc956x_select_pcs;
 	plat->suspend = tc956x_xgmac3_suspend;
 	plat->resume = tc956x_xgmac3_resume;
-
-	/* The probed_phy_irq field is set in tc956x_xgmac3_probe() */
-	plat->mdio_bus_data = &td->mdio_bus_data;
-
-	/* Initialized in tc956x_xgmac3_default_data() and tc956x_dma_init() */
-	plat->dma_cfg = &td->dma_cfg;
 }
 
 /* Called by tc956x_dwmac_probe(); return errors with dev_err_probe() */
@@ -817,14 +777,92 @@ static int devicetree_init(struct tc956x_data *td)
 	return 0;
 }
 
+/* XXX This should be populated further, and represented symbolically */
+static int plat_clk_csr_value(phy_interface_t phy_interface)
+{
+	switch (phy_interface) {
+	case PHY_INTERFACE_MODE_SGMII:
+		return 0;		/* STMMAC_CSR_60_100M? */
+
+	case PHY_INTERFACE_MODE_10GBASER:	/* XXX set CRS bit? */
+		return 4;		/* STMMAC_CSR_150_250M? */
+
+	default:
+		return -EINVAL;
+	}
+}
+
+static int plat_speed(phy_interface_t phy_interface)
+{
+	switch (phy_interface) {
+	case PHY_INTERFACE_MODE_10GBASER:
+		return SPEED_10000;
+
+	case PHY_INTERFACE_MODE_SGMII:
+	case PHY_INTERFACE_MODE_2500BASEX:
+		return SPEED_2500;
+
+	default:
+		return -ENOTSUPP;
+	}
+}
+
 static int plat_stmmacenet_data_init(struct tc956x_data *td)
 {
 	struct plat_stmmacenet_data *plat;
+	phy_interface_t phy_interface;
+	struct device *dev = td->dev;
+	u32 filter_size_kb;
+	u32 clk_csr;
+	u32 speed;
+	int ret;
 
 	/* The platform structure is allocated with devm_kzalloc() */
-	plat = stmmac_plat_dat_alloc(td->dev);
+	plat = stmmac_plat_dat_alloc(dev);
 	if (!plat)
 		return -ENOMEM;
+
+	ret = device_get_phy_mode(dev);
+	if (ret < 0)
+		return ret;
+	phy_interface = ret;
+
+	ret = plat_clk_csr_value(phy_interface);
+	if (ret < 0)
+		return ret;
+	clk_csr = ret;
+
+	ret = plat_speed(phy_interface);
+	if (ret < 0)
+		return ret;
+	speed = ret;
+
+	plat->core_type = DWMAC_CORE_XGMAC;
+	plat->bus_id = td->pci_fn;
+	plat->phy_interface = phy_interface;
+	plat->mdio_bus_data = &td->mdio_bus_data;
+	/* mdio_bus_data->probed_phy_irq is set in tc956x_xgmac3_probe() */
+	plat->dma_cfg = &td->dma_cfg;
+	plat->dma_cfg->pbl = 32;
+	plat->dma_cfg->pblx8 = true;
+	plat->clk_csr = clk_csr;
+	plat->force_sf_dma_mode = 1;
+	plat->max_speed = speed;
+	/* XXX
+	 * We use the default maxmtu (JUMBO_LEN = 9000).  Toshiba used 9024
+	 * instead:  plat->maxmtu = ALIGN(9000, SMP_CACHE_BYTES);
+	 */
+	plat->unicast_filter_entries = 32;
+	/*
+	 * Oversized FIFOs result in reduced performance in bandwidth tests.
+	 * Limit them to 8KiB per queue, or the total available.
+	 */
+	filter_size_kb = min(TC956X_TX_FIFO_KB, 8 * plat->tx_queues_to_use);
+	plat->tx_fifo_size = SZ_1K * filter_size_kb;
+	filter_size_kb = min(TC956X_RX_FIFO_KB, 8 * plat->rx_queues_to_use);
+	plat->rx_fifo_size = SZ_1K * filter_size_kb;
+	plat->host_dma_width = 36;
+	plat->mac_port_sel_speed = speed;
 
 	td->plat = plat;
 
@@ -841,11 +879,6 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 	u32 i;
 
 	tc956x_plat_dat_init(td);
-
-	ret = device_get_phy_mode(td->dev);
-	if (ret < 0)
-		return ret;
-	td->plat->phy_interface = ret;
 
 	/* Put the MAC in a known initial state */
 	tc956x_mac_init_state(td);
