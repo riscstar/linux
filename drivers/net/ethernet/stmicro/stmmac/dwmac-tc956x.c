@@ -451,56 +451,6 @@ static void tc956x_mac_init_state(struct tc956x_data *td)
 	tc956x_stop_mac(td);
 }
 
-static int tc956x_xgmac3_default_data(struct tc956x_data *td)
-{
-	struct plat_stmmacenet_data *plat = td->plat;
-	struct stmmac_axi *axi;
-	u32 i;
-
-	/* AXI Configuration */
-	axi = &td->axi;
-	axi->axi_lpi_en = 1;
-	axi->axi_wr_osr_lmt = 31;
-	axi->axi_rd_osr_lmt = 31;
-	/* All sizes (2^2..2^8) are supported */
-	axi->axi_blen_regval = field_max(DMA_AXI_BLEN_MASK);
-	plat->axi = axi;
-
-	/* Set common default data */
-	plat->flags |= STMMAC_FLAG_MULTI_MSI_EN | STMMAC_FLAG_TSO_EN;
-
-	plat->clk_ptp_rate = 250000000;
-
-	/*
-	 * TC956x has 8 RX queues but we observe significantly reduced RX
-	 * bandwidth if we don't have at least 8k FIFO space per queue, so
-	 * by default we avoid using all the queues.
-	 */
-	plat->rx_queues_to_use = 4;
-	plat->rx_sched_algorithm = MTL_RX_ALGORITHM_SP;
-
-	for (i = 0; i < plat->rx_queues_to_use; i++)
-		plat->rx_queues_cfg[i].mode_to_use = MTL_QUEUE_DCB;
-
-	/*
-	 * TX956x has 8 TX queues. However failures are observed (DHCP does not
-	 * get an IP address or ping does fails) if tx_queues_to_use >3
-	 */
-	plat->tx_queues_to_use = 3;
-	plat->tx_sched_algorithm = MTL_TX_ALGORITHM_WRR;
-
-	for (i = 0; i < plat->tx_queues_to_use; i++) {
-		plat->tx_queues_cfg[i].weight = 12;
-		plat->tx_queues_cfg[i].mode_to_use = MTL_QUEUE_DCB;
-
-		/* Tx Queues 0 - 4 don't support TBS on TC956x */
-		if (i >= 5)
-			plat->tx_queues_cfg[i].tbs_en = true;
-	}
-
-	return 0;
-}
-
 /* Extra fields for XGMAC_DMA_MODE */
 /* Descriptor posted write */
 #define XGMAC_DSPW			BIT(8)	/* 1: All Rx DMA posted */
@@ -725,19 +675,6 @@ static int tc956x_xgmac3_resume(struct device *dev, void *bsp_priv)
 	return tc956x_chipcfg_mac_init(td);
 }
 
-static void tc956x_plat_dat_init(struct tc956x_data *td)
-{
-	struct plat_stmmacenet_data *plat = td->plat;
-
-	plat->bsp_priv = td;
-	plat->mac_setup = tc956x_mac_setup;
-	plat->fix_mac_speed = tc956x_fix_mac_speed;
-	plat->pcs_init = tc956x_pcs_init;
-	plat->select_pcs = tc956x_select_pcs;
-	plat->suspend = tc956x_xgmac3_suspend;
-	plat->resume = tc956x_xgmac3_resume;
-}
-
 /* Called by tc956x_dwmac_probe(); return errors with dev_err_probe() */
 static int devicetree_init(struct tc956x_data *td)
 {
@@ -812,10 +749,12 @@ static int plat_stmmacenet_data_init(struct tc956x_data *td)
 	struct plat_stmmacenet_data *plat;
 	phy_interface_t phy_interface;
 	struct device *dev = td->dev;
+	struct stmmac_axi *axi;
 	u32 filter_size_kb;
 	u32 clk_csr;
 	u32 speed;
 	int ret;
+	u32 i;
 
 	/* The platform structure is allocated with devm_kzalloc() */
 	plat = stmmac_plat_dat_alloc(dev);
@@ -862,7 +801,53 @@ static int plat_stmmacenet_data_init(struct tc956x_data *td)
 	filter_size_kb = min(TC956X_RX_FIFO_KB, 8 * plat->rx_queues_to_use);
 	plat->rx_fifo_size = SZ_1K * filter_size_kb;
 	plat->host_dma_width = 36;
+
+	/* XXX
+	 * TC956x has 8 RX queues but we observe significantly reduced RX
+	 * bandwidth if we don't have at least 8k FIFO space per queue, so
+	 * by default we avoid using all the queues.
+	 */
+	plat->rx_queues_to_use = 4;
+
+	/* XXX
+	 * TX956x has 8 TX queues. However failures are observed (DHCP does not
+	 * get an IP address or ping does fails) if tx_queues_to_use >3
+	 */
+	plat->tx_queues_to_use = 3;
+	plat->rx_sched_algorithm = MTL_RX_ALGORITHM_SP;
+	plat->tx_sched_algorithm = MTL_TX_ALGORITHM_WRR;
+
+	for (i = 0; i < plat->rx_queues_to_use; i++)
+		plat->rx_queues_cfg[i].mode_to_use = MTL_QUEUE_DCB;
+
+	for (i = 0; i < plat->tx_queues_to_use; i++) {
+		plat->tx_queues_cfg[i].weight = 12;
+		plat->tx_queues_cfg[i].mode_to_use = MTL_QUEUE_DCB;
+
+		/* Tx Queues 0-4 don't support TBS on TC956X */
+		if (i >= 5)
+			plat->tx_queues_cfg[i].tbs_en = true;
+	}
+
+	plat->fix_mac_speed = tc956x_fix_mac_speed;
+	plat->suspend = tc956x_xgmac3_suspend;
+	plat->resume = tc956x_xgmac3_resume;
+	plat->mac_setup = tc956x_mac_setup;
+	plat->pcs_init = tc956x_pcs_init;
+	plat->select_pcs = tc956x_select_pcs;
+
+	plat->bsp_priv = td;
+	plat->clk_ptp_rate = 250000000;
+	/* AXI Configuration */
+	axi = &td->axi;
+	axi->axi_lpi_en = 1;
+	axi->axi_wr_osr_lmt = 31;
+	axi->axi_rd_osr_lmt = 31;
+	/* All sizes (2^2..2^8) are supported */
+	axi->axi_blen_regval = field_max(DMA_AXI_BLEN_MASK);
+	plat->axi = axi;
 	plat->mac_port_sel_speed = speed;
+	plat->flags = STMMAC_FLAG_MULTI_MSI_EN | STMMAC_FLAG_TSO_EN;
 
 	td->plat = plat;
 
@@ -878,14 +863,8 @@ static int tc956x_xgmac3_probe(struct tc956x_data *td)
 	int ret;
 	u32 i;
 
-	tc956x_plat_dat_init(td);
-
 	/* Put the MAC in a known initial state */
 	tc956x_mac_init_state(td);
-
-	ret = tc956x_xgmac3_default_data(td);
-	if (ret)
-		goto err;
 
 	irq_domain = devm_tc956x_msigen_register(td);
 	if (IS_ERR(irq_domain)) {
