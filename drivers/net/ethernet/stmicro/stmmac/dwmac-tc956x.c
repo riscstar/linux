@@ -138,7 +138,7 @@ struct tc956x_data {
 	u32 phy_reset_delay;
 	unsigned int msigen_irq;
 	int wol_irq;
-	struct tc9564_chip *chip;
+	struct tc956x_chip *chip;
 	u8 rev_id;
 
 	/* These three fields are used by the plat_stmmacenet_data structure */
@@ -186,7 +186,7 @@ static void tc956x_msigen_irq_handler(struct irq_desc *desc)
 			generic_handle_domain_irq(d, hwirq);
 
 	/*
-	 * Clear the MSI flag. All interrupts within TC956x are level-high type.
+	 * Clear the MSI flag. All interrupts within TC956X are level-high type.
 	 * If any interrupts are still asserted then clearing this flag will
 	 * cause the (edge-triggered) MSI to be regenerated.
 	 */
@@ -317,7 +317,7 @@ static void tc956x_mac_pma_init(struct tc956x_data *td)
 	 * been deasserted. We must make sure the PMA reset is asserted before
 	 * we change the clock settings.
 	 */
-	tc9564_mac_reset_assert(td->chip, td->pci_fn, MAC_RESET_PMA);
+	tc956x_mac_reset_assert(td->chip, td->pci_fn, MAC_RESET_PMA);
 
 	/* Power on CML buffer (0 = normal mode, 1 = power down) */
 	writel(0, pma_base + PMA_CML_GL_PM_CFG0);
@@ -345,7 +345,7 @@ static void tc956x_mac_pma_init(struct tc956x_data *td)
 	writel(0, pma_base + PMA_HWT_REFCK_R_EN_R4);
 	writel(0, pma_base + PMA_HWT_REFCK_TERM_EN_R4);
 
-	tc9564_mac_reset_deassert(td->chip, td->pci_fn, MAC_RESET_PMA);
+	tc956x_mac_reset_deassert(td->chip, td->pci_fn, MAC_RESET_PMA);
 
 	emac_ctl_reg = td->sfr + (td->pci_fn ? NEMAC1CTL_OFFSET
 					     : NEMAC0CTL_OFFSET);
@@ -383,9 +383,9 @@ static int tc956x_chipcfg_mac_configure(struct tc956x_data *td, int speed)
 
 	/* Speeds up to 1Gbps require the 125 MHz clock to be enabled */
 	if (speed < SPEED_2500)
-		tc9564_mac_clock_enable(td->chip, td->pci_fn, MAC_CLOCK_125M);
+		tc956x_mac_clock_enable(td->chip, td->pci_fn, MAC_CLOCK_125M);
 	else
-		tc9564_mac_clock_disable(td->chip, td->pci_fn, MAC_CLOCK_125M);
+		tc956x_mac_clock_disable(td->chip, td->pci_fn, MAC_CLOCK_125M);
 
 	emac_ctl_reg = td->sfr + (td->pci_fn ? NEMAC1CTL_OFFSET
 					     : NEMAC0CTL_OFFSET);
@@ -404,43 +404,43 @@ static int tc956x_chipcfg_mac_init(struct tc956x_data *td)
 	struct plat_stmmacenet_data *plat = td->plat;
 	int ret;
 
-	tc9564_mac_clock_enable(td->chip, td->pci_fn, MAC_CLOCK_TX);
-	tc9564_mac_clock_enable(td->chip, td->pci_fn, MAC_CLOCK_RX);
-	tc9564_mac_clock_enable(td->chip, td->pci_fn, MAC_CLOCK_ALL);
+	tc956x_mac_clock_enable(td->chip, td->pci_fn, MAC_CLOCK_TX);
+	tc956x_mac_clock_enable(td->chip, td->pci_fn, MAC_CLOCK_RX);
+	tc956x_mac_clock_enable(td->chip, td->pci_fn, MAC_CLOCK_ALL);
 	if (td->pci_fn)
-		tc9564_mac_clock_enable(td->chip, td->pci_fn, MAC_CLOCK_RMII);
+		tc956x_mac_clock_enable(td->chip, td->pci_fn, MAC_CLOCK_RMII);
 
 	/* Set the speed related registers */
 	ret = tc956x_chipcfg_mac_configure(td, plat->max_speed);
 	if (ret)
 		return ret;
 
-	tc9564_mac_reset_deassert(td->chip, td->pci_fn, MAC_RESET_MAC);
+	tc956x_mac_reset_deassert(td->chip, td->pci_fn, MAC_RESET_MAC);
 
 	tc956x_mac_pma_init(td);
 
-	tc9564_mac_reset_deassert(td->chip, td->pci_fn, MAC_RESET_XPCS);
+	tc956x_mac_reset_deassert(td->chip, td->pci_fn, MAC_RESET_XPCS);
 
 	return 0;
 }
 
 static void tc956x_stop_mac(struct tc956x_data *td)
 {
-	tc9564_mac_reset_assert(td->chip, td->pci_fn, MAC_RESET_MAC);
-	tc9564_mac_reset_assert(td->chip, td->pci_fn, MAC_RESET_PMA);
-	tc9564_mac_reset_assert(td->chip, td->pci_fn, MAC_RESET_XPCS);
+	tc956x_mac_reset_assert(td->chip, td->pci_fn, MAC_RESET_MAC);
+	tc956x_mac_reset_assert(td->chip, td->pci_fn, MAC_RESET_PMA);
+	tc956x_mac_reset_assert(td->chip, td->pci_fn, MAC_RESET_XPCS);
 
-	tc9564_mac_clock_disable(td->chip, td->pci_fn, MAC_CLOCK_ALL);
-	tc9564_mac_clock_disable(td->chip, td->pci_fn, MAC_CLOCK_RX);
-	tc9564_mac_clock_disable(td->chip, td->pci_fn, MAC_CLOCK_TX);
-	tc9564_mac_clock_disable(td->chip, td->pci_fn, MAC_CLOCK_125M);
+	tc956x_mac_clock_disable(td->chip, td->pci_fn, MAC_CLOCK_ALL);
+	tc956x_mac_clock_disable(td->chip, td->pci_fn, MAC_CLOCK_RX);
+	tc956x_mac_clock_disable(td->chip, td->pci_fn, MAC_CLOCK_TX);
+	tc956x_mac_clock_disable(td->chip, td->pci_fn, MAC_CLOCK_125M);
 	if (td->pci_fn)
-		tc9564_mac_clock_disable(td->chip, td->pci_fn, MAC_CLOCK_RMII);
+		tc956x_mac_clock_disable(td->chip, td->pci_fn, MAC_CLOCK_RMII);
 }
 
 static void tc956x_mac_init_state(struct tc956x_data *td)
 {
-	tc9564_mac_clock_disable(td->chip, td->pci_fn, MAC_CLOCK_312_5M);
+	tc956x_mac_clock_disable(td->chip, td->pci_fn, MAC_CLOCK_312_5M);
 
 	tc956x_stop_mac(td);
 }
@@ -900,11 +900,11 @@ static void tc956x_xgmac3_remove(struct tc956x_data *td)
 	tc956x_stop_mac(td);
 }
 
-static int tc9564x_dwmac_probe(struct auxiliary_device *adev,
+static int tc956x_dwmac_probe(struct auxiliary_device *adev,
 			       const struct auxiliary_device_id *id)
 {
 	struct device *dev = &adev->dev;
-	struct tc9564_dwmac_data *data;
+	struct tc956x_dwmac_data *data;
 	int has_gpio_controller;
 	struct tc956x_data *td;
 	int ret;
@@ -936,7 +936,7 @@ static int tc9564x_dwmac_probe(struct auxiliary_device *adev,
 	return ret;
 }
 
-static void tc9564x_dwmac_remove(struct auxiliary_device *adev)
+static void tc956x_dwmac_remove(struct auxiliary_device *adev)
 {
 	struct device *dev = &adev->dev;
 	struct net_device *ndev = dev_get_drvdata(dev);
@@ -949,17 +949,17 @@ static void tc9564x_dwmac_remove(struct auxiliary_device *adev)
 	}
 }
 
-static const struct auxiliary_device_id tc9564x_dwmac_ids[] = {
+static const struct auxiliary_device_id tc956x_dwmac_ids[] = {
 	{ .name = "tc956x_pci." DRIVER_NAME, },
 	{ }
 };
-MODULE_DEVICE_TABLE(auxiliary, tc9564x_dwmac_ids);
+MODULE_DEVICE_TABLE(auxiliary, tc956x_dwmac_ids);
 
-static struct auxiliary_driver tc9564x_dwmac_driver = {
+static struct auxiliary_driver tc956x_dwmac_driver = {
 	.name		= DRIVER_NAME,
-	.probe		= tc9564x_dwmac_probe,
-	.remove		= tc9564x_dwmac_remove,
-	.id_table	= tc9564x_dwmac_ids,
+	.probe		= tc956x_dwmac_probe,
+	.remove		= tc956x_dwmac_remove,
+	.id_table	= tc956x_dwmac_ids,
 	.driver = {
 		.name	= DRIVER_NAME,
 		.pm	= &stmmac_simple_pm_ops,
@@ -967,7 +967,7 @@ static struct auxiliary_driver tc9564x_dwmac_driver = {
 		/* .probe_type	= PROBE_PREFER_ASYNCHRONOUS, */
 	},
 };
-module_auxiliary_driver(tc9564x_dwmac_driver);
+module_auxiliary_driver(tc956x_dwmac_driver);
 
-MODULE_DESCRIPTION("Toshiba TC956x PCIe Ethernet Network Driver");
+MODULE_DESCRIPTION("Toshiba TC956X PCIe Ethernet Network Driver");
 MODULE_LICENSE("GPL");

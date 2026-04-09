@@ -5,19 +5,19 @@
  */
 
 /*
- * The Toshiba TC9564 implements a PCIe Gen 3 switch that connects an upstream
+ * The Toshiba TC956X implements a PCIe Gen 3 switch that connects an upstream
  * x4 port to two downstream PCIe x2 ports.  It incorporates an internal
  * endpoint as well, which implements two Synopsys XGMAC Ethernet interface.
  * functions.
  *
- * The TC9564 incorporates other functionality, including an embedded
+ * The TC956X incorporates other functionality, including an embedded
  * MCU, a UART, a GPIO controller, internal resets and clocks, and
  * interrupt handling.  These components are shared by both Ethernet
  * XGMACs.  Each Ethernet MAC must have be attached to a working PHY
  * for it to be functional, and for this reason either of them (or both!)
  * might not be usable/used.
  *
- * To support the non-XGMAC functionality on the TC9564 regardless of
+ * To support the non-XGMAC functionality on the TC956X regardless of
  * the presence of either Ethernet PHY, the Ethernet functions are
  * treated as two parts:  a PCI function; and a Synopsys XGMAC component.
  * The PCI function has access to the BARs used by the XGMAC, and maps
@@ -27,7 +27,7 @@
  *
  * This PCI driver matches the Toshiba TC956X (physical) PCI endpoint
  * device, (VID 0x1179, DID 0x0220).  There are two of these present
- * on the TC9564 SoC.  The first (PCI function 0) is the "primary"
+ * on the TC956X SoC.  The first (PCI function 0) is the "primary"
  * function, which generally handles "chip" activities that are used
  * by both XGMACs.  This includes creating and registering the GPIO
  * auxiliary device, as well as asserting and deasserting internal
@@ -61,7 +61,7 @@
 #define GPIO_DEVICE_NAME		"tc956x-gpio"
 #define XGMAC_DEVICE_NAME		"dwmac-tc956x"
 
-#define PCI_DEVICE_ID_TOSHIBA_TC9564	0x0220
+#define PCI_DEVICE_ID_TOSHIBA_TC956X	0x0220
 
 /* PCI BAR assignments */
 #define PCI_BAR_BRIDGE_CONFIG		0
@@ -91,7 +91,7 @@
 
 /* Address translation space parameters (entry 0) */
 #define SLV00_ATR_SIZE			35	/* 2^36 (64 gigabytes) */
-/* TODO: SLV00_SRC_ADDR should be in a shared header file since dwmac-tc9564.c needs it */
+/* TODO: SLV00_SRC_ADDR should be in a shared header file since dwmac-tc956x.c needs it */
 #define SLV00_SRC_ADDR			0x0000001000000000ULL
 #define SLV00_TRSL_ADDR			0x0000000000000000ULL
 
@@ -111,14 +111,14 @@
 #define TRSF_PARAM_MASK			GENMASK(27, 16)
 
 /*
- * struct tc9564_chip - Common information related to the TC9564 chip
+ * struct tc956x_chip - Common information related to the TC956X chip
  * @dev:		Device structure
  * @rev_id:		Chip revision ID (for quirks)
  * @sfr:		Mapped SFR region (BAR 4)
  * @bridge_config:	Regmap used for bridge configuration
  * @reset_clock_regmap:	Regmap used for resets and clocks
  */
-struct tc9564_chip {
+struct tc956x_chip {
 	struct device *dev;
 	void __iomem *sfr[2];
 	u8 rev_id;
@@ -127,7 +127,7 @@ struct tc9564_chip {
 };
 
 static const struct regmap_config gpio_regmap_config = {
-	.name		= "tc9564-gpio",
+	.name		= "tc956x-gpio",
 	.reg_bits	= 32,
 	.reg_stride	= 4,
 	.reg_base	= 0x1200,	/* Register GPIOI0 */
@@ -145,7 +145,7 @@ static const struct regmap_config reset_clock_regmap_config = {
 };
 
 /* Common clock/reset register update function */
-void tc9564x_chip_reset_clock_set(struct tc9564_chip *chip, bool reset,
+void tc956x_chip_reset_clock_set(struct tc956x_chip *chip, bool reset,
 				 bool reg0, bool set, u8 bit)
 {
 	u32 offset = reset ? reg0 ? RSTCTRL0_OFFSET : RSTCTRL1_OFFSET
@@ -156,7 +156,7 @@ void tc9564x_chip_reset_clock_set(struct tc9564_chip *chip, bool reset,
 	(void)regmap_update_bits(chip->reset_clock_regmap, offset, mask,
 				 set ? mask : 0);
 }
-EXPORT_SYMBOL_GPL(tc9564x_chip_reset_clock_set);
+EXPORT_SYMBOL_GPL(tc956x_chip_reset_clock_set);
 
 static void adev_release(struct device *dev)
 {
@@ -226,7 +226,7 @@ static int adev_device_add(struct device *dev, const char *name, u32 id,
 }
 
 /* The embedded GPIO controller has an auxiliary device driver */
-static int chip_gpio_adev_add(struct tc9564_chip *chip)
+static int chip_gpio_adev_add(struct tc956x_chip *chip)
 {
 	void __iomem *base = chip->sfr[0];
 	struct device *dev = chip->dev;
@@ -250,12 +250,12 @@ static int chip_gpio_adev_add(struct tc9564_chip *chip)
 
 /* The two embedded XGMAC controllers have an auxiliary device driver */
 static int function_xgmac_adev_add(struct pci_dev *pdev,
-				   struct tc9564_chip *chip,
+				   struct tc956x_chip *chip,
 				   unsigned int irq)
 {
 	u32 id = PCI_FUNC(pdev->devfn) ? 1 : 0;
 	struct device *dev = &pdev->dev;
-	struct tc9564_dwmac_data *data;
+	struct tc956x_dwmac_data *data;
 	int ret;
 
 	/* The stmmac code wants an I/O pointer, not a regmap */
@@ -282,7 +282,7 @@ static int function_xgmac_adev_add(struct pci_dev *pdev,
 	return 0;
 }
 
-static int chip_reset_clock_init(struct tc9564_chip *chip)
+static int chip_reset_clock_init(struct tc956x_chip *chip)
 {
 	void __iomem *base = chip->sfr[0];
 	struct device *dev = chip->dev;
@@ -296,7 +296,7 @@ static int chip_reset_clock_init(struct tc9564_chip *chip)
 	return 0;
 }
 
-static int chip_translation_init(struct tc9564_chip *chip, struct pci_dev *pdev)
+static int chip_translation_init(struct tc956x_chip *chip, struct pci_dev *pdev)
 {
 	void __iomem *base;
 
@@ -318,11 +318,11 @@ static int chip_translation_init(struct tc9564_chip *chip, struct pci_dev *pdev)
 
 /**
  * chip_translation_config() - Configure the table address map registers
- * @chip:	The TC9564 chip pointer
+ * @chip:	The TC956X chip pointer
  *
  * Populate the registers used to convert the AXI bus accesses to PCI TLPs.
  */
-static void chip_translation_config(struct tc9564_chip *chip)
+static void chip_translation_config(struct tc956x_chip *chip)
 {
 	void __iomem *table_base = chip->bridge_config;
 	void __iomem *entry_base;
@@ -388,34 +388,34 @@ static void chip_translation_config(struct tc9564_chip *chip)
 	}
 }
 
-static void chip_start(struct tc9564_chip *chip)
+static void chip_start(struct tc956x_chip *chip)
 {
 	chip_translation_config(chip);
 
-	tc9564_chip_clock_enable(chip, CHIP_CLOCK_MSIGEN);
-	tc9564_chip_reset_deassert(chip, CHIP_RESET_MSIGEN);
+	tc956x_chip_clock_enable(chip, CHIP_CLOCK_MSIGEN);
+	tc956x_chip_reset_deassert(chip, CHIP_RESET_MSIGEN);
 }
 
-static void chip_stop(struct tc9564_chip *chip)
+static void chip_stop(struct tc956x_chip *chip)
 {
-	tc9564_chip_reset_assert(chip, CHIP_RESET_MSIGEN);
-	tc9564_chip_clock_disable(chip, CHIP_CLOCK_MSIGEN);
+	tc956x_chip_reset_assert(chip, CHIP_RESET_MSIGEN);
+	tc956x_chip_clock_disable(chip, CHIP_CLOCK_MSIGEN);
 }
 
-static void chip_init_state(struct tc9564_chip *chip)
+static void chip_init_state(struct tc956x_chip *chip)
 {
-	tc9564_chip_reset_assert(chip, CHIP_RESET_MCU);
-	tc9564_chip_reset_assert(chip, CHIP_RESET_MCU1);
-	tc9564_chip_reset_assert(chip, CHIP_RESET_INTC);
-	tc9564_chip_reset_assert(chip, CHIP_RESET_UART0);
+	tc956x_chip_reset_assert(chip, CHIP_RESET_MCU);
+	tc956x_chip_reset_assert(chip, CHIP_RESET_MCU1);
+	tc956x_chip_reset_assert(chip, CHIP_RESET_INTC);
+	tc956x_chip_reset_assert(chip, CHIP_RESET_UART0);
 
-	tc9564_chip_clock_disable(chip, CHIP_CLOCK_MCU);
-	tc9564_chip_clock_disable(chip, CHIP_CLOCK_SRAM);
-	tc9564_chip_clock_disable(chip, CHIP_CLOCK_PLL);
-	tc9564_chip_clock_disable(chip, CHIP_CLOCK_SGMII);
-	tc9564_chip_clock_disable(chip, CHIP_CLOCK_REFCLK);
-	tc9564_chip_clock_disable(chip, CHIP_CLOCK_INTC);
-	tc9564_chip_clock_disable(chip, CHIP_CLOCK_UART0);
+	tc956x_chip_clock_disable(chip, CHIP_CLOCK_MCU);
+	tc956x_chip_clock_disable(chip, CHIP_CLOCK_SRAM);
+	tc956x_chip_clock_disable(chip, CHIP_CLOCK_PLL);
+	tc956x_chip_clock_disable(chip, CHIP_CLOCK_SGMII);
+	tc956x_chip_clock_disable(chip, CHIP_CLOCK_REFCLK);
+	tc956x_chip_clock_disable(chip, CHIP_CLOCK_INTC);
+	tc956x_chip_clock_disable(chip, CHIP_CLOCK_UART0);
 
 	chip_stop(chip);
 }
@@ -442,11 +442,11 @@ static void chip_link_del(void *data)
  *
  * Returns a chip structure pointer, or a pointer-coded error.
  */
-static struct tc9564_chip *chip_get(struct pci_dev *pdev)
+static struct tc956x_chip *chip_get(struct pci_dev *pdev)
 {
 	unsigned int devfn = pdev->devfn;
 	struct device *dev = &pdev->dev;
-	struct tc9564_chip *chip;
+	struct tc956x_chip *chip;
 	struct device_link *link;
 	struct pci_dev *peer;
 
@@ -482,7 +482,7 @@ static struct tc9564_chip *chip_get(struct pci_dev *pdev)
 	return chip;
 }
 
-static int chip_init(struct tc9564_chip *chip, struct pci_dev *pdev)
+static int chip_init(struct tc956x_chip *chip, struct pci_dev *pdev)
 {
 	u32 id = PCI_FUNC(pdev->devfn) ? 1 : 0;
 	u32 val;
@@ -523,10 +523,10 @@ static int chip_init(struct tc9564_chip *chip, struct pci_dev *pdev)
 }
 
 static int
-tc9564_function_probe(struct pci_dev *pdev, const struct pci_device_id *id)
+tc956x_function_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
 	struct device *dev = &pdev->dev;
-	struct tc9564_chip *chip;
+	struct tc956x_chip *chip;
 	unsigned int irq;
 	int ret;
 
@@ -573,9 +573,9 @@ tc9564_function_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	return 0;
 }
 
-static void tc9564_function_remove(struct pci_dev *pdev)
+static void tc956x_function_remove(struct pci_dev *pdev)
 {
-	struct tc9564_chip *chip = dev_get_platdata(&pdev->dev);
+	struct tc956x_chip *chip = dev_get_platdata(&pdev->dev);
 
 	dev_info(&pdev->dev, " === %s success\n", __func__);
 
@@ -585,18 +585,18 @@ static void tc9564_function_remove(struct pci_dev *pdev)
 		chip_stop(chip);
 }
 
-static const struct pci_device_id tc9564_function_id_table[] = {
-	{ PCI_DEVICE(PCI_VENDOR_ID_TOSHIBA, PCI_DEVICE_ID_TOSHIBA_TC9564), },
+static const struct pci_device_id tc956x_function_id_table[] = {
+	{ PCI_DEVICE(PCI_VENDOR_ID_TOSHIBA, PCI_DEVICE_ID_TOSHIBA_TC956X), },
 	{ },
 };
 #if !IS_ENABLED(CONFIG_TC956X_NET)
 /* Only autoload if neither of these other drivers is enabled */
-MODULE_DEVICE_TABLE(pci, tc9564_function_id_table);
+MODULE_DEVICE_TABLE(pci, tc956x_function_id_table);
 #endif
 
-static int tc9564_chip_suspend_noirq(struct device *dev)
+static int tc956x_chip_suspend_noirq(struct device *dev)
 {
-	struct tc9564_chip *chip = dev_get_platdata(dev);
+	struct tc956x_chip *chip = dev_get_platdata(dev);
 	struct pci_dev *pdev = to_pci_dev(dev);
 	int ret;
 
@@ -614,9 +614,9 @@ static int tc9564_chip_suspend_noirq(struct device *dev)
 	return 0;
 }
 
-static int tc9564_chip_resume_noirq(struct device *dev)
+static int tc956x_chip_resume_noirq(struct device *dev)
 {
-	struct tc9564_chip *chip = dev_get_platdata(dev);
+	struct tc956x_chip *chip = dev_get_platdata(dev);
 	struct pci_dev *pdev = to_pci_dev(dev);
 
 	dev_info(dev, " === %s\n", __func__);
@@ -633,23 +633,23 @@ static int tc9564_chip_resume_noirq(struct device *dev)
 	return 0;
 }
 
-static DEFINE_NOIRQ_DEV_PM_OPS(tc9564_chip_pm_ops,
-			       tc9564_chip_suspend_noirq,
-			       tc9564_chip_resume_noirq);
+static DEFINE_NOIRQ_DEV_PM_OPS(tc956x_chip_pm_ops,
+			       tc956x_chip_suspend_noirq,
+			       tc956x_chip_resume_noirq);
 
-static struct pci_driver tc9564_function_driver = {
+static struct pci_driver tc956x_function_driver = {
 	.name		= DRIVER_NAME,
-	.id_table	= tc9564_function_id_table,
-	.probe		= tc9564_function_probe,
-	.remove		= tc9564_function_remove,
+	.id_table	= tc956x_function_id_table,
+	.probe		= tc956x_function_probe,
+	.remove		= tc956x_function_remove,
 	.driver		= {
 		.name	= DRIVER_NAME,
 		.owner	= THIS_MODULE,
-		.pm	= pm_sleep_ptr(&tc9564_chip_pm_ops),
+		.pm	= pm_sleep_ptr(&tc956x_chip_pm_ops),
 	},
 };
 
-module_pci_driver(tc9564_function_driver);
+module_pci_driver(tc956x_function_driver);
 
-MODULE_DESCRIPTION("Toshiba TC9564 PCIe Embedded Function Driver");
+MODULE_DESCRIPTION("Toshiba TC956X PCIe Embedded Function Driver");
 MODULE_LICENSE("GPL");
