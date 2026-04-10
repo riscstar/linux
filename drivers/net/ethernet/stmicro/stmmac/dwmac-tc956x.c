@@ -778,7 +778,7 @@ static int plat_stmmacenet_data_init(struct tc956x_data *td)
 
 	plat->core_type = DWMAC_CORE_XGMAC;
 	plat->bus_id = td->data->mac_id;
-	/* phy_addr */
+	/* phy_addr */				/* Default -1 */
 	plat->phy_interface = phy_interface;
 	plat->mdio_bus_data = &td->mdio_bus_data;
 	/* mdio_bus_data->probed_phy_irq is set in tc956x_xgmac3_probe() */
@@ -789,7 +789,7 @@ static int plat_stmmacenet_data_init(struct tc956x_data *td)
 	plat->dma_cfg->pbl = 32;
 	plat->dma_cfg->pblx8 = true;
 	/* safety_feat_cfg */
-	plat->clk_csr = clk_csr;
+	plat->clk_csr = clk_csr;		/* Default -1 */
 	/* enh_desc */
 	/* tx_coe */
 	/* rx_coe */
@@ -799,25 +799,23 @@ static int plat_stmmacenet_data_init(struct tc956x_data *td)
 	/* force_thresh_dma_mode */
 	/* riwt_off */
 	plat->max_speed = speed;
-	/* XXX
-	 * We use the default maxmtu (JUMBO_LEN = 9000).  Toshiba used 9024
-	 * instead:  plat->maxmtu = ALIGN(9000, SMP_CACHE_BYTES);
-	 */
-	/* multicast_filter_bins */
-	plat->unicast_filter_entries = 32;
+	/* maxmtu */				/* Default JUMBO_LEN=9000 */
+	/* XXX Toshiba:  plat->maxmtu = ALIGN(9000, SMP_CACHE_BYTES); */
+	/* multicast_filter_bins */		/* Default HASH_TABLE_SIZE=64 */
+	plat->unicast_filter_entries = 32;	/* Default 1 */
 
 	/* XXX
 	 * TC956x has 8 RX queues but we observe significantly reduced RX
 	 * bandwidth if we don't have at least 8k FIFO space per queue, so
 	 * by default we avoid using all the queues.
 	 */
-	plat->rx_queues_to_use = 4;
+	plat->rx_queues_to_use = 4;		/* Default 1 */
 
 	/* XXX
 	 * TX956x has 8 TX queues. However failures are observed (DHCP does not
 	 * get an IP address or ping does fails) if tx_queues_to_use >3
 	 */
-	plat->tx_queues_to_use = 3;
+	plat->tx_queues_to_use = 3;		/* Default 1 */
 
 	/*
 	 * Oversized FIFOs result in reduced performance in bandwidth tests.
@@ -832,6 +830,7 @@ static int plat_stmmacenet_data_init(struct tc956x_data *td)
 	plat->rx_sched_algorithm = MTL_RX_ALGORITHM_SP;
 	plat->tx_sched_algorithm = MTL_TX_ALGORITHM_WRR;
 
+	/* Default RX chan is set to queue index (0..rx_queues_to_use-1) */
 	for (i = 0; i < plat->rx_queues_to_use; i++)
 		plat->rx_queues_cfg[i].mode_to_use = MTL_QUEUE_DCB;
 
