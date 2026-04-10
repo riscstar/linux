@@ -750,7 +750,7 @@ static int plat_stmmacenet_data_init(struct tc956x_data *td)
 	phy_interface_t phy_interface;
 	struct device *dev = td->dev;
 	struct stmmac_axi *axi;
-	u32 filter_size_kb;
+	u32 fifo_size_kb;
 	u32 clk_csr;
 	u32 speed;
 	int ret;
@@ -805,15 +805,6 @@ static int plat_stmmacenet_data_init(struct tc956x_data *td)
 	 */
 	/* multicast_filter_bins */
 	plat->unicast_filter_entries = 32;
-	/*
-	 * Oversized FIFOs result in reduced performance in bandwidth tests.
-	 * Limit them to 8KiB per queue, or the total available.
-	 */
-	filter_size_kb = min(TC956X_TX_FIFO_KB, 8 * plat->tx_queues_to_use);
-	plat->tx_fifo_size = SZ_1K * filter_size_kb;
-	filter_size_kb = min(TC956X_RX_FIFO_KB, 8 * plat->rx_queues_to_use);
-	plat->rx_fifo_size = SZ_1K * filter_size_kb;
-	plat->host_dma_width = 36;
 
 	/* XXX
 	 * TC956x has 8 RX queues but we observe significantly reduced RX
@@ -827,6 +818,16 @@ static int plat_stmmacenet_data_init(struct tc956x_data *td)
 	 * get an IP address or ping does fails) if tx_queues_to_use >3
 	 */
 	plat->tx_queues_to_use = 3;
+
+	/*
+	 * Oversized FIFOs result in reduced performance in bandwidth tests.
+	 * Limit them to 8KiB per queue, or the total available.
+	 */
+	fifo_size_kb = min(TC956X_TX_FIFO_KB, 8 * plat->tx_queues_to_use);
+	plat->tx_fifo_size = SZ_1K * fifo_size_kb;
+	fifo_size_kb = min(TC956X_RX_FIFO_KB, 8 * plat->rx_queues_to_use);
+	plat->rx_fifo_size = SZ_1K * fifo_size_kb;
+	plat->host_dma_width = 36;
 
 	plat->rx_sched_algorithm = MTL_RX_ALGORITHM_SP;
 	plat->tx_sched_algorithm = MTL_TX_ALGORITHM_WRR;
