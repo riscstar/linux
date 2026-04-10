@@ -885,7 +885,7 @@ static int plat_stmmacenet_data_init(struct tc956x_data *td)
 	axi->axi_wr_osr_lmt = 31;
 	axi->axi_rd_osr_lmt = 31;
 	/* All sizes (2^2..2^8) are supported */
-	axi->axi_blen_regval = field_max(DMA_AXI_BLEN_MASK);
+	axi->axi_blen_regval = DMA_AXI_BLEN_MASK;
 	plat->axi = axi;
 	/* rss_en */
 	plat->mac_port_sel_speed = speed;
