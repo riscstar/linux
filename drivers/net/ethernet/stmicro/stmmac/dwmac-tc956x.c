@@ -461,6 +461,19 @@ static void tc956x_mac_init_state(struct tc956x_data *td)
 #define XGMAC_DMA_CH_RX_CONTROL2(_x)	(0x00003134 + (0x80 * (_x)))
 #define XGMAC_OWRQ			GENMASK(25, 24)
 
+/*
+ * Override method for dwxgmac210_dma_ops->init
+ *
+ * This differs from the dwxgmac210_dma_ops->init because it ensures DSPW is
+ * disabled (needed for an XGMAC 3.01a errata).
+ *
+ * XXX
+ * If this was the only override then there would be a strong case to
+ * introduce it via dwxgmac301a_dma_ops instead. However there are other
+ * overrides below which are very specific to TC956x meaning we'd probably
+ * be altering dwxgmac301a_dma_ops anyway... and this approach keeps everything
+ * in one place.
+ */
 static void tc956x_dma_init(void __iomem *ioaddr,
 			    struct stmmac_dma_cfg *dma_cfg)
 {
@@ -490,6 +503,17 @@ static void tc956x_dma_init(void __iomem *ioaddr,
 	writel(value, ioaddr + XGMAC_DMA_SYSBUS_MODE);
 }
 
+/*
+ * Override method for dwxgmac210_dma_ops->init_rx_chan
+ *
+ * This differs from the dwxgmac210_dma_ops->init_rx_chan for two reasons:
+ *
+ *   1. It conditionally deploys an errata workaround to reduce the number of
+ *      outstanding write requests.
+ *   2. It translates the DMA address (a PCIe address) to become an address on
+ *      the TC956x internal bus. Ihe window that provides DMA access to PCI
+ *      is linearly mapped at 0x10_0000_0000.
+ */
 static void tc956x_dma_init_rx_chan(struct stmmac_priv *priv,
 				    void __iomem *ioaddr,
 				    struct stmmac_dma_cfg *dma_cfg,
@@ -520,6 +544,12 @@ static void tc956x_dma_init_rx_chan(struct stmmac_priv *priv,
 	writel(lower_32_bits(phy), ioaddr + XGMAC_DMA_CH_RxDESC_LADDR(chan));
 }
 
+/*
+ * Override method for dwxgmac210_dma_ops->init_tx_chan
+ *
+ * This differs from the dwxgmac210_dma_ops->init_tx_chan by translating the DMA
+ * address for TC956x (see tc956x_dma_init_rx_chan for details).
+ */
 static void tc956x_dma_init_tx_chan(struct stmmac_priv *priv,
 				    void __iomem *ioaddr,
 				    struct stmmac_dma_cfg *dma_cfg,
@@ -538,6 +568,12 @@ static void tc956x_dma_init_tx_chan(struct stmmac_priv *priv,
 	writel(lower_32_bits(phy), ioaddr + XGMAC_DMA_CH_TxDESC_LADDR(chan));
 }
 
+/*
+ * Override method for dwxgmac210_desc_ops->set_addr
+ *
+ * This differs from the dwxgmac210_desc_ops->set_addr by translating the DMA
+ * address for TC956x (see tc956x_dma_init_rx_chan for details).
+ */
 static void tc956x_desc_set_addr(struct dma_desc *p, dma_addr_t addr)
 {
 	p->des0 = cpu_to_le32(lower_32_bits(addr));
@@ -546,6 +582,12 @@ static void tc956x_desc_set_addr(struct dma_desc *p, dma_addr_t addr)
 			      upper_32_bits(SLV00_SRC_ADDR));
 }
 
+/*
+ * Override method for dwxgmac210_desc_ops->set_sec_addr
+ *
+ * This differs from the dwxgmac210_desc_ops->set_sec_addr by translating the
+ * DMA address for TC956x (see tc956x_dma_init_rx_chan for details).
+ */
 static void tc956x_desc_set_sec_addr(struct dma_desc *p, dma_addr_t addr, bool is_valid)
 {
 	p->des2 = cpu_to_le32(lower_32_bits(addr));
@@ -554,6 +596,12 @@ static void tc956x_desc_set_sec_addr(struct dma_desc *p, dma_addr_t addr, bool i
 			      upper_32_bits(SLV00_SRC_ADDR));
 }
 
+/*
+ * Use mac_setup to apply the override methods above.
+ *
+ * The memory for the modified ops structures is preallocated as part of
+ * struct tc956x_data.
+ */
 static int tc956x_mac_setup(void *apriv, struct mac_device_info *mac)
 {
 	struct stmmac_priv *priv = apriv;
