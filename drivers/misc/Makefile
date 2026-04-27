@@ -72,3 +72,4 @@ obj-y				+= amd-sbi/
 obj-$(CONFIG_MISC_RP1)		+= rp1/
 obj-$(CONFIG_INTEL_SSEI)	+= issei/
 obj-$(CONFIG_TC9564_PCI)	+= tc9564-pci.o
+obj-$(CONFIG_TC9564_TRANSLATE)	+= tc9564-translate.o
