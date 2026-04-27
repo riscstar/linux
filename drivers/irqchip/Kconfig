@@ -852,4 +852,14 @@ config IRQCHIP_XILINX_SMMU_CSR
 	  ZynqMP-class platforms where a vendor CSR block mediates SMMU
 	  interrupts.
 
+config TC9564_MSIGEN
+	tristate "Toshiba TC9564 MSI distributor"
+	depends on TC9564_PCI
+	depends on GENERIC_IRQ_CHIP
+	default TC9564_PCI
+	help
+	  This enables support for the "MSIGEN" MSI distributor embedded
+	  in the Toshiba TC9564.  This device receives wired interrupts
+	  within the TC9564 and raises them to the host using MSI.
+
 endmenu
