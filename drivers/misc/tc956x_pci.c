@@ -359,6 +359,11 @@ static int chip_translation_init(struct tc956x_chip *chip, struct pci_dev *pdev)
 	base = pcim_iomap_region(pdev, PCI_BAR_BRIDGE_CONFIG, DRIVER_NAME);
 	if (IS_ERR(base))
 		return PTR_ERR(base);
+#if IS_ENABLED(CONFIG_TRACE_MMIO_ACCESS)
+	log_mmio_register_range(base,
+				pci_resource_len(pdev, PCI_BAR_BRIDGE_CONFIG),
+				"bridge_cfg");
+#endif
 
 	chip->bridge_config = base + ATR_AXI4_SLV0_OFFSET;
 
@@ -537,6 +542,10 @@ static int chip_init(struct tc956x_chip *chip, struct pci_dev *pdev)
 	chip->sfr[id] = pcim_iomap_region(pdev, PCI_BAR_SFR, DRIVER_NAME);
 	if (IS_ERR(chip->sfr[id]))
 		return PTR_ERR(chip->sfr[id]);
+#if IS_ENABLED(CONFIG_TRACE_MMIO_ACCESS)
+	log_mmio_register_range(chip->sfr[id],
+				pci_resource_len(pdev, PCI_BAR_SFR), "sfr");
+#endif
 
 	/* Function 0 handles common initialization */
 	if (id)
@@ -628,7 +637,10 @@ static const struct pci_device_id tc956x_function_id_table[] = {
 	{ PCI_DEVICE(PCI_VENDOR_ID_TOSHIBA, PCI_DEVICE_ID_TOSHIBA_TC956X), },
 	{ },
 };
+#if !IS_ENABLED(CONFIG_TC956X_NET)
+/* Only autoload if neither of these other drivers is enabled */
 MODULE_DEVICE_TABLE(pci, tc956x_function_id_table);
+#endif
 
 static int tc956x_chip_suspend_noirq(struct device *dev)
 {
