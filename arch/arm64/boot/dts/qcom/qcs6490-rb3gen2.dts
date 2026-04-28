@@ -318,6 +318,16 @@
 		regulator-always-on;
 	};
 
+	vreg_aqr_1p8: regulator-vreg-aqr-1p8 {
+		compatible = "regulator-fixed";
+		regulator-name = "vreg_aqr_1p8";
+		gpio = <&pm7250b_gpios 4 GPIO_ACTIVE_HIGH>;
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		enable-active-high;
+		regulator-always-on;
+	};
+
 	wcn6750-pmu {
 		compatible = "qcom,wcn6750-pmu";
 		pinctrl-0 = <&bt_en>;
@@ -957,6 +967,31 @@
 
 				gpio-controller;
 				#gpio-cells = <2>;
+
+#if 0
+				phy-mode = "10gbase-r";
+				phy-handle = <&tc956x_emac0_phy>;
+
+				mdio {
+					compatible = "snps,dwmac-mdio";
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					/* TODO: Address has not been confirmed */
+					tc956x_emac0_phy: ethernet-phy@1c {
+						compatible = "ethernet-phy-id311c.1c12";
+						reg = <0x1c>;
+
+						reset-gpios = <&tc956x_emac0 0 GPIO_ACTIVE_LOW>;
+						reset-assert-us = <250>;
+						reset-deassert-us = <250>;
+
+						pinctrl-names = "default";
+						pinctrl-0 = <&aqr_irq_pin>;
+						interrupts-extended = <&tlmm 141 IRQ_TYPE_EDGE_FALLING>;
+					};
+				};
+#endif
 			};
 
 			pci@0,1 {
@@ -1556,6 +1591,13 @@
 
 	usb_hub_reset_state: usb-hub-reset-state {
 		pins = "gpio162";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-disable;
+	};
+
+	aqr_irq_pin: aqr-irq-state {
+		pins = "gpio141";
 		function = "gpio";
 		drive-strength = <2>;
 		bias-disable;
