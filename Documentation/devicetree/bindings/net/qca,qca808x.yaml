@@ -25,6 +25,24 @@ properties:
     enum:
       - ethernet-phy-id004d.d101
 
+  avdd-supply:
+    description: Analog voltage regulator supply.
+
+  avdd18-supply:
+    description: 1.8v analog voltage regulator supply.
+
+  vdd-supply:
+    description: Regulator supply.
+
+  vdd18-supply:
+    description: 1.8V voltage regulator supply.
+
+  vdd125-supply:
+    description: 1.25V voltage regulator supply.
+
+  vddldo-supply:
+    description: LDO voltage regulator supply.
+
 unevaluatedProperties: false
 
 examples:
@@ -38,6 +56,8 @@ examples:
         ethernet-phy@0 {
             compatible = "ethernet-phy-id004d.d101";
             reg = <0>;
+
+            vdd-supply = <&phy_vreg_1v8>;
 
             leds {
                 #address-cells = <1>;
