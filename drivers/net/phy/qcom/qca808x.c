@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+
 
 #include <linux/phy.h>
+#include <linux/regulator/consumer.h>
 #include <linux/module.h>
 
 #include "qcom.h"
@@ -178,14 +179,49 @@ static void qca808x_fill_possible_interfaces(struct phy_device *phydev)
 		__set_bit(PHY_INTERFACE_MODE_2500BASEX, possible);
 }
 
+#ifdef CONFIG_OF
+static int qca808x_power_on(struct phy_device *phydev)
+{
+	static const char * const regulator_names[] = {
+		"avdd", "avdd18", "vdd", "vdd18", "vdd125", "vddldo",
+	};
+	struct device *dev = &phydev->mdio.dev;
+	bool got_one = false;
+	int i, ret;
+
+	for (i = 0; i < ARRAY_SIZE(regulator_names); i++) {
+		ret = devm_regulator_get_enable_optional(dev, regulator_names[i]);
+		if (ret == 0)
+			got_one = true;
+		else if (ret != -ENODEV)
+			return ret;
+	}
+
+	if (got_one)
+		fsleep(phydev->mdio.reset_assert_delay);
+
+	return 0;
+}
+#else
+static int qca808x_power_on(struct phy_device *phydev)
+{
+	return 0;
+}
+#endif
+
 static int qca808x_probe(struct phy_device *phydev)
 {
 	struct device *dev = &phydev->mdio.dev;
 	struct qca808x_priv *priv;
+	int ret;
 
 	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv)
 		return -ENOMEM;
+
+	ret = qca808x_power_on(phydev);
+	if (ret)
+		return ret;
 
 	/* Init LED polarity mode to -1 */
 	priv->led_polarity_mode = -1;
