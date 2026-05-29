@@ -183,7 +183,7 @@ static void qca808x_fill_possible_interfaces(struct phy_device *phydev)
 static int qca808x_power_on(struct phy_device *phydev)
 {
 	static const char * const regulator_names[] = {
-		"avdd", "avdd18", "vdd", "vdd18", "vdd125", "vddldo",
+		"avdd18", "vdd", "vdd18", "vdd125"
 	};
 	struct device *dev = &phydev->mdio.dev;
 	bool got_one = false;
