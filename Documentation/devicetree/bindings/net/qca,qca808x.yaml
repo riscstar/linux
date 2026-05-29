@@ -25,23 +25,17 @@ properties:
     enum:
       - ethernet-phy-id004d.d101
 
-  avdd-supply:
-    description: Analog voltage regulator supply.
-
   avdd18-supply:
-    description: 1.8v analog voltage regulator supply.
+    description: 1.8v analog power supply.
 
   vdd-supply:
-    description: Regulator supply.
+    description: 1.05v power supply.
 
   vdd18-supply:
-    description: 1.8V voltage regulator supply.
+    description: 1.8v power supply.
 
   vdd125-supply:
-    description: 1.25V voltage regulator supply.
-
-  vddldo-supply:
-    description: LDO voltage regulator supply.
+    description: (1.25v to 1.98v) LDO regulator power supply.
 
 unevaluatedProperties: false
 
