@@ -1,0 +1,73 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/interrupt-controller/toshiba,tc9564-msigen.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Toshiba TC9564 MSIGEN Interrupt Controller
+
+maintainers:
+  - Lorenzo Bianconi <lorenzo.bianconi@oss.qualcomm.com>
+  - Daniel Thompson < <danielt@kernel.org>
+  - Alex Elder <elder@kernel.org>
+
+description: |
+  The Toshiba TC9564 is an SoC accessed by a host system through the
+  upstream PCIe port on the PCIe switch it implements.  The chip includes
+  an embedded PCIe endpoint with two PCI functions that provides access
+  to various peripherals within the SoC via its BARs.  The peripherals
+  include an interrupt controller associated with each PCI function.
+
+  An TC9564 MSIGEN (MSI Generator) implements an interrupt controller
+  with 25 hardware interrupt lines.  It aggregates internal interrupts
+  and generates a single PCIe MSI to the host.  Each PCIe function
+  implements an MSIGEN instance.
+
+  Each MSIGEN uses a gated clock and reset line.  These are provided
+  by the clock and reset controllers internal to the TC9564.
+
+allOf:
+  - $ref: /schemas/interrupt-controller.yaml#
+
+properties:
+  compatible:
+    const: toshiba,tc9564-msigen
+
+  reg:
+    maxItems: 1
+
+  interrupt-controller: true
+
+  '#interrupt-cells':
+    const: 1
+
+  clocks:
+    maxItems: 1
+    description: Gated clock from the TC9564 clock controller
+
+  resets:
+    maxItems: 1
+    description: Reset signal from the TC9564 reset controller
+
+required:
+  - compatible
+  - reg
+  - interrupt-controller
+  - '#interrupt-cells'
+  - clocks
+  - resets
+
+additionalProperties: false
+
+examples:
+  - |
+    #include <dt-bindings/clock/toshiba,tc9564.h>
+
+    interrupt-controller@f000 {
+        compatible = "toshiba,tc9564-msigen";
+        reg = <0xf000 0x100>;
+        interrupt-controller;
+        #interrupt-cells = <1>;
+        clocks = <&tc9564_clock0 CLOCK_MSIGEN>;
+        resets = <&tc9564_clock0 RESET_MSIGEN>;
+    };
