@@ -28396,6 +28396,12 @@ M:	Daniel Thompson <danielt@kernel.org>
 S:	Maintained
 F:	drivers/clk/clk-tc9564.c
 
+TOSHIBA TC9564 MSIGEN DRIVER
+M:	Alex Elder <elder@kernel.org>
+M:	Daniel Thompson <danielt@kernel.org>
+S:	Maintained
+F:	Documentation/devicetree/bindings/interrupt-controller/toshiba,tc9564-msigen.yaml
+
 TOSHIBA TC9564 PCI DRIVER
 M:	Alex Elder <elder@kernel.org>
 M:	Daniel Thompson <danielt@kernel.org>
