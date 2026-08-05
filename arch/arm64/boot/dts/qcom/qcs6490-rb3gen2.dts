@@ -14,6 +14,7 @@
 #include <dt-bindings/leds/common.h>
 #include <dt-bindings/pinctrl/qcom,pmic-gpio.h>
 #include <dt-bindings/regulator/qcom,rpmh-regulator.h>
+#include <dt-bindings/soc/toshiba,tc9564.h>
 #include "kodiak.dtsi"
 #include "pm7250b.dtsi"
 #include "pm7325.dtsi"
@@ -975,13 +976,24 @@
 					/* Map 0x0-0x1fffff to BAR 4 */
 					ranges = <0x0  0x4 0x0 0x0  0x200000>;
 
-					syscon@0 {
+					tc9564_config_syscon0: syscon@0 {
 						compatible = "toshiba,tc9564-config-syscon",
 							     "syscon";
 						reg = <0x0 0x2000>;
 						clocks = <&tc9564_xo_board>;
 						#clock-cells = <1>;
 						#reset-cells = <1>;
+					};
+
+					interrupt-controller@f000 {
+						compatible = "toshiba,tc9564-msigen";
+						reg = <0xf000 0x100>;
+
+						interrupt-controller;
+						#interrupt-cells = <1>;
+
+						clocks = <&tc9564_config_syscon0 CLOCK_MSIGEN>;
+						resets = <&tc9564_config_syscon0 RESET_MSIGEN>;
 					};
 				};
 			};
@@ -999,6 +1011,17 @@
 					#size-cells = <1>;
 					/* Map 0x0-0x1fffff to BAR 4 */
 					ranges = <0x0  0x4 0x0 0x0  0x200000>;
+
+					interrupt-controller@f100 {
+						compatible = "toshiba,tc9564-msigen";
+						reg = <0xf100 0x100>;
+
+						interrupt-controller;
+						#interrupt-cells = <1>;
+
+						clocks = <&tc9564_config_syscon0 CLOCK_MSIGEN>;
+						resets = <&tc9564_config_syscon0 RESET_MSIGEN>;
+					};
 				};
 			};
 		};
