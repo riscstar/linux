@@ -9,6 +9,7 @@
 #define PM7250B_SID 8
 #define PM7250B_SID1 9
 
+#include <dt-bindings/clock/toshiba,tc9564.h>
 #include <dt-bindings/iio/qcom,spmi-adc7-pmk8350.h>
 #include <dt-bindings/iio/qcom,spmi-adc7-pm7325.h>
 #include <dt-bindings/leds/common.h>
@@ -891,7 +892,7 @@
 		pinctrl-0 = <&tc9563_resx_n>;
 		pinctrl-names = "default";
 
-		clock-25000000 {
+		tc9564_xo_board: clock-25000000 {
 			compatible = "fixed-clock";
 			#clock-cells = <0>;
 			clock-frequency = <25000000>;
@@ -967,7 +968,7 @@
 				#size-cells = <2>;
 				ranges;	/* This will be updated dynamically */
 
-				pci-ep-bus@4 {
+				pcie_s1b5d0f0_bar4_bus: pci-ep-bus@4 {
 					compatible = "simple-bus";
 					#address-cells = <1>;
 					#size-cells = <1>;
@@ -991,6 +992,19 @@
 					ranges = <0x0  0x4 0x0 0x0  0x200000>;
 				};
 			};
+		};
+	};
+};
+
+&pcie_s1b5d0f0_bar4_bus {
+	syscon@0 {
+		compatible = "syscon", "simple-mfd";
+		reg = <0x0 0x2000>;
+
+		tc9564_clock0: clock-controller {
+			compatible = "toshiba,tc9564-clock";
+			clocks = <&tc9564_xo_board>;
+			#clock-cells = <1>;
 		};
 	};
 };
