@@ -15,6 +15,7 @@
 #include <dt-bindings/leds/common.h>
 #include <dt-bindings/pinctrl/qcom,pmic-gpio.h>
 #include <dt-bindings/regulator/qcom,rpmh-regulator.h>
+#include <dt-bindings/reset/toshiba,tc9564.h>
 #include "kodiak.dtsi"
 #include "pm7250b.dtsi"
 #include "pm7325.dtsi"
@@ -1005,6 +1006,11 @@
 			compatible = "toshiba,tc9564-clock";
 			clocks = <&tc9564_xo_board>;
 			#clock-cells = <1>;
+		};
+
+		tc9564_reset0: reset {
+			compatible = "toshiba,tc9564-reset";
+			#reset-cells = <1>;
 		};
 	};
 };
