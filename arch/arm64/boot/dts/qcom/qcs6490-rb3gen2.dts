@@ -972,6 +972,29 @@
 					 <0x2 0x0 0x0  0x83050000 0x0 0x4000  0x0 0x80000>,
 					 <0x4 0x0 0x0  0x83050000 0x0 0x84000  0x0 0x200000>;
 
+				pci-ep-bus@0 {
+					compatible = "simple-bus";
+					#address-cells = <1>;
+					#size-cells = <1>;
+					/* Map 0x0-0x3fff to BAR 0 */
+					ranges = <0x0  0x0 0x0 0x0  0x4000>;
+
+					tc9564_bridge_syscon0: syscon@0 {
+						compatible = "toshiba,tc9564-bridge",
+							     "syscon",
+							     "simple-mfd";
+						reg = <0x0 0x1000>;
+						#address-cells = <1>;
+						#size-cells = <1>;
+						ranges;
+
+						tc9564_translate0: translate@800 {
+							compatible = "toshiba,tc9564-translate";
+							reg = <0x0800 0x80>;
+						};
+					};
+				};
+
 				pci-ep-bus@4 {
 					compatible = "simple-bus";
 					#address-cells = <1>;
