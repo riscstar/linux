@@ -9,6 +9,7 @@
  */
 
 #include <linux/bitops.h>
+#include <linux/io.h>
 #include <linux/iopoll.h>
 #include <linux/irqdomain.h>
 #include <linux/irqchip/chained_irq.h>
@@ -92,27 +93,23 @@ static const char * const tc9564_reset_names[] = {
 /**
  * struct tc9564_data - Toshiba-specific platform data
  * @dev:		Device pointer
- * @ioaddr:		Pointer to mapped eMAC memory
  * @plat:		Pointer to our stmmac platform data
  * @resets:		Reset controller bulk array
  * @clocks:		Clock controller bulk array
  * @clock_count:	Number of valid elements in the clock array
- * @config_regmap:	Regmap used to access eMAC configuration registers
- * @emac_ctl_offset:	Offset of the eMAC control register within the regmap
+ * @ioaddr:		Mapped control register to indiate MAC init done
  * @res:		Structure passed to stmmac_dvr_probe()
  * @desc:		DMA descriptor data used by mac_device_info
  * @dma:		DMA operations data used by mac_device_info
  */
 struct tc9564_data {
 	struct device *dev;
-	void __iomem *ioaddr;
 	struct plat_stmmacenet_data *plat;
 	struct reset_control_bulk_data resets[ARRAY_SIZE(tc9564_reset_names)];
 	struct clk_bulk_data *clocks;
 	u32 clock_count;
 
-	struct regmap *config_regmap;
-	u32 emac_ctl_offset;
+	void __iomem *ioaddr;
 
 	/* This field is data passed to stmmac_dvr_probe() */
 	struct stmmac_resources res;
@@ -154,7 +151,7 @@ static const struct regmap_config xpcs_regmap_config = {
 static void tc9564_pma_init(struct tc9564_data *td)
 {
 	struct reset_control *rstc = td->resets[RESET_ID_PMA].rstc;
-	struct regmap *regmap = td->config_regmap;
+	void __iomem *ioaddr = td->ioaddr;
 	void __iomem *pmatop;
 	u32 val;
 	int ret;
@@ -191,8 +188,7 @@ static void tc9564_pma_init(struct tc9564_data *td)
 
 	WARN_ON(reset_control_deassert(rstc));
 
-	ret = regmap_read_poll_timeout(regmap, td->emac_ctl_offset,
-				       val, val & EMAC_INIT_DONE, 50, 1000000);
+	ret = readl_poll_timeout(ioaddr, val, val & EMAC_INIT_DONE, 50, 1000000);
 	WARN(ret, "timeout waiting for MAC init done\n");
 }
 
@@ -216,8 +212,7 @@ static int tc9564_mac_speed_select(struct tc9564_data *td,
 static void tc9564_mac_configure(struct tc9564_data *td,
 				 phy_interface_t interface, int speed)
 {
-	struct regmap *regmap = td->config_regmap;
-	u32 offset = td->emac_ctl_offset;
+	void __iomem *ioaddr = td->ioaddr;
 	int sp_sel;
 	u32 val;
 
@@ -225,13 +220,12 @@ static void tc9564_mac_configure(struct tc9564_data *td,
 	if (sp_sel < 0)
 		return;
 
-	/* No error checking needed for MMIO regmap */
-	regmap_read(regmap, offset, &val);
+	val = readl(ioaddr);
 	val |= EMAC_LPIHWCLKEN;
 	val &= ~EMAC_INV_SGM_SIG_DET;
 	val = u32_replace_bits(val, PCS_CLK_PHY, EMAC_PHY_INF_SEL_MASK);
 	val = u32_replace_bits(val, sp_sel, EMAC_SP_SEL_MASK);
-	regmap_write(regmap, offset, val);
+	writel(val, ioaddr);
 }
 
 static void tc9564_mac_enable(struct tc9564_data *td)
@@ -505,24 +499,17 @@ static int tc9564_dwmac_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct tc9564_data *td;
-	struct device_node *np;
-	struct regmap *regmap;
 	int ret;
 
 	td = devm_kzalloc(dev, sizeof(*td), GFP_KERNEL);
 	if (!td)
 		return -ENOMEM;
-
 	td->dev = dev;
 
-	np = dev_of_node(dev);
-	regmap = syscon_regmap_lookup_by_phandle_args(np,
-						      "toshiba,config-syscon",
-						      1, &td->emac_ctl_offset);
-	if (IS_ERR(regmap))
-		return dev_err_probe(dev, PTR_ERR(regmap),
-				     "failed to get config regmap\n");
-	td->config_regmap = regmap;
+	td->ioaddr = devm_platform_ioremap_resource(pdev, 1);
+	if (IS_ERR(td->ioaddr))
+		return dev_err_probe(dev, PTR_ERR(td->ioaddr),
+				     "failed to map control register\n");
 
 	ret = tc9564_reset_init(td);
 	if (ret)

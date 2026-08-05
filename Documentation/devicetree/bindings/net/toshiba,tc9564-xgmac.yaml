@@ -24,6 +24,7 @@ description:
   respective PCI function.
 
 allOf:
+  - $ref: ethernet-controller.yaml#
   - $ref: snps,dwmac.yaml#
 
 select:
@@ -39,15 +40,9 @@ properties:
     const: toshiba,tc9564-xgmac
 
   reg:
-    maxItems: 1
-
-  toshiba,config-syscon:
-    $ref: /schemas/types.yaml#/definitions/phandle-array
-    description:
-      The phandle and offset for a syscon that provides access to a
-      register containing a bit that indicates that PMA initialization
-      is done.
-    maxItems: 1
+    items:
+      - description: DesignWare XGMAC IP core registers
+      - description: MAC control register
 
   clocks:
     minItems: 5
@@ -57,7 +52,6 @@ properties:
       - description: MAC TX clock
       - description: MAC RX clock
       - description: MAC all clock gate
-      - description: MAC RMII clock (function 1 only)
 
   clock-names:
     minItems: 5
@@ -163,7 +157,6 @@ properties:
     $ref: /schemas/net/snps,dwmac.yaml#/properties/mdio
 
 required:
-  - toshiba,config-syscon
   - clocks
   - clock-names
   - resets
@@ -176,19 +169,18 @@ unevaluatedProperties: false
 examples:
   - |
     #include <dt-bindings/interrupt-controller/irq.h>
-    #include <dt-bindings/soc/toshiba,tc9564.h>
+    #include <dt-bindings/clock/toshiba,tc9564.h>
+    #include <dt-bindings/reset/toshiba,tc9564.h>
 
     ethernet@48000 {
         compatible = "toshiba,tc9564-xgmac";
-        reg = <0x48000 0x8000>;
-        toshiba,config-syscon = <&tc9564_config_syscon0 0x1074>;
+        reg = <0x48000 0x8000>, <0x1074 0x4>;
 
         clocks = <&tc9564_ref_125mhz_clk>,
                  <&tc9564_ref_250mhz_clk>,
                  <&tc9564_clock0 CLOCK_MAC1_TX>,
                  <&tc9564_clock0 CLOCK_MAC1_RX>,
-                 <&tc9564_clock0 CLOCK_MAC1_ALL>,
-                 <&tc9564_clock0 CLOCK_MAC1_RMII>;
+                 <&tc9564_clock0 CLOCK_MAC1_ALL>;
         clock-names = "stmmaceth",
                       "ptp_ref",
                       "mac-tx-clock",
