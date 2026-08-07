@@ -742,20 +742,93 @@ void of_pci_remove_node(struct pci_dev *pdev)
 	of_node_put(np);
 }
 
+/* Returns true if the ranges property was added or updated successfully */
+static bool of_pci_update_endpoint_node_ranges(struct pci_dev *pdev)
+{
+	struct device_node *np = pci_device_to_OF_node(pdev);
+	struct property *prop;
+	u32 *value;
+	u32 size;
+
+	prop = kzalloc_obj(*prop);
+	if (!prop)
+		return false;
+
+	value = of_pci_build_prop_ranges(pdev, &size);
+	if (!value) {
+		kfree(prop);
+		return false;
+	}
+
+	prop->name = "ranges";
+	prop->length = size * sizeof(u32);
+	prop->value = value;
+
+	/* The property value needs to be in big-endian byte order */
+	while (size--)
+		cpu_to_be32s(value++);
+
+	/* of_update_property() consumes the allocated property */
+	of_update_property(np, prop);
+
+	return true;
+}
+
+/*
+ * Create a devicetree node for a PCI device.  If the device is a bridge
+ * and it already has a devicetree node, there's nothing further to do.
+ * If it is a bridge without an existing devicetree node, one is created
+ * dynamically.
+ *
+ * This function can also be called (via PCI quirk) for a PCI endpoint
+ * (function) that implements a PCI endpoint bus.  As with a PCI bridge,
+ * if the endpoint has no existing devicetree node, one is created
+ * dynamically.  The node will include a ranges property that maps
+ * BAR-relative addresses in the child to the PCI address ranges
+ * assigned to the PCI endpoint BARs.
+ *
+ * If an endpoint already has a devicetree node, and it includes a
+ * "pci-ep-bus" sub-node, its ranges property must still be dynamically
+ * populated so that it can take into account the BAR ranges assigned
+ * during PCI enumeration.
+ */
 void of_pci_make_dev_node(struct pci_dev *pdev)
 {
-	struct device_node *ppnode, *np = NULL;
-	const char *pci_type;
+	struct device_node *np = pci_device_to_OF_node(pdev);
+	struct device *dev = &pdev->dev;
+	struct device_node *ppnode;
 	struct of_changeset *cset;
+	const char *pci_type;
 	const char *name;
 	int ret;
 
-	/*
-	 * If there is already a device tree node linked to this device,
-	 * return immediately.
-	 */
-	if (pci_device_to_OF_node(pdev))
+	/* See if the PCI device already has a devicetree node */
+	if (np) {
+		struct device_node *child;
+
+		/* Nothing further needed for a bridge */
+		if (pci_is_bridge(pdev))
+			return;
+
+		/*
+		 * We only update the ranges property if the endpoint's
+		 * devicetree node includes a "pci-ep-bus" sub-node.
+		 */
+		child = of_get_child_by_name(np, "pci-ep-bus");
+		if (!child)
+			return;
+		of_node_put(child);
+
+		/*
+		 * Update the ranges property, defining an entry for each
+		 * BAR, mapping BAR offsets to the PCI bus address based
+		 * on the BAR's assigned range.
+		 */
+		if (!of_pci_update_endpoint_node_ranges(pdev))
+			dev_err(dev, "failed to update ranges property\n");
+
 		return;
+	}
 
 	/* Check if there is device tree node for parent device */
 	if (!pdev->bus->self)
@@ -794,7 +867,7 @@ void of_pci_make_dev_node(struct pci_dev *pdev)
 
 	np->data = cset;
 
-	ret = device_add_of_node(&pdev->dev, np);
+	ret = device_add_of_node(dev, np);
 	if (ret)
 		goto out_revert_cset;
 
