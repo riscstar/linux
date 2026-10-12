@@ -43,13 +43,11 @@ unevaluatedProperties: false
 
 examples:
   - |
-    #include <dt-bindings/reset/toshiba,tc9564.h>
-
     syscon@0 {
         compatible = "syscon", "simple-mfd";
         reg = <0x0 0x2000>;
 
-        reset {
+        reset-controller {
             compatible = "toshiba,tc9564-reset";
             #reset-cells = <1>;
         };
