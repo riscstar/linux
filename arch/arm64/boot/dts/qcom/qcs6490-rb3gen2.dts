@@ -1069,7 +1069,7 @@
 			#clock-cells = <1>;
 		};
 
-		tc9564_reset0: reset {
+		tc9564_reset0: reset-controller {
 			compatible = "toshiba,tc9564-reset";
 			#reset-cells = <1>;
 		};
