@@ -103,11 +103,25 @@ static const struct reset_control_ops tc9564_reset_control_ops = {
 	.deassert = tc9564_reset_deassert,
 };
 
+/* Assert all resets by updating both reset registers */
 static void tc9564_reset_assert_all(struct tc9564_resets *resets)
 {
-	for (u32 id = 0; id < TC9564_RESET_COUNT; id++)
-		if (tc9564_reset[id].mask)
-			tc9564_reset_manage(&resets->rcdev, id, true);
+	u32 mask0 = 0;
+	u32 mask1 = 0;
+
+	for (u32 id = 0; id < TC9564_RESET_COUNT; id++) {
+		const struct tc9564_reset *reset = &tc9564_reset[id];
+
+		if (!reset->mask)
+			continue;
+
+		if (reset->offset == RST_CTRL0_OFFSET)
+			mask0 |= reset->mask;
+		else
+			mask1 |= reset->mask;
+	}
+	regmap_update_bits(resets->regmap, RST_CTRL0_OFFSET, mask0, mask0);
+	regmap_update_bits(resets->regmap, RST_CTRL1_OFFSET, mask1, mask1);
 }
 
 static struct tc9564_resets *tc9564_reset_init(struct device *dev)
@@ -135,6 +149,9 @@ static struct tc9564_resets *tc9564_reset_init(struct device *dev)
 	rcdev->of_node = dev_of_node(dev);
 	rcdev->nr_resets = TC9564_RESET_COUNT;
 
+	/* Before registering, force all resets to be initially asserted */
+	tc9564_reset_assert_all(resets);
+
 	ret = devm_reset_controller_register(dev, rcdev);
 	if (ret)
 		return ERR_PTR(ret);
@@ -155,20 +172,9 @@ static int tc9564_reset_probe(struct platform_device *pdev)
 		return dev_err_probe(dev, PTR_ERR(resets),
 				     "failed to initialize resets\n");
 
-	/* Force all resets to be initially asserted */
-	tc9564_reset_assert_all(resets);
-
 	platform_set_drvdata(pdev, resets);
 
 	return 0;
-}
-
-static void tc9564_reset_remove(struct platform_device *pdev)
-{
-	struct tc9564_resets *resets = platform_get_drvdata(pdev);
-
-	/* Leave all resets asserted when done */
-	tc9564_reset_assert_all(resets);
 }
 
 static const struct of_device_id tc9564_reset_ids[] = {
@@ -179,7 +185,6 @@ MODULE_DEVICE_TABLE(of, tc9564_reset_ids);
 
 static struct platform_driver tc9564_reset_driver = {
 	.probe = tc9564_reset_probe,
-	.remove = tc9564_reset_remove,
 	.driver = {
 		.name = KBUILD_MODNAME,
 		.of_match_table = tc9564_reset_ids,
