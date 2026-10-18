@@ -121,6 +121,7 @@ properties:
         - starfive,jh7110-dwmac
         - tesla,fsd-ethqos
         - thead,th1520-gmac
+        - toshiba,tc9564-xgmac
         - ultrarisc,dp1000-gmac
 
   reg:
@@ -175,17 +176,24 @@ properties:
 
   resets:
     minItems: 1
-    items:
-      - description: GMAC stmmaceth reset
-      - description: AHB or OCP reset
+    maxItems: 3
 
   reset-names:
-    oneOf:
-      - items:
-          - enum: [stmmaceth, ahb]
-      - items:
-          - const: stmmaceth
-          - enum: [ahb, stmmaceth-ocp]
+    maxItems: 3
+    items:
+      - oneOf:
+          - description: GMAC stmmaceth reset
+            const: stmmaceth
+          - description: AHB reset
+            const: ahb
+          - description: OCP reset
+            const: stmmaceth-ocp
+          - description: MAC reset
+            const: mac-reset
+          - description: PMA (Physical Medium Attachment) reset
+            const: pma-reset
+          - description: XPCS reset
+            const: xpcs-reset
 
   power-domains:
     minItems: 1
