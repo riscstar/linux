@@ -245,6 +245,8 @@ static int tc9564_clk_probe(struct platform_device *pdev)
 				     CLOCK_COUNT);
 	if (!clk_data)
 		return -ENOMEM;
+	clk_data->num = CLOCK_COUNT;
+
 	tc9564_clock->clk_data = clk_data;
 
 	dev_set_drvdata(dev, tc9564_clock);
