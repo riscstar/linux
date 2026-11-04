@@ -7,6 +7,6 @@ config SOC_TOSHIBA_TC9564_SYSCON
 	default TC9564_PCI
 	help
 	  This enables support for the config system controller for the
-	  TC9564 SoC.  It implements an MMIO regmap to manage access to
-	  two pages of I/O memory, and serves as a clock and reset
-	  controller for IP blocks within the chip.
+	  TC9564 SoC.  It uses an MMIO regmap to manage access to two
+	  pages of I/O memory, and instantiates clock and reset child
+	  devices as controllers for IP blocks within the chip.
