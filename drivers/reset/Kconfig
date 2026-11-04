@@ -365,10 +365,7 @@ config RESET_TC9564
 	default SOC_TOSHIBA_TC9564_SYSCON
 	help
 	  This enables support for the reset controller embedded in the
-	  Toshiba TC9564 SoC.  The state of reset lines is controlled
-	  via MMIO to a region managed by a system controller; this
-	  ensures access to the region is coordinated between this and
-	  the clock and XGMAC (stmmac) drivers.
+	  Toshiba TC9564 SoC.
 
 config RESET_TENSTORRENT_ATLANTIS
 	tristate "Tenstorrent atlantis reset driver"
