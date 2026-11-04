@@ -17,7 +17,7 @@ static const struct mfd_cell tc9564_config_syscon_cells[] = {
 
 static int tc9564_config_syscon_probe(struct platform_device *pdev)
 {
-	return devm_mfd_add_devices(&pdev->dev, PLATFORM_DEVID_AUTO,
+	return devm_mfd_add_devices(&pdev->dev, PLATFORM_DEVID_NONE,
 				    tc9564_config_syscon_cells,
 				    ARRAY_SIZE(tc9564_config_syscon_cells),
 				    NULL, 0, NULL);
