@@ -702,46 +702,63 @@ static void xpcs_get_interfaces(struct dw_xpcs *xpcs, unsigned long *interfaces)
 		__set_bit(compat->interface, interfaces);
 }
 
+static int xpcs_check_state_after_reset(struct dw_xpcs *xpcs)
+{
+	int stat2, ctrl2;
+
+	stat2 = xpcs_read(xpcs, MDIO_MMD_PCS, MDIO_STAT2);
+	if (stat2 < 0)
+		return stat2;
+
+	/* See xpcs_switch_interface_mode() for details of this quirk */
+	if (stat2 & MDIO_PCS_STAT2_10GBR) {
+		ctrl2 = xpcs_read(xpcs, MDIO_MMD_PCS, MDIO_CTRL2);
+		if (ctrl2 < 0)
+			return ctrl2;
+
+		xpcs->pcs_type_sel_quirk = ctrl2 == MDIO_PCS_CTRL2_10GBR;
+	}
+
+	return 0;
+}
+
 static int xpcs_switch_interface_mode(struct dw_xpcs *xpcs,
 				      phy_interface_t interface)
 {
-	int mdio_stat2, ret;
+	int mdio_ctrl2, ret;
 
 	/* Wangxun provides a full alternative implementation to handle quirks */
 	if (xpcs->info.pma == WX_TXGBE_XPCS_PMA_10G_ID)
 		return txgbe_xpcs_switch_mode(xpcs, interface);
 
-	mdio_stat2 = xpcs_read(xpcs, MDIO_MMD_PCS, MDIO_STAT2);
-	if (mdio_stat2 < 0)
-		return mdio_stat2;
-
 	/*
-	 * If this XPCS supports 10Gbase-R then that will be the default
-	 * operating mode. There are several interface modes where this default
-	 * is unhelpful. Change the operating mode for interfaces were we know
-	 * the default is wrong, and restore the default otherwise.
+	 * XPCS (at least in some implementations) is a little odd in it's
+	 * handling of PCS CTRL2:PCS_TYPE_SEL. Instead of PCS CTRL1:SPEED
+	 * SELECTION controlling how PCS_TYPE_SEL is interpreted it is the other
+	 * way around: the speed selection is only honored when PCS TYPE SEL has
+	 * specific values.
+	 *
+	 * This is a particular issue on XPCS implementations that implement
+	 * 10GBASE-R because, on these devices, MDIO_PCS_CTRL2_10GBR is the
+	 * default value for PCS_TYPE_SEL. That means that out of reset, the
+	 * system will not honor speed selection. This forces us to recognize
+	 * an XPCS with this property and update PCS_TYPE_SEL accordingly.
 	 */
-	if (mdio_stat2 & MDIO_PCS_STAT2_10GBR) {
+	if (xpcs->pcs_type_sel_quirk) {
 		switch (interface) {
 		case PHY_INTERFACE_MODE_SGMII:
 		case PHY_INTERFACE_MODE_1000BASEX:
 		case PHY_INTERFACE_MODE_2500BASEX:
-			/*
-			 * Why are we writing MDIO_PCS_CTRL2_TYPE + 1? We want
-			 * the modal behaviour that comes when we pick a
-			 * reserved value. XPCS allocates extra bits to this
-			 * field and allocates values from 15 down so
-			 * MDIO_PCS_CTRL2_TYPE + 1 is the value likely to be
-			 * allocated last (and hopefully never).
-			 */
-			ret = xpcs_write(xpcs, MDIO_MMD_PCS, MDIO_CTRL2,
-					 MDIO_PCS_CTRL2_TYPE + 1);
+			/* This won't force 10GBX if speed sel. says not to */
+			mdio_ctrl2 = MDIO_PCS_CTRL2_10GBX;
 			break;
 		default:
-			ret = xpcs_write(xpcs, MDIO_MMD_PCS, MDIO_CTRL2,
-					 MDIO_PCS_CTRL2_10GBR);
+			/* Restore the reset value for unmatched cases */
+			mdio_ctrl2 = MDIO_PCS_CTRL2_10GBR;
 			break;
 		}
+
+		ret = xpcs_write(xpcs, MDIO_MMD_PCS, MDIO_CTRL2, mdio_ctrl2);
 		if (ret < 0)
 			return ret;
 	}
@@ -779,6 +796,10 @@ static void xpcs_pre_config(struct phylink_pcs *pcs, phy_interface_t interface)
 			dev_err(dev, "soft reset failed: %pe\n", ERR_PTR(ret));
 			return;
 		}
+
+		ret = xpcs_check_state_after_reset(xpcs);
+		if (ret)
+			dev_err(dev, "post-reset checks failed: %pe\n", ERR_PTR(ret));
 
 		xpcs->need_reset = false;
 	}

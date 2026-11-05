@@ -113,6 +113,7 @@ struct dw_xpcs {
 	struct phylink_pcs pcs;
 	phy_interface_t interface;
 	bool need_reset;
+	bool pcs_type_sel_quirk;
 	u8 eee_mult_fact;
 };
 
